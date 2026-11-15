@@ -136,14 +136,14 @@ function SwitchRow({ label, hint, on, disabled, onChange }: { label: string; hin
 
 // A choice of a few values, all in view: the same control as the phone's own settings.
 function Segmented({ options, value, onPick }: { options: { id: string; label: string }[]; value: string; onPick: (id: string) => void }) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   return (
     <Material radius={26} style={[styles.segRow, { backgroundColor: p.hover }]} accessibilityRole="radiogroup">
       {options.map(option => {
         const on = option.id === value
         return (
           <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => onPick(option.id)}
-            style={[styles.seg, on && [{ backgroundColor: p.card }, shadow(1)]]}>
+            style={[styles.seg, on && [{ backgroundColor: p.card }, shadow(1), rimSkin(dark, true)]]}>
             <Text style={[typeScale.small, { color: on ? p.ink : p.ink2, fontWeight: on ? '600' : '400' }]} numberOfLines={1}>{option.label}</Text>
           </Pressable>
         )
@@ -219,7 +219,7 @@ export function BotDetails({ route, navigation }: any) {
           {bot.role ? <Text style={[typeScale.caption, { color: p.ink3, marginTop: 2 }]}>{bot.role}</Text> : null}
         </View>
         <Material radius={26} style={[styles.tabs, { backgroundColor: p.hover }]}>
-          <View style={[styles.tab, { backgroundColor: p.card }]}><Text style={[typeScale.small, { color: p.ink, fontWeight: '500' }]}>{t('Details')}</Text></View>
+          <View style={[styles.tab, { backgroundColor: p.card }, rimSkin(dark, true)]}><Text style={[typeScale.small, { color: p.ink, fontWeight: '500' }]}>{t('Details')}</Text></View>
           <Pressable accessibilityRole="tab" onPress={() => navigation.navigate('BotBrowser', { bot })} style={styles.tab}><Text style={[typeScale.small, { color: p.ink2 }]}>{t('Browser')}</Text></Pressable>
         </Material>
         {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 10 }]}>{error}</Text> : null}
@@ -270,7 +270,7 @@ const PRESET_LABELS: Record<string, string> = { 'read-only': 'Read only', 'works
 // The presets DeepSeek Harness offers, as one segmented choice (permission-picker.js);
 // a pick shows at once and the saved value catches up.
 function PermissionPicker({ options, saved, onPick }: { options: { value: string; name: string }[]; saved?: string; onPick: (value: string) => void }) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   const [pending, setPending] = useState<string | null>(null)
   useEffect(() => { if (pending === saved) setPending(null) }, [saved, pending])
   const current = pending ?? saved
@@ -281,7 +281,7 @@ function PermissionPicker({ options, saved, onPick }: { options: { value: string
         const danger = option.value === 'danger-full-access'
         return (
           <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => { if (!on) { setPending(option.value); onPick(option.value) } }}
-            style={[styles.segment, on ? { backgroundColor: p.card } : null]}>
+            style={[styles.segment, on ? [{ backgroundColor: p.card }, rimSkin(dark, true)] : null]}>
             <Text style={[typeScale.small, { color: danger ? p.danger : on ? p.ink : p.ink2, fontWeight: on ? '500' : '400' }]} numberOfLines={1}>
               {PRESET_LABELS[option.value] ? t(PRESET_LABELS[option.value]) : option.name}
             </Text>
@@ -829,7 +829,7 @@ const whenText = (task: { kind: string; time?: string; everySeconds?: number; mi
 }
 
 export function Schedules({ route, navigation }: any) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   const { call } = useTeam()
   const { run, error } = useWrite(navigation)
   const botId = String(route.params?.botId ?? '')
@@ -916,7 +916,7 @@ export function Schedules({ route, navigation }: any) {
         </Section>
         <View style={{ paddingHorizontal: 18, marginTop: 14 }}>
           {error !== null ? <Text style={[typeScale.caption, { color: p.danger, marginTop: 6 }]}>{error}</Text> : null}
-          <Pressable accessibilityRole="button" disabled={!title.trim() || !prompt.trim() || adding} onPress={create} style={({ pressed }) => [styles.cta, { backgroundColor: p.accent, opacity: !title.trim() || !prompt.trim() ? 0.5 : pressed ? 0.85 : 1 }]}>
+          <Pressable accessibilityRole="button" disabled={!title.trim() || !prompt.trim() || adding} onPress={create} style={({ pressed }) => [styles.cta, { backgroundColor: p.accent, opacity: !title.trim() || !prompt.trim() ? 0.5 : pressed ? 0.85 : 1 }, rimSkin(dark)]}>
             <Text style={[typeScale.settingsRow, { color: p.accentInk, fontWeight: '600' }]}>{t('Create task')}</Text>
           </Pressable>
         </View>
@@ -1063,7 +1063,7 @@ export function Computers({ navigation }: any) {
 // ------------------------------------------------------------ Secrets
 
 export function Secrets({ navigation }: any) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   const { team } = useTeam()
   const { run, error } = useWrite(navigation)
   const [name, setName] = useState('')
@@ -1094,7 +1094,7 @@ export function Secrets({ navigation }: any) {
           <View style={styles.row}><TextInput style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]} value={value} onChangeText={setValue} placeholder={t('Paste or type the key')} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry /></View>
         </Section>
         <View style={{ paddingHorizontal: 18, marginTop: 14 }}>
-          <Pressable accessibilityRole="button" disabled={!name.trim() || !value} onPress={save} style={({ pressed }) => [styles.cta, { backgroundColor: p.accent, opacity: !name.trim() || !value ? 0.5 : pressed ? 0.85 : 1 }]}>
+          <Pressable accessibilityRole="button" disabled={!name.trim() || !value} onPress={save} style={({ pressed }) => [styles.cta, { backgroundColor: p.accent, opacity: !name.trim() || !value ? 0.5 : pressed ? 0.85 : 1 }, rimSkin(dark)]}>
             <Text style={[typeScale.settingsRow, { color: p.accentInk, fontWeight: '600' }]}>{t('Save')}</Text>
           </Pressable>
         </View>
@@ -1106,9 +1106,9 @@ export function Secrets({ navigation }: any) {
 const styles = StyleSheet.create({
   detailTop: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 4 },
   tabs: { flexDirection: 'row', alignSelf: 'center', borderRadius: 10, padding: 2, marginTop: 14 },
-  tab: { minWidth: 64, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  tab: { minWidth: 64, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1.5, borderColor: 'transparent' },
   segments: { flexDirection: 'row', borderRadius: 10, padding: 2 },
-  segment: { flex: 1, minHeight: 36, paddingVertical: 6, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  segment: { flex: 1, minHeight: 36, paddingVertical: 6, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderWidth: 1.5, borderColor: 'transparent' },
   dropdown: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14 },
   backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -1118,13 +1118,13 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   cell: { width: 52, height: 52, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   segRow: { flexDirection: 'row', borderRadius: 9, padding: 2 },
-  seg: { flex: 1, minHeight: 34, paddingVertical: 5, borderRadius: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  seg: { flex: 1, minHeight: 34, paddingVertical: 5, borderRadius: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderWidth: 1.5, borderColor: 'transparent' },
   switch: { width: 46, height: 28, borderRadius: 14, padding: 3, justifyContent: 'center' },
   knob: { width: 22, height: 22, borderRadius: 11 },
   check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   adminTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
-  pillBtn: { borderRadius: 20, paddingHorizontal: 18, minHeight: 40, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
-  cta: { minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  pillBtn: { borderRadius: 20, paddingHorizontal: 18, minHeight: 40, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
+  cta: { minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   modalWrap: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: { maxHeight: '72%', borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', ...shadow(2) },
@@ -1169,15 +1169,15 @@ export function BotBrowser({ bot, navigation }: { bot: Bot; navigation: { goBack
         {(team as { browser?: unknown } | null)?.browser === false ? null : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
           {hold?.callId !== undefined ? (
             <>
-              <Pressable accessibilityRole="button" onPress={() => act('browser-give-back', { botId: bot.id, outcome: 'done', callId: hold.callId })} style={[styles.pillBtn, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Done')}</Text></Pressable>
-              <Pressable accessibilityRole="button" onPress={() => act('browser-give-back', { botId: bot.id, outcome: 'skip', callId: hold.callId })} style={[styles.pillBtn, { backgroundColor: p.hover }]}><Text style={{ color: p.ink }}>{t('Skip')}</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => act('browser-give-back', { botId: bot.id, outcome: 'done', callId: hold.callId })} style={[styles.pillBtn, { backgroundColor: p.accent }, rimSkin(dark)]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Done')}</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => act('browser-give-back', { botId: bot.id, outcome: 'skip', callId: hold.callId })} style={[styles.pillBtn, { backgroundColor: p.hover }, rimSkin(dark)]}><Text style={{ color: p.ink }}>{t('Skip')}</Text></Pressable>
             </>
           ) : hold?.by === 'user' ? (
-            <Pressable accessibilityRole="button" onPress={() => act('browser-give-back', { botId: bot.id })} style={[styles.pillBtn, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Give back')}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => act('browser-give-back', { botId: bot.id })} style={[styles.pillBtn, { backgroundColor: p.accent }, rimSkin(dark)]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Give back')}</Text></Pressable>
           ) : (
-            <Pressable accessibilityRole="button" onPress={() => act('browser-takeover', { botId: bot.id })} style={[styles.pillBtn, { backgroundColor: p.hover }]}><Text style={{ color: p.ink }}>{t('Take over')}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => act('browser-takeover', { botId: bot.id })} style={[styles.pillBtn, { backgroundColor: p.hover }, rimSkin(dark)]}><Text style={{ color: p.ink }}>{t('Take over')}</Text></Pressable>
           )}
-          <Pressable accessibilityRole="button" onPress={() => act('browser-stop', { botId: bot.id })} style={[styles.pillBtn, { backgroundColor: p.hover }]}><Text style={{ color: p.danger }}>{t('Stop')}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => act('browser-stop', { botId: bot.id })} style={[styles.pillBtn, { backgroundColor: p.hover }, rimSkin(dark)]}><Text style={{ color: p.danger }}>{t('Stop')}</Text></Pressable>
         </View>}
       </ScrollView>
     </Screen>

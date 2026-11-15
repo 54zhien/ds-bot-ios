@@ -10,7 +10,7 @@ import type { Approval, Question, ShownView } from '../../connection.ts'
 import { t } from '../../ui/i18n.ts'
 import { composerInset, radius, screenRadius, shadow, SPRING_TAP, type as typeScale, useTheme, type Palette } from '../../ui/tokens.ts'
 import { GlassPill } from '../../ui/glass.tsx'
-import { materialSkin } from '../../ui/material.tsx'
+import { materialSkin, rimSkin } from '../../ui/material.tsx'
 import { Material } from '../../ui/material.tsx'
 import { Avatar } from '../../ui/marks.tsx'
 import type { Bot } from '../../connection.ts'
@@ -206,6 +206,7 @@ export function SecretCard({ secret, call, p , bare = false }: { secret: SecretR
 export interface BtwCardData { id: string; partId?: string; question?: string; answer?: string; failure?: string; status?: string }
 
 export function BtwCard({ card, sessionId, call, p , bare = false }: { card: BtwCardData; sessionId: string; call: Call; p: Palette; bare?: boolean }) {
+  const { dark } = useTheme()
   const [busy, setBusy] = useState(false)
   const drop = () => {
     if (busy) return
@@ -230,7 +231,7 @@ export function BtwCard({ card, sessionId, call, p , bare = false }: { card: Btw
       {card.answer ? <Text style={[typeScale.settingsRow, { color: p.ink2, marginTop: bare ? 0 : 6 }]}>{card.answer}</Text> : null}
       {bare ? (
         <Pressable accessibilityRole="button" accessibilityLabel={t('Delete aside')} onPress={drop} disabled={busy}
-          style={{ alignSelf: 'flex-end', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: p.hover, opacity: busy ? 0.35 : 1 }}>
+          style={[{ alignSelf: 'flex-end', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: p.hover, opacity: busy ? 0.35 : 1 }, rimSkin(dark)]}>
           <Text style={[typeScale.caption, { color: p.ink2 }]}>{t('Dismiss')}</Text>
         </Pressable>
       ) : null}
@@ -277,7 +278,7 @@ export function ActionRow({ bot, doing, inset, p, dark }: { bot: Bot; doing: str
   return (
     <View style={[styles.action, { marginLeft: left }]}>
       <GlassPill height={40} style={{ maxWidth: '100%' }}>
-        <Avatar bot={bot} dark={dark} size={28} ring={p.main} working />
+        <Avatar bot={bot} dark={dark} size={28} ring={p.main} working bare />
         <Animated.Text style={[type.rowPreview, { color: p.ink2, flexShrink: 1 }, style]} numberOfLines={1}>{doing}…</Animated.Text>
       </GlassPill>
     </View>

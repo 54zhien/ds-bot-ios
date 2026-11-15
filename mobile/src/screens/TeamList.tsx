@@ -8,6 +8,7 @@ import { radius, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { PinMarkIcon } from '../ui/icons.tsx'
 import { workPhrase } from '../ui/phrases.ts'
+import { rimSkin } from '../ui/material.tsx'
 import { cleanPreview } from './chat/settled.ts'
 
 export interface ChatTarget { kind: 'bot' | 'room'; id: string }
@@ -74,10 +75,10 @@ export function TeamList({ onOpen, query = '', current }: { onOpen: (target: Cha
           <View style={styles.tiles}>
             {mainList.map(main => (
               <Pressable key={main.id} accessibilityRole="button" accessibilityLabel={`${main.name}, ${t('Main Bot')}`} onPress={() => onOpen({ kind: 'bot', id: main.id })}
-                style={({ pressed }) => [styles.tile, { backgroundColor: pressed || current === main.id ? p.active : p.hover }]}>
+                style={({ pressed }) => [styles.tile, { backgroundColor: pressed || current === main.id ? p.active : p.hover }, rimSkin(dark)]}>
                 <Avatar bot={main} dark={dark} size={52} ring={p.hover} main working={workBots[main.id] !== undefined} waiting={questions[main.sessionId ?? main.id] !== undefined} />
                 <Text style={[typeScale.small, { color: p.ink, fontWeight: '600', marginTop: 6 }]} numberOfLines={1}>{main.name}</Text>
-                {main.role ? <View style={[styles.tag, { backgroundColor: p.active }]}><Text style={{ fontSize: 11, lineHeight: 15, color: p.ink2 }} numberOfLines={1}>{main.role}</Text></View> : null}
+                {main.role ? <View style={[styles.tag, { backgroundColor: p.active }, rimSkin(dark)]}><Text style={{ fontSize: 11, lineHeight: 15, color: p.ink2 }} numberOfLines={1}>{main.role}</Text></View> : null}
               </Pressable>
             ))}
           </View>
@@ -99,7 +100,7 @@ function BotRow({ bot, p, dark, mains, questions, approvals, workBots, preview, 
 }) {
   const waiting = questions[bot.sessionId ?? bot.id] !== undefined || approvals.some(a => a.botId === bot.id)
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, (pressed || selected) && { backgroundColor: p.hover }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, (pressed || selected) && [{ backgroundColor: p.hover }, rimSkin(dark)]]}>
       <Avatar bot={bot} dark={dark} size={36} ring={p.sidebar} main={mains.has(bot.id)} working={workBots[bot.id] !== undefined} waiting={waiting} />
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
@@ -119,7 +120,7 @@ function RoomRow({ room, bots, p, dark, approvals, preview, unread, working, sel
 }) {
   const waiting = approvals.some(a => a.roomId === room.id)
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, (pressed || selected) && { backgroundColor: p.hover }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, (pressed || selected) && [{ backgroundColor: p.hover }, rimSkin(dark)]]}>
       <View>
         <RoomAvatar room={room} bots={bots} dark={dark} size={36} ring={p.sidebar} />
         {waiting ? <View style={[styles.waitDot, { borderColor: p.main }]}>
@@ -141,8 +142,8 @@ function RoomRow({ room, bots, p, dark, approvals, preview, unread, working, sel
 const styles = StyleSheet.create({
   root: { flex: 1 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
-  tile: { width: 104, alignItems: 'center', borderRadius: radius.card, paddingTop: 10, paddingBottom: 8, paddingHorizontal: 6 },
-  tag: { marginTop: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, maxWidth: '100%' },
+  tile: { width: 104, alignItems: 'center', borderRadius: radius.card, paddingTop: 10, paddingBottom: 8, paddingHorizontal: 6, borderWidth: 1, borderColor: 'transparent' },
+  tag: { marginTop: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, maxWidth: '100%', borderWidth: 1, borderColor: 'transparent' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: 8, borderRadius: 10 },
   rowBody: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

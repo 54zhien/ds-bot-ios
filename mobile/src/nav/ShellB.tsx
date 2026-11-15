@@ -10,7 +10,7 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { screenRadius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { GlassCluster, GlassControl, GlassPill } from '../ui/glass.tsx'
-import { materialSkin } from '../ui/material.tsx'
+import { materialSkin, rimSkin } from '../ui/material.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { GearIcon, PeopleIcon, PlusIcon, SearchIcon, SidebarIcon, SideIcon } from '../ui/icons.tsx'
 import { ChatView, prefetchChat } from '../screens/Chat.tsx'
@@ -99,12 +99,12 @@ function DrawerContent() {
         <Pressable style={styles.sheetScrim} onPress={() => setNewOpen(false)} accessibilityLabel={t('Close')}>
           <View style={[styles.newSheet, { backgroundColor: p.card, borderColor: p.line, marginBottom: insets.bottom + 12 }, shadow(3)]}>
             <Pressable accessibilityRole="button" onPress={() => create('NewBot')} style={({ pressed }) => [styles.newRow, pressed && { backgroundColor: p.hover }]}>
-              <View style={[styles.newIcon, { backgroundColor: p.hover }]}><PlusIcon size={18} color={p.ink} /></View>
+              <View style={[styles.newIcon, { backgroundColor: p.hover }, rimSkin(dark)]}><PlusIcon size={18} color={p.ink} /></View>
               <Text style={[typeScale.settingsRow, { color: p.ink }]}>{t('Create new Bot')}</Text>
             </Pressable>
             <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: p.line, marginLeft: 64 }} />
             <Pressable accessibilityRole="button" onPress={() => create('NewGroup')} style={({ pressed }) => [styles.newRow, pressed && { backgroundColor: p.hover }]}>
-              <View style={[styles.newIcon, { backgroundColor: p.hover }]}><PeopleIcon size={18} color={p.ink} /></View>
+              <View style={[styles.newIcon, { backgroundColor: p.hover }, rimSkin(dark)]}><PeopleIcon size={18} color={p.ink} /></View>
               <Text style={[typeScale.settingsRow, { color: p.ink }]}>{t('Create group chat')}</Text>
             </Pressable>
           </View>
@@ -356,7 +356,7 @@ export default function ShellB() {
 }
 
 const styles = StyleSheet.create({
-  needsRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginBottom: 4, borderRadius: 10, paddingHorizontal: 12, height: 44 },
+  needsRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, marginBottom: 4, borderRadius: 10, paddingHorizontal: 8, height: 44 },
   badge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   drawerBody: { flex: 1, marginHorizontal: 16, marginBottom: 8, overflow: 'hidden' },
   foot: { flexDirection: 'row', alignItems: 'center' },

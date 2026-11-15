@@ -58,35 +58,42 @@ export function YouMark({ dark, size = 24 }: { dark: boolean; size?: number }) {
   return <Mark look={MAIN_LOOK} dark={dark} size={size} />
 }
 
-// Status badges follow the desktop's .bt-badge (styles.js:104-118): the working
-// dot is 8px of green mixed with the surface behind it, the alert badge 12px, and
-// the Main Bot star a surface-stroked glyph with no plate of its own. Every size
-// scales with the avatar.
-export function Avatar({ bot, dark, size = 44, ring, working = false, waiting = false, main = false }: {
-  bot: Bot; dark: boolean; size?: number; ring: string; working?: boolean; waiting?: boolean; main?: boolean
+// Status badges: the working dot is a plain green dot with a transparent gap, so a
+// glass surface shows through instead of a ring in a guessed colour. On an opaque
+// row the alert badge keeps the desktop's surface ring; on glass it takes the same
+// transparent gap (bare). The Main Bot star has no plate of its own.
+export function Avatar({ bot, dark, size = 44, ring, working = false, waiting = false, main = false, bare = false }: {
+  bot: Bot; dark: boolean; size?: number; ring: string; working?: boolean; waiting?: boolean; main?: boolean; bare?: boolean
 }) {
   const { p } = useTheme()
   const star = Math.min(22, Math.max(14, Math.round(size * 0.36)))
-  const dot = Math.round(size * 0.22)
+  const dot = Math.max(8, Math.round(size * 0.2))
   const alert = Math.round(size * 0.33)
   // The desktop's 1.5px ring on a 36px avatar.
   const ringWidth = Math.min(1.5, Math.max(1.2, size / 24))
-  const inset = Math.round(size * 0.028)
+  // Same value for both axes, so the badge sits exactly on the 45° diagonal.
+  const inset = Math.round(size * 0.02)
+  const gap = { padding: 2, right: inset, bottom: inset }
   return (
     <View style={{ width: size, height: size }}>
       <BotMark bot={bot} dark={dark} size={size} />
       {waiting
-        ? <View style={[styles.badge, {
-            width: alert + ringWidth * 2, height: alert + ringWidth * 2, borderRadius: (alert + ringWidth * 2) / 2,
-            borderWidth: ringWidth, borderColor: ring, backgroundColor: mix(p.accent, ring, 0.78), right: 0, bottom: 0,
-          }]}>
-            <Text style={[styles.q, { color: p.accentInk, fontSize: Math.round(alert * 0.7), lineHeight: alert }]}>?</Text>
-          </View>
+        ? bare
+          ? <View style={[styles.badge, gap]}>
+              <View style={[styles.qPlate, { width: alert, height: alert, borderRadius: alert / 2, backgroundColor: p.accent }]}>
+                <Text style={[styles.q, { color: p.accentInk, fontSize: Math.round(alert * 0.7), lineHeight: alert }]}>?</Text>
+              </View>
+            </View>
+          : <View style={[styles.badge, {
+              width: alert + ringWidth * 2, height: alert + ringWidth * 2, borderRadius: (alert + ringWidth * 2) / 2,
+              borderWidth: ringWidth, borderColor: ring, backgroundColor: mix(p.accent, ring, 0.78), right: inset, bottom: inset,
+            }]}>
+              <Text style={[styles.q, { color: p.accentInk, fontSize: Math.round(alert * 0.7), lineHeight: alert }]}>?</Text>
+            </View>
         : working
-          ? <View style={[styles.badge, {
-              width: dot + ringWidth * 2, height: dot + ringWidth * 2, borderRadius: (dot + ringWidth * 2) / 2,
-              borderWidth: ringWidth, borderColor: ring, backgroundColor: mix(p.green, ring, 0.82), right: inset, bottom: inset,
-            }]} />
+          ? <View style={[styles.badge, gap]}>
+              <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: p.green }} />
+            </View>
           : null}
       {main ? <View style={[styles.star, { width: star, height: star, right: -size * 0.07, bottom: -size * 0.07 }]}><MainStarIcon size={star} stroke={ring} /></View> : null}
     </View>
@@ -197,6 +204,7 @@ export function RoomAvatar({ room, bots, dark, size = 44, ring }: { room: Room; 
 
 const styles = StyleSheet.create({
   badge: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  qPlate: { alignItems: 'center', justifyContent: 'center' },
   star: { position: 'absolute' },
   q: { fontWeight: '600', textAlign: 'center' },
   seat: { position: 'absolute', overflow: 'hidden' },

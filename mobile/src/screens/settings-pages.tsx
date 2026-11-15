@@ -8,7 +8,7 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { ChevronLeftIcon, ChevronRightIcon } from '../ui/icons.tsx'
 import { radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
-import { Material, materialSkin } from '../ui/material.tsx'
+import { Material, materialSkin, rimSkin } from '../ui/material.tsx'
 
 function Screen({ children }: { children: React.ReactNode }) {
   const { p } = useTheme()
@@ -131,11 +131,11 @@ export function Providers({ navigation }: any) {
                       <TextInput style={[typeScale.settingsRow, { color: p.ink, paddingHorizontal: 12, paddingVertical: 6 }, materialSkin(dark, 22)]} value={key} onChangeText={setKey} placeholder={t('{provider} API key', { provider: provider.name })} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry />
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                         {provider.key.configured ? (
-                          <Pressable accessibilityRole="button" onPress={() => void apply(call('provider-key', { provider: provider.id, value: null }), load)} style={[styles.smallBtn, { backgroundColor: p.hover }]}>
+                          <Pressable accessibilityRole="button" onPress={() => void apply(call('provider-key', { provider: provider.id, value: null }), load)} style={[styles.smallBtn, { backgroundColor: p.hover }, rimSkin(dark)]}>
                             <Text style={{ color: p.danger, fontSize: 14 }}>{t('Remove key')}</Text>
                           </Pressable>
                         ) : null}
-                        <Pressable accessibilityRole="button" disabled={key === ''} onPress={() => saveKey(provider.id)} style={[styles.smallBtn, { backgroundColor: p.accent, opacity: key === '' ? 0.4 : 1 }]}>
+                        <Pressable accessibilityRole="button" disabled={key === ''} onPress={() => saveKey(provider.id)} style={[styles.smallBtn, { backgroundColor: p.accent, opacity: key === '' ? 0.4 : 1 }, rimSkin(dark)]}>
                           <Text style={{ color: p.accentInk, fontSize: 14, fontWeight: '600' }}>{t('Save')}</Text>
                         </Pressable>
                       </View>
@@ -167,7 +167,7 @@ export function Providers({ navigation }: any) {
             <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
               <Material radius={26} style={[styles.segRow, { borderColor: p.line }]}>
                 {[['known', 'Known provider'], ['custom', 'Custom API']].map(([id, label]) => (
-                  <Pressable key={id} onPress={() => setMode(id as 'known' | 'custom')} style={[styles.seg, mode === id ? { backgroundColor: p.accent } : null]}>
+                  <Pressable key={id} onPress={() => setMode(id as 'known' | 'custom')} style={[styles.seg, mode === id ? [{ backgroundColor: p.accent }, rimSkin(dark, true)] : null]}>
                     <Text style={[typeScale.caption, { color: mode === id ? p.accentInk : p.ink2, fontWeight: '500' }]}>{t(label)}</Text>
                   </Pressable>
                 ))}
@@ -177,7 +177,7 @@ export function Providers({ navigation }: any) {
               <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   {(view?.addable ?? []).map(option => (
-                    <Pressable key={option.id} onPress={() => setDraft(d => ({ ...d, provider: option.id }))} style={[styles.smallBtn, { backgroundColor: draft.provider === option.id ? p.accent : p.hover }]}>
+                    <Pressable key={option.id} onPress={() => setDraft(d => ({ ...d, provider: option.id }))} style={[styles.smallBtn, { backgroundColor: draft.provider === option.id ? p.accent : p.hover }, rimSkin(dark)]}>
                       <Text style={{ color: draft.provider === option.id ? p.accentInk : p.ink2, fontSize: 14 }}>{option.name}</Text>
                     </Pressable>
                   ))}
@@ -195,7 +195,7 @@ export function Providers({ navigation }: any) {
                 <LabeledInput label={t('Provider id')} style={[typeScale.settingsRow, { color: p.ink, borderWidth: 1, borderColor: p.line, borderRadius: 10, paddingHorizontal: 12, height: 40, marginBottom: 6 }]} value={draft.provider} onChangeText={v => setDraft(d => ({ ...d, provider: v }))} placeholder={t('Provider id')} placeholderTextColor={p.ink3} autoCapitalize="none" />
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 6 }}>
                   <TextInput style={[typeScale.settingsRow, { color: p.ink, flex: 1, minWidth: 160, paddingHorizontal: 12, paddingVertical: 6 }, materialSkin(dark, 22)]} value={draft.key} onChangeText={v => setDraft(d => ({ ...d, key: v }))} placeholder={t('API key')} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry />
-                  <Pressable accessibilityRole="button" disabled={draft.baseURL.trim() === ''} onPress={discover} style={[styles.smallBtn, { backgroundColor: p.hover, opacity: draft.baseURL.trim() === '' ? 0.4 : 1 }]}>
+                  <Pressable accessibilityRole="button" disabled={draft.baseURL.trim() === ''} onPress={discover} style={[styles.smallBtn, { backgroundColor: p.hover, opacity: draft.baseURL.trim() === '' ? 0.4 : 1 }, rimSkin(dark)]}>
                     <Text style={{ color: p.ink, fontSize: 14 }}>{t('Find models')}</Text>
                   </Pressable>
                 </View>
@@ -203,7 +203,7 @@ export function Providers({ navigation }: any) {
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
                     {found.map(model => (
                       <Pressable key={model.id} onPress={() => setPicked(list => list.includes(model.id) ? list.filter(i => i !== model.id) : [...list, model.id])}
-                        style={[styles.smallBtn, { backgroundColor: picked.includes(model.id) ? p.accent : p.hover }]}>
+                        style={[styles.smallBtn, { backgroundColor: picked.includes(model.id) ? p.accent : p.hover }, rimSkin(dark)]}>
                         <Text style={{ color: picked.includes(model.id) ? p.accentInk : p.ink2, fontSize: 14 }}>{model.name ?? model.id}</Text>
                       </Pressable>
                     ))}
@@ -219,7 +219,7 @@ export function Providers({ navigation }: any) {
           </Section>
         ) : (
           <View style={{ paddingHorizontal: 18, marginTop: 14 }}>
-            <Pressable accessibilityRole="button" onPress={() => setAdding(true)} style={({ pressed }) => [styles.cta, { backgroundColor: p.hover, opacity: pressed ? 0.85 : 1 }]}>
+            <Pressable accessibilityRole="button" onPress={() => setAdding(true)} style={({ pressed }) => [styles.cta, { backgroundColor: p.hover, opacity: pressed ? 0.85 : 1 }, rimSkin(dark)]}>
               <Text style={[typeScale.settingsRow, { color: p.ink }]}>{t('Add a provider')}</Text>
             </Pressable>
           </View>
@@ -302,7 +302,7 @@ export const capabilityStatusText = (status?: { state?: string; error?: string }
   : t('Connecting…')
 
 export function Capabilities({ navigation }: any) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   const { team, call } = useTeam()
   const [open, setOpen] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -380,7 +380,7 @@ export function Capabilities({ navigation }: any) {
               <LabeledInput label={t('Name')} style={[typeScale.settingsRow, styles.field, { color: p.ink, borderColor: p.line }]} value={editing.name} editable={editing.originalName === undefined} onChangeText={v => setField('name', v)} placeholder={t('Name')} placeholderTextColor={p.ink3} autoCapitalize="none" />
               <Material radius={26} style={[styles.segRow, { borderColor: p.line }]}>
                 {[['mcp', 'MCP'], ['skill', 'Skill'], ['pack', 'Pack']].map(([id, label]) => (
-                  <Pressable key={id} disabled={editing.originalName !== undefined} onPress={() => setField('kind', id)} style={[styles.seg, editing.kind === id ? { backgroundColor: p.accent } : null]}>
+                  <Pressable key={id} disabled={editing.originalName !== undefined} onPress={() => setField('kind', id)} style={[styles.seg, editing.kind === id ? [{ backgroundColor: p.accent }, rimSkin(dark, true)] : null]}>
                     <Text style={[typeScale.caption, { color: editing.kind === id ? p.accentInk : p.ink2, fontWeight: '500' }]}>{t(label)}</Text>
                   </Pressable>
                 ))}
@@ -390,7 +390,7 @@ export function Capabilities({ navigation }: any) {
                 <>
                   <Material radius={26} style={[styles.segRow, { borderColor: p.line }]}>
                     {[['stdio', 'Local command'], ['streamable-http', 'HTTP server']].map(([id, label]) => (
-                      <Pressable key={id} onPress={() => setField('transport', id)} style={[styles.seg, editing.transport === id ? { backgroundColor: p.accent } : null]}>
+                      <Pressable key={id} onPress={() => setField('transport', id)} style={[styles.seg, editing.transport === id ? [{ backgroundColor: p.accent }, rimSkin(dark, true)] : null]}>
                         <Text style={[typeScale.caption, { color: editing.transport === id ? p.accentInk : p.ink2, fontWeight: '500' }]}>{t(label)}</Text>
                       </Pressable>
                     ))}
@@ -587,10 +587,10 @@ const styles = StyleSheet.create({
   card: { marginHorizontal: 16, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', ...shadow(1) },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, minHeight: 50, gap: 10 },
-  smallBtn: { borderRadius: 10, paddingHorizontal: 12, minHeight: 36, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  smallBtn: { borderRadius: 10, paddingHorizontal: 12, minHeight: 36, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   segRow: { flexDirection: 'row', borderWidth: 1, borderRadius: radius.pill, overflow: 'hidden' },
-  seg: { flex: 1, minHeight: 38, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  cta: { minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  seg: { flex: 1, minHeight: 38, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderWidth: 1.5, borderColor: 'transparent' },
+  cta: { minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   field: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, minHeight: 40, paddingVertical: 6 },
   multi: { minHeight: 80, paddingVertical: 10, textAlignVertical: 'top', fontFamily: 'monospace' },
 })
