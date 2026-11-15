@@ -58,16 +58,13 @@ export function Drawer({ width, edgeWidth = 24, edgeEnabled = true, content, chi
     'worklet'
     return Math.min(0, Math.max(-width, v))
   }
-  // The drag dismisses once, on its first real movement, not on every frame.
-  const dragged = useSharedValue(false)
+  // The drag only moves x. Calling back into React here would unmount the edge
+  // strip that owns this gesture and freeze the panel mid-swipe.
   const edgePan = Gesture.Pan()
     .activeOffsetX(8)
     .failOffsetY([-12, 12])
-    .onBegin(() => { dragged.value = false })
-    .onUpdate(e => {
-      x.value = clampX(-width + Math.max(0, e.translationX))
-      if (!dragged.value && e.translationX > 8) { dragged.value = true; runOnJS(startOpening)() }
-    })
+    .onBegin(() => { runOnJS(Keyboard.dismiss)() })
+    .onUpdate(e => { x.value = clampX(-width + Math.max(0, e.translationX)) })
     .onEnd(e => { runOnJS(snapTo)(e.velocityX > 350 || x.value > -width / 2 ? 0 : -width) })
   const drawerPan = Gesture.Pan()
     .activeOffsetX(-8)

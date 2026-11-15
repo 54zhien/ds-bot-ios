@@ -75,10 +75,15 @@ export function PinMarkIcon({ size = 12, color }: IconProps) {
     h(Path, { d: 'M8 2.5h4a.9.9 0 0 1 0 1.8h-.4v4.1c0 1.4 1.1 2.6 2.6 3.1l.7.3v1.5H5.1v-1.5l.7-.3c1.5-.5 2.6-1.7 2.6-3.1V4.3H8a.9.9 0 0 1 0-1.8z', transform: 'rotate(45 10 10)' }),
     h(Path, { d: 'M9.35 13.3h1.3v3.6L10 18l-.65-1.1z', transform: 'rotate(45 10 10)' }))
 }
-export function MainStarIcon({ size = 16, color }: IconProps) {
+// The desktop draws the Main Bot star with a thick surface-colored stroke under
+// the fill (styles.js:109, paint-order: stroke). RN has no paint-order, so the
+// outline is a second path painted first.
+const STAR = 'M10 2.4l2.29 5.04 5.51.63-4.09 3.74 1.11 5.42L10 14.5l-4.82 2.73 1.11-5.42L2.2 8.07l5.51-.63z'
+export function MainStarIcon({ size = 16, color, stroke, strokeWidth = 2.6 }: IconProps & { stroke?: string; strokeWidth?: number }) {
   const { p } = useTheme()
-  return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: use(color, p.star) },
-    h(Path, { d: 'M10 2.4l2.29 5.04 5.51.63-4.09 3.74 1.11 5.42L10 14.5l-4.82 2.73 1.11-5.42L2.2 8.07l5.51-.63z' }))
+  return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: 'none' },
+    stroke === undefined ? null : h(Path, { d: STAR, fill: 'none', stroke, strokeWidth, strokeLinejoin: 'round' }),
+    h(Path, { d: STAR, fill: use(color, p.star) }))
 }
 export function StopIcon({ size = 20, color }: IconProps) {
   const { p } = useTheme()
@@ -107,8 +112,8 @@ export function CloseIcon({ size = 20, color }: IconProps) {
 export function SideIcon({ size = 24, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth={strokeOf(size)} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M17 11.5a6.5 6.5 0 0 1-6.5 6.5H4l2-2.6A6.5 6.5 0 1 1 17 11.5Z" />
-      <Path d="M8.5 8.5 12 12M12 8.5 8.5 12" />
+      <Path d="M7 15.2 4.2 15.8 4.8 13A6 6 0 1 1 7 15.2Z" />
+      <Path d="M8.8 8.8 11.2 11.2M11.2 8.8 8.8 11.2" />
     </Svg>
   )
 }

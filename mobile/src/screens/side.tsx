@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
@@ -22,6 +22,13 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The composer's own bottom padding, not the KAV offset, keeps it off the keyboard.
+  const [keyboardUp, setKeyboardUp] = useState(false)
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardUp(true))
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardUp(false))
+    return () => { show.remove(); hide.remove() }
+  }, [])
   const chats = ((team as { sideChats?: Record<string, SideChat[]> } | null)?.sideChats?.[bot.id] ?? [])
   const chat = chats.find(c => c.chatId === openId)
   const entries = chat?.entries ?? []
@@ -50,7 +57,7 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
     return () => clearInterval(timer)
   }, [running, call])
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: p.main }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={insets.top}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: p.main }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
       <View style={{ paddingTop: insets.top, zIndex: 1 }}>
         <View style={styles.head}>
           <GlassControl label={t('Back')} onPress={() => navigation.goBack()}>
@@ -114,7 +121,7 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
         {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 8 }]}>{error}</Text> : null}
       </ScrollView>
       <Fade color={p.main} height={headerHeight(insets.top) + 36} edge="top" />
-      <View style={[styles.composer, { paddingBottom: insets.bottom + 8 }]}>
+      <View style={[styles.composer, { paddingBottom: keyboardUp ? 12 : insets.bottom + 8 }]}>
         <Glass radius={radius.pill} style={styles.inputGlass} contentStyle={styles.inputIn}>
           <TextInput style={[styles.input, { color: p.ink }]} value={draft} onChangeText={setDraft}
             placeholder={t('Ask about the work so far')} placeholderTextColor={p.ink3} multiline />

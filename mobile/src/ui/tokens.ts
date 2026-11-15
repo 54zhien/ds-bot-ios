@@ -14,8 +14,18 @@ export interface ThemeMode {
 const DARK_INK = '#141414'
 const accentInk = (accent: string) =>
   (luminance(accent) + 0.05) ** 2 > 1.05 * (luminance(DARK_INK) + 0.05) ? DARK_INK : '#ffffff'
-const rgba = (hex: string, alpha: number) =>
+export const rgba = (hex: string, alpha: number) =>
   `rgba(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(',')},${alpha})`
+
+// Stands in for CSS color-mix: the desktop tints a badge with the surface behind
+// it, and the phone has no color-mix of its own.
+export const mix = (a: string, b: string, weightOfA: number): string => {
+  if (!/^#[0-9a-f]{6}$/i.test(a) || !/^#[0-9a-f]{6}$/i.test(b)) return a
+  const channel = (hex: string, at: number) => parseInt(hex.slice(at, at + 2), 16)
+  return `#${[1, 3, 5]
+    .map(at => Math.round(channel(a, at) * weightOfA + channel(b, at) * (1 - weightOfA)).toString(16).padStart(2, '0'))
+    .join('')}`
+}
 
 const inks = INKS as Record<string, string[]>
 
@@ -126,6 +136,21 @@ export const screenRadius = (bottomInset: number, os: string): number => {
 // display corner's centre. Clamped: never sneak toward the middle, never hug the edge.
 export const concentricInset = (screenR: number, height: number): number =>
   screenR === 0 ? 16 : Math.min(32, Math.max(12, screenR - height / 2))
+
+// The resting composer's height, so anything that has to line up with it can ask
+// for the same inset instead of keeping its own copy of the number.
+export const COMPOSER_RESTING = Math.max(50, 22 + 20) + 12
+
+// Left inset of the composer: the standard margin while editing, the concentric
+// one at rest, 12 on Android — unless the text area would not fit at all.
+export const composerInset = ({ screenR, screenWidth, expanded, android }: {
+  screenR: number; screenWidth: number; expanded: boolean; android: boolean
+}): number => {
+  if (android) return 12
+  if (expanded) return glass.margin
+  const tight = concentricInset(screenR, COMPOSER_RESTING)
+  return screenWidth - 2 * tight - 88 >= 120 ? tight : glass.margin
+}
 
 export const MONO = 'monospace'
 

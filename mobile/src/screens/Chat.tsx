@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { ActivityIndicator, Dimensions, FlatList, KeyboardAvoidingView, Linking, Modal, Pressable, StyleSheet, Text, View, ScrollView, type ListRenderItem } from 'react-native'
+import { ActivityIndicator, Dimensions, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, StyleSheet, Text, View, ScrollView, type ListRenderItem } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
@@ -22,7 +22,8 @@ import { Actions, Item, keysOf, PhotoViewer, PhotoViewerCtx, type ChatItem, type
 const POLL_MS = 15_000
 // Room between the composer and an open keyboard; the composer's own bottom margin
 // is the safe area, which the keyboard covers.
-const KEYBOARD_GAP = 6
+// The composer pads itself against the keyboard, so the avoiding view only has to
+// shrink the screen: no offset, no double gap.
 
 interface ChatPage { sessionId?: string; items: ChatItem[]; cursor: unknown }
 interface Row { item: ChatItem; key: string; stamp?: string }
@@ -203,7 +204,15 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
   const width = Math.min(100, Math.max(50, team?.prefs?.width ?? 80))
   const [chatWidth, setChatWidth] = useState(() => Math.max(0, Dimensions.get('window').width - 32))
   // Measured by the composer so the bottom fade starts where its card does.
-  const [composerHeight, setComposerHeight] = useState(0)
+  const [composerInsetX, setComposerInsetX] = useState<number | undefined>(undefined)
+  // The keyboard's top edge, so the composer sits 12pt above it without guessing.
+  const [keyboardUp, setKeyboardUp] = useState(false)
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardWillChangeFrame', event => {
+      setKeyboardUp(Math.round(Dimensions.get('window').height - event.endCoordinates.screenY) > 0)
+    })
+    return () => show.remove()
+  }, [])
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [menuText, setMenuText] = useState<string | null>(null)
   const [readerText, setReaderText] = useState<string | null>(null)
@@ -338,7 +347,7 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
   const empty = page !== null && rows.length === 0
   return (
     <PhotoViewerCtx.Provider value={setPhotos}>
-    <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={KEYBOARD_GAP - insets.bottom} style={[styles.screen, { backgroundColor: p.main }]}>
+    <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={[styles.screen, { backgroundColor: p.main }]}>
       {room !== undefined && (room as { goal?: Goal }).goal
         ? <View style={{ paddingTop: headerHeight(insets.top) }}><GoalBar goal={(room as { goal?: Goal }).goal!} p={p} /></View>
         : null}
@@ -382,16 +391,15 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
         ) : null}
       </View>
       <Fade color={p.main} height={headerHeight(insets.top) + 36} edge="top" />
-      {composerHeight > 0 ? <Fade color={p.main} height={composerHeight + 36} edge="bottom" /> : null}
       {/* After the list: the native scroll edge effect only takes the first scroll view in the screen's child chain. */}
       {header}
       {bot?.blocked !== undefined ? <BlockedCard bot={bot} p={p} /> : null}
       {bot !== undefined ? <ComputerCards bot={bot} p={p} /> : null}
-      {running && doingBot ? <ActionRow bot={doingBot} doing={doingText} p={p} dark={dark} /> : null}
+      {running && doingBot ? <ActionRow bot={doingBot} doing={doingText} inset={composerInsetX} p={p} dark={dark} /> : null}
       <Dock question={question} sessionId={sessionId} approvals={approvals} secrets={secrets} btw={btw} handoff={browserHold} view={team?.views?.[sessionId]} call={call} p={p} expanded={expandedKey} onExpand={setExpandedKey} />
       {fileError ? <Text style={[type.small, { color: p.danger, textAlign: 'center', marginBottom: 4 }]} accessibilityRole="alert">{fileError}</Text> : null}
       {page !== null && loadError !== null ? <Text style={[type.small, { color: p.danger, textAlign: 'center', marginBottom: 4, marginHorizontal: 16 }]} accessibilityRole="alert">{loadError}</Text> : null}
-      <Composer name={bot?.name ?? room?.name ?? ''} running={running} canStop={canStop} canAttach={hello?.capabilities?.includes('send-images') === true} onSend={send} onStop={stop} onHeight={setComposerHeight} p={p} />
+      <Composer name={bot?.name ?? room?.name ?? ''} running={running} canStop={canStop} canAttach={hello?.capabilities?.includes('send-images') === true} onSend={send} onStop={stop} onInset={setComposerInsetX} keyboardUp={keyboardUp} p={p} />
       <Actions visible={menuText !== null} text={menuText ?? ''} p={p}
         onClose={() => setMenuText(null)}
         onSelect={() => { setReaderTitle(null); setReaderText(menuText); setMenuText(null) }} />

@@ -17,7 +17,7 @@ import { t, timeLabel, weekdayShort } from '../ui/i18n.ts'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GearIcon } from '../ui/icons.tsx'
 import { Avatar, COLOR_PAINT, RoomAvatar } from '../ui/marks.tsx'
 import { inkColor, radius, shadow, type as typeScale, useTheme, type Palette } from '../ui/tokens.ts'
-import { Material, materialSkin } from '../ui/material.tsx'
+import { Material, materialSkin, rimSkin } from '../ui/material.tsx'
 import type { Bot, Room, TeamState } from '../connection.ts'
 import { capabilityStatusText } from './settings-pages.tsx'
 import { ModelMenu, ModelPicker } from './model-menu.tsx'
@@ -634,7 +634,7 @@ export function GroupSettings({ route, navigation }: any) {
                 </Pressable>
                 {leads ? (
                   <Pressable accessibilityRole="button" onPress={() => update({ admin: null })} hitSlop={6}>
-                    <Text style={[typeScale.caption, styles.adminTag, { color: p.accent, backgroundColor: p.hover }]}>{t('Admin')}</Text>
+                    <Text style={[typeScale.caption, styles.adminTag, { color: p.accent, backgroundColor: p.hover }, rimSkin(dark)]}>{t('Admin')}</Text>
                   </Pressable>
                 ) : inRoom ? (
                   <Pressable accessibilityRole="button" onPress={() => update({ admin: bot.id })} hitSlop={6}>
@@ -695,7 +695,7 @@ export function NewGroup({ navigation }: any) {
                   <Avatar bot={bot} dark={dark} size={32} ring={p.card} />
                   <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1, minWidth: 0, marginLeft: 10 }]} numberOfLines={1}>{bot.name}</Text>
                 </Pressable>
-                {leads ? <Text style={[typeScale.caption, styles.adminTag, { color: p.accent, backgroundColor: p.hover, flexShrink: 0 }]}>{t('Admin')}</Text>
+                {leads ? <Text style={[typeScale.caption, styles.adminTag, { color: p.accent, backgroundColor: p.hover, flexShrink: 0 }, rimSkin(dark)]}>{t('Admin')}</Text>
                   : on && picked.size > 1 ? (
                     <Pressable accessibilityRole="button" onPress={() => setAdmin(bot.id)} hitSlop={6}>
                       <Text style={[typeScale.caption, { color: p.ink3, paddingHorizontal: 6, paddingVertical: 6 }]}>{t('Make admin')}</Text>

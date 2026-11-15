@@ -114,8 +114,10 @@ export function GlassCluster({ spacing = 6, style, pointerEvents, children }: {
 
 // 44pt is the HIG minimum hit target. The glyph is centred by the glass content
 // itself; the SVG already carries its own size, so no fixed slot is involved.
-export function GlassControl({ size = metrics.control, label, onPress, accent = false, dot = false, disabled = false, children }: {
+export function GlassControl({ size = metrics.control, iconSize = metrics.iconXL, label, onPress, accent = false, dot = false, disabled = false, children }: {
   size?: number
+  // Only the badge anchor: the glyph itself is centred by the content, never by a slot.
+  iconSize?: number
   label: string
   onPress: () => void
   accent?: boolean
@@ -124,12 +126,15 @@ export function GlassControl({ size = metrics.control, label, onPress, accent = 
   children?: ReactNode
 }) {
   const { p } = useTheme()
+  // The badge sits on the glyph's top-right corner, ringed in the page colour so
+  // it reads as a punched dot rather than a sticker.
+  const anchor = (size - iconSize) / 2
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} hitSlop={4}
       style={({ pressed }) => [styles.control, { width: size, height: size }, (pressed || disabled) && { opacity: disabled ? 0.35 : 0.7 }]}>
       <Glass radius={size / 2} intensity={accent ? 'strong' : 'thin'} tint={accent ? p.accent : undefined} interactive style={styles.fill} contentStyle={styles.controlIn}>
         {children}
-        {dot ? <View style={{ position: 'absolute', top: size * 0.17, right: size * 0.17, width: 8, height: 8, borderRadius: 4, backgroundColor: p.accent }} /> : null}
+        {dot ? <View style={{ position: 'absolute', top: anchor - 1, left: size - anchor - 9, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: p.main, backgroundColor: p.accent }} /> : null}
       </Glass>
     </Pressable>
   )
@@ -173,7 +178,7 @@ export function GlassButton({ radius = radii.pill, intensity = 'regular', tint, 
 const styles = StyleSheet.create({
   plate: {},
   // flexGrow rather than flex:1, so a content-sized glass still measures itself.
-  surface: { flexGrow: 1, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth },
+  surface: { flexGrow: 1, overflow: 'hidden', borderWidth: 1 },
   content: { flexGrow: 1 },
   control: { alignItems: 'stretch' },
   controlIn: { alignItems: 'center', justifyContent: 'center' },

@@ -14,14 +14,20 @@ const strip = (style?: StyleProp<ViewStyle>): ViewStyle => {
   return flat as ViewStyle
 }
 
-// The same ramp for a Pressable or TextInput that already owns its own layout.
-export const materialSkin = (dark: boolean, radius: number, selected = false): ViewStyle => ({
-  backgroundColor: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)',
+// One rim for everything we draw ourselves: 1pt, never hairline (invisible in dark),
+// 1.5 at 0.35 for a selected chip.
+export const rimSkin = (dark: boolean, selected = false): ViewStyle => ({
   borderWidth: selected ? 1.5 : 1,
-  borderRadius: radius,
   borderColor: selected
     ? dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'
     : dark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)',
+})
+
+// The same ramp for a Pressable or TextInput that already owns its own layout.
+export const materialSkin = (dark: boolean, radius: number, selected = false): ViewStyle => ({
+  backgroundColor: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)',
+  borderRadius: radius,
+  ...rimSkin(dark, selected),
 })
 
 export function Material({ radius = 999, selected = false, plain = false, accessibilityLabel, accessibilityRole, style, children }: {

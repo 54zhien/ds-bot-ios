@@ -2,12 +2,13 @@ import { useState } from 'react'
 import * as Haptics from 'expo-haptics'
 import { ChevronRightIcon } from '../../ui/icons.tsx'
 import { ViewCard } from './view.tsx'
-import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, Pressable } from 'react-native'
+import { Platform, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, Pressable } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { useReducedMotion, useAnimatedStyle, withRepeat, withTiming, withSpring, useSharedValue, withSequence } from 'react-native-reanimated'
 import { useEffect } from 'react'
 import type { Approval, Question, ShownView } from '../../connection.ts'
 import { t } from '../../ui/i18n.ts'
-import { radius, shadow, SPRING_TAP, type as typeScale, useTheme, type Palette } from '../../ui/tokens.ts'
+import { composerInset, radius, screenRadius, shadow, SPRING_TAP, type as typeScale, useTheme, type Palette } from '../../ui/tokens.ts'
 import { GlassPill } from '../../ui/glass.tsx'
 import { materialSkin } from '../../ui/material.tsx'
 import { Material } from '../../ui/material.tsx'
@@ -260,8 +261,13 @@ export function HandoffCard({ handoff, botId, onView, call, p , bare = false }: 
   )
 }
 
-export function ActionRow({ bot, doing, p, dark }: { bot: Bot; doing: string; p: Palette; dark: boolean }) {
+export function ActionRow({ bot, doing, inset, p, dark }: { bot: Bot; doing: string; inset?: number; p: Palette; dark: boolean }) {
   const reduced = useReducedMotion()
+  const insets = useSafeAreaInsets()
+  const { width } = useWindowDimensions()
+  // Same function and same parameters as the composer; before the first report it
+  // assumes the resting state, which is when this row is usually on screen.
+  const left = inset ?? composerInset({ screenR: screenRadius(insets.bottom, Platform.OS), screenWidth: width, expanded: false, android: Platform.OS === 'android' })
   const shimmer = useSharedValue(0.35)
   useEffect(() => {
     if (reduced) { shimmer.value = 1; return }
@@ -269,7 +275,7 @@ export function ActionRow({ bot, doing, p, dark }: { bot: Bot; doing: string; p:
   }, [reduced])
   const style = useAnimatedStyle(() => ({ opacity: shimmer.value }))
   return (
-    <View style={styles.action}>
+    <View style={[styles.action, { marginLeft: left }]}>
       <GlassPill height={40} style={{ maxWidth: '100%' }}>
         <Avatar bot={bot} dark={dark} size={28} ring={p.main} working />
         <Animated.Text style={[type.rowPreview, { color: p.ink2, flexShrink: 1 }, style]} numberOfLines={1}>{doing}…</Animated.Text>
@@ -313,5 +319,5 @@ const styles = StyleSheet.create({
   submit: { minHeight: 40, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
   secretInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, minHeight: 40, paddingVertical: 8, marginTop: 10, fontSize: 14 },
   choice: { flex: 1, minWidth: 104, minHeight: 44, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
-  action: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8 },
+  action: { flexDirection: 'row', alignItems: 'center', marginRight: 16, marginBottom: 8 },
 })
