@@ -1,0 +1,78 @@
+name: iOS toolchain
+
+# Answers the question ios.yml depends on: which Xcode and which iOS SDK each macOS image
+# carries. Liquid Glass (UIGlassEffect) exists only in the iOS 26 SDK, so this decides which
+# runner the build defaults to. Manual only: it builds nothing and finishes in about a minute.
+
+on:
+  workflow_dispatch:
+  # workflow_dispatch only fires for a file on the default branch, so a probe tag runs this
+  # from any branch: push ios-probe-1 and read the run.
+  push:
+    tags: ['ios-probe-*']
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26, macos-15]
+    steps:
+      - name: Report the image
+        run: |
+          echo "### ${{ matrix.runner }}"
+          echo ''
+          echo "- image: $(sw_vers -productName) $(sw_vers -productVersion) $(uname -m)"
+          echo "- default Xcode: \`$(xcode-select -p)\`"
+          echo "- $(xcodebuild -version | head -1)"
+          echo "- CocoaPods: $(pod --version)"
+          echo "- Node: $(node --version)"
+
+      - name: List the Xcodes on the image
+        run: |
+          echo "installed:"
+          ls -d /Applications/Xcode*.app
+          echo ""
+          echo "each one reports:"
+          for app in /Applications/Xcode*.app; do
+            echo "- $app: $(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version 2>/dev/null | head -1)"
+          done
+
+      - name: List the SDKs
+        run: xcodebuild -showsdks
+
+      - name: Check for the Liquid Glass API
+        id: glass
+        run: |
+          sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iphoneos SDK $version at $sdk"
+          if grep -rqs "UIGlassEffect" "$sdk/System/Library/Frameworks/UIKit.framework"; then
+            echo "present" >> "$GITHUB_OUTPUT"
+            echo "UIGlassEffect: present"
+          else
+            echo "absent" >> "$GITHUB_OUTPUT"
+            echo "UIGlassEffect: absent"
+          fi
+
+      - name: Summarise
+        run: |
+          {
+            echo "### ${{ matrix.runner }}"
+            echo ''
+            echo "| item | value |"
+            echo "|---|---|"
+            echo "| default Xcode | \`$(xcode-select -p | sed 's:/Contents/Developer$::' | xargs basename)\` |"
+            echo "| Xcode | $(xcodebuild -version | head -1) |"
+            echo "| iphoneos SDK | $(xcrun --sdk iphoneos --show-sdk-version) |"
+            echo "| UIGlassEffect | ${{ steps.glass.outputs.glass }} |"
+            echo "| CocoaPods | $(pod --version) |"
+            echo ''
+            echo "Xcodes on the image: $(ls -d /Applications/Xcode*.app | xargs -n1 basename | tr '\n' ' ')"
+          } >> "$GITHUB_STEP_SUMMARY"

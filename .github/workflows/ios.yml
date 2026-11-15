@@ -1,0 +1,374 @@
+name: iOS
+
+# Builds an unsigned IPA. Signing happens in the user's own tool, so this runner holds no
+# certificate, no provisioning profile and no Apple account, and never will.
+#
+# exportArchive refuses to run without a signing identity, so the .app is copied into
+# Payload/ and zipped by hand instead of going through -exportArchive.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: macOS image
+        type: choice
+        default: macos-26
+        options:
+          - macos-26
+          - macos-15
+      xcode_version:
+        description: Xcode to select, e.g. 26.1; empty picks the newest stable on the image
+        type: string
+        default: ''
+  push:
+    tags: ['ios-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+  LANG: en_US.UTF-8
+
+jobs:
+  ipa:
+    name: Unsigned IPA
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    # A cold React Native 0.88 build from source takes 25-40 minutes; this only stops a hang.
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Expo SDK 58 and React Native 0.88 accept ^22.13 or ^24.3, and test.yml already
+          # builds this app on 24.
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            mobile/package-lock.json
+            link/package-lock.json
+
+      # Liquid Glass needs the iOS 26 SDK, which only Xcode 26 ships, and an image default can
+      # trail it. A preview toolchain is accepted because the user re-signs the package and it
+      # never goes through App Store Connect.
+      - name: Select Xcode
+        env:
+          WANTED: ${{ inputs.xcode_version }}
+        run: |
+          if [ -n "$WANTED" ]; then
+            selected="/Applications/Xcode_$WANTED.app"
+            if [ ! -d "$selected" ]; then
+              echo "::error::$selected is not on this image. Available:"
+              ls -d /Applications/Xcode*.app
+              exit 1
+            fi
+          else
+            # sort -V is not dependable on every macOS, so the versions are compared as numbers.
+            selected="$(node -e '
+              const fs = require("node:fs")
+              const version = (name) => (name.match(/^Xcode_([0-9.]+?)(?:_[a-z0-9]+)?\.app$/) || [])[1] || ""
+              const newer = (a, b) => {
+                const left = a.split(".").map(Number)
+                const right = b.split(".").map(Number)
+                for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+                  const gap = (left[i] || 0) - (right[i] || 0)
+                  if (gap !== 0) return gap
+                }
+                return 0
+              }
+              const candidates = fs.readdirSync("/Applications")
+                .filter((name) => version(name) !== "")
+                .sort((a, b) => newer(version(a), version(b)))
+              process.stdout.write(candidates.length ? "/Applications/" + candidates[candidates.length - 1] : "")
+            ')"
+          fi
+          if [ -z "$selected" ]; then
+            echo "::error::no Xcode found on this image"
+            exit 1
+          fi
+          sudo xcode-select -s "$selected"
+          case "$selected" in
+            *beta*|*Beta*|*rc*|*RC*) echo "::warning::archiving with $selected, a preview toolchain" ;;
+          esac
+          xcodebuild -version
+          major="$(xcodebuild -version | awk '/^Xcode /{split($2, p, "."); print p[1]}')"
+          if [ "${major:-0}" -lt 26 ]; then
+            echo "::error::Xcode $major has no iOS 26 SDK, so Liquid Glass cannot compile"
+            exit 1
+          fi
+          echo "DSBOT_XCODE=$(xcodebuild -version | head -1)" >> "$GITHUB_ENV"
+          pod --version
+
+      # Evidence for the runner choice, recorded on the image that actually builds.
+      - name: Report the toolchain
+        run: |
+          ls -d /Applications/Xcode*.app
+          echo "iphoneos SDK $(xcrun --sdk iphoneos --show-sdk-version)"
+          sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          if grep -rqs UIGlassEffect "$sdk/System/Library/Frameworks/UIKit.framework"; then
+            echo "UIGlassEffect: present"
+          else
+            echo "UIGlassEffect: absent"
+          fi
+
+      # Metro resolves ../link and ../ds-bot/src/* directly, so the link's packages must exist.
+      - name: Install the phone link's packages
+        run: npm ci --no-fund --no-audit --prefix ../link
+      - run: npm ci --no-fund --no-audit
+      # The IPA ships this code, and the Linux job that guards a pull request can pass while a
+      # native build fails, so both run here as well.
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Cache the CocoaPods specs
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}
+
+      - name: Install pods
+        run: |
+          cd ios
+          pod install --no-ansi
+          test -d Pods
+
+      - name: Read the workspace and the scheme
+        id: project
+        run: |
+          workspace="$(ls -d ios/*.xcworkspace | head -1)"
+          if [ -z "$workspace" ]; then
+            echo "::error::expo prebuild produced no Xcode workspace in mobile/ios"
+            exit 1
+          fi
+          # The scheme is named after the app, not after the bundle identifier, and the app
+          # scheme is the one that shares the project's name. A further target, such as a
+          # notification extension, must never be archived in its place.
+          project_name="$(basename "$(ls -d ios/*.xcodeproj | head -1)" .xcodeproj)"
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | node -e '
+            let body = ""
+            process.stdin.on("data", (chunk) => { body += chunk })
+            process.stdin.on("end", () => {
+              const wanted = process.argv[1]
+              const listed = JSON.parse(body)
+              const project = listed.workspace || listed.project || {}
+              const schemes = (project.schemes || []).filter((name) => !name.startsWith("Pods"))
+              process.stdout.write(schemes.find((name) => name === wanted) || schemes[0] || "")
+            })' "$project_name")"
+          if [ -z "$scheme" ]; then
+            echo "::error::the workspace lists no app scheme to archive"
+            exit 1
+          fi
+          echo "workspace=$workspace" >> "$GITHUB_OUTPUT"
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "building scheme $scheme in $workspace"
+
+      - name: Archive
+        run: |
+          # tee would swallow xcodebuild's exit status and let a failed build pass for a good one.
+          set -o pipefail
+          mkdir -p dist
+          xcodebuild archive \
+            -workspace "${{ steps.project.outputs.workspace }}" \
+            -scheme "${{ steps.project.outputs.scheme }}" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/DSBot.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            CODE_SIGN_ENTITLEMENTS='' \
+            DEVELOPMENT_TEAM='' \
+            PROVISIONING_PROFILE_SPECIFIER='' \
+            2>&1 | tee dist/xcodebuild.log
+          test -d "$RUNNER_TEMP/DSBot.xcarchive" || { echo "::error::xcodebuild wrote no archive"; exit 1; }
+
+      - name: Show the build errors
+        if: failure()
+        run: |
+          grep -nE 'error:|BUILD FAILED' dist/xcodebuild.log | tail -40 || true
+          tail -120 dist/xcodebuild.log || true
+
+      - name: Package the IPA
+        run: |
+          app="$(ls -d "$RUNNER_TEMP/DSBot.xcarchive"/Products/Applications/*.app | head -1)"
+          if [ -z "$app" ]; then
+            echo "::error::the archive holds no app in Products/Applications"
+            exit 1
+          fi
+          version="$(node -p "require('../ds-bot/package.json').version")"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" dist
+          cp -R "$app" "$RUNNER_TEMP/ipa/Payload/"
+          # -y keeps the framework symlinks; -X keeps __MACOSX and resource forks out, which
+          # would otherwise land inside the bundle and break the signature applied later.
+          (cd "$RUNNER_TEMP/ipa" && zip -qryX package.ipa Payload)
+          mv "$RUNNER_TEMP/ipa/package.ipa" "dist/DS-Bot-$version-ios-unsigned.ipa"
+          {
+            echo "DSBOT_IPA=dist/DS-Bot-$version-ios-unsigned.ipa"
+            echo "DSBOT_APP=$app"
+            echo "DSBOT_VERSION=$version"
+          } >> "$GITHUB_ENV"
+
+      - name: Check the IPA
+        run: |
+          app="$DSBOT_APP"
+          unzip -l "$DSBOT_IPA" | tee "$RUNNER_TEMP/list.txt"
+          grep -qE 'Payload/[^/]+\.app/Info\.plist' "$RUNNER_TEMP/list.txt" || {
+            echo "::error::the IPA has no Payload/<App>.app/Info.plist"
+            exit 1
+          }
+          if grep -q '__MACOSX' "$RUNNER_TEMP/list.txt"; then
+            echo "::error::the IPA carries __MACOSX entries"
+            exit 1
+          fi
+
+          expected="$(node -p "require('./app.json').expo.ios.bundleIdentifier")"
+          actual="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::Info.plist has bundle id $actual, app.json declares $expected"
+            exit 1
+          fi
+
+          # A missing usage description kills the app the moment it asks, and only on a device,
+          # so all four are read back out of the artifact that ships.
+          for key in NSCameraUsageDescription NSFaceIDUsageDescription NSPhotoLibraryUsageDescription NSLocalNetworkUsageDescription; do
+            value="$(/usr/libexec/PlistBuddy -c "Print :$key" "$app/Info.plist" 2>/dev/null || true)"
+            if [ -z "$value" ]; then
+              echo "::error::$key is empty or missing in the built Info.plist"
+              exit 1
+            fi
+          done
+
+          # The English strings above ship in every language until the .lproj bundle arrives,
+          # so a Chinese device would quietly fall back to them.
+          strings="$(find "$app" -type f -path '*zh-Hans.lproj/InfoPlist.strings' | head -1)"
+          if [ -z "$strings" ]; then
+            echo "::error::zh-Hans/InfoPlist.strings is not in the app. lproj bundles present: $(find "$app" -maxdepth 2 -name '*.lproj' | tr '\n' ' ')"
+            exit 1
+          fi
+          chinese="$(plutil -p "$strings")"
+          if ! printf '%s' "$chinese" | node -e 'let body = ""; process.stdin.on("data", (chunk) => { body += chunk }).on("end", () => process.exit(/[一-龥]/.test(body) ? 0 : 1))'; then
+            echo "::error::zh-Hans/InfoPlist.strings holds no Chinese text: $chinese"
+            exit 1
+          fi
+
+          # app.config.js owns the build number. Reading it back instead of repeating the
+          # formula keeps one source of truth, and catches a prebuild that ran on a stale file.
+          expected_build="$(node -p "require('./app.config.js').versionCode(require('../ds-bot/package.json').version)")"
+          built="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist")"
+          if [ "$built" != "$expected_build" ]; then
+            echo "::error::CFBundleVersion in the build is $built, but app.config.js makes $expected_build"
+            exit 1
+          fi
+          echo "DSBOT_BUILD_NUMBER=$built" >> "$GITHUB_ENV"
+
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
+          architectures="$(lipo -archs "$app/$executable")"
+          echo "binary $executable: $architectures"
+          case "$architectures" in
+            *arm64*) ;;
+            *) echo "::error::the app binary is not arm64: $architectures"; exit 1 ;;
+          esac
+
+          # A framework whose binary is missing still archives and then fails to launch, which
+          # the user reads as a bad signature rather than a bad build.
+          test -d "$app/Frameworks" || { echo "::error::the app has no Frameworks directory"; exit 1; }
+          for framework in "$app"/Frameworks/*.framework; do
+            name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$framework/Info.plist" 2>/dev/null || basename "$framework" .framework)"
+            if [ ! -f "$framework/$name" ]; then
+              echo "::error::$(basename "$framework") is missing its binary $name"
+              exit 1
+            fi
+          done
+          echo "frameworks: $(find "$app/Frameworks" -maxdepth 1 -name '*.framework' | wc -l | tr -d ' ')"
+
+          if codesign -dv "$app" >/dev/null 2>&1; then
+            echo "::error::the app is signed; signing belongs to the user's tool"
+            exit 1
+          fi
+          echo "unsigned: confirmed"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist" | sed 's/^/CFBundleShortVersionString: /'
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$app/Info.plist" | sed 's/^/MinimumOSVersion: /'
+
+      - name: Write the build information
+        run: |
+          sha="$(shasum -a 256 "$DSBOT_IPA" | awk '{print $1}')"
+          minimum_ios="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$DSBOT_APP/Info.plist")"
+          echo "$sha  $(basename "$DSBOT_IPA")" > dist/DS-Bot-ios-unsigned.sha256
+          node -e '
+            const fs = require("fs");
+            const [ipa, sha, minimumIos, out] = process.argv.slice(1);
+            const pkg = require("./package.json");
+            const info = {
+              built_at: new Date().toISOString(),
+              commit: process.env.GITHUB_SHA,
+              ref: process.env.GITHUB_REF,
+              run: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+              version: process.env.DSBOT_VERSION,
+              build_number: process.env.DSBOT_BUILD_NUMBER,
+              bundle_id: require("./app.json").expo.ios.bundleIdentifier,
+              minimum_ios: minimumIos,
+              signed: false,
+              expo: pkg.dependencies.expo,
+              react_native: pkg.dependencies["react-native"],
+              react: pkg.dependencies.react,
+              xcode: process.env.DSBOT_XCODE,
+              node: process.version,
+              sha256: sha,
+              ipa,
+            };
+            fs.writeFileSync(out, JSON.stringify(info, null, 2) + "\n");
+          ' "$(basename "$DSBOT_IPA")" "$sha" "$minimum_ios" dist/build-info.json
+          {
+            echo "### Unsigned IPA"
+            echo ''
+            echo "- \`$(basename "$DSBOT_IPA")\`, $(du -h "$DSBOT_IPA" | cut -f1)"
+            echo "- sha256 \`$sha\`"
+            echo "- bundle id \`$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$DSBOT_APP/Info.plist")\`, iOS $minimum_ios+"
+            echo "- version \`$DSBOT_VERSION\` build \`$DSBOT_BUILD_NUMBER\`, commit \`${GITHUB_SHA:0:7}\`"
+            echo "- $DSBOT_XCODE, $(node -v)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-unsigned
+          path: |
+            mobile/dist/DS-Bot-*-ios-unsigned.ipa
+            mobile/dist/DS-Bot-ios-unsigned.sha256
+            mobile/dist/build-info.json
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 0
+
+      # Crash symbolication on a device the user installed needs these; they are useless once
+      # the matching build is gone, so they expire with it.
+      - name: Upload the dSYMs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-dSYMs
+          path: ${{ runner.temp }}/DSBot.xcarchive/dSYMs
+          retention-days: 30
+          if-no-files-found: warn
+          compression-level: 0
+
+      - name: Upload the build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-build-log
+          path: mobile/dist/xcodebuild.log
+          retention-days: 7
+          if-no-files-found: warn

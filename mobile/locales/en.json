@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "DS Bot uses the camera to scan the pairing code that your computer shows.",
+    "NSFaceIDUsageDescription": "DS Bot asks for Face ID before it hands out a secret, connects a connector or changes what a Bot may do.",
+    "NSPhotoLibraryUsageDescription": "DS Bot opens a photo you pick so you can send it in a chat.",
+    "NSLocalNetworkUsageDescription": "DS Bot reaches the Relay Server on your own computer over the local network."
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "DS Bot 用相机扫描电脑上显示的配对二维码。",
+    "NSFaceIDUsageDescription": "DS Bot 在交出密钥、连接连接器或改动 Bot 权限之前，会先要求 Face ID 确认。",
+    "NSPhotoLibraryUsageDescription": "DS Bot 会打开你选中的照片，用来在聊天里发送。",
+    "NSLocalNetworkUsageDescription": "DS Bot 需要通过本地网络连接你自己电脑上的中继服务器。"
+  }
+}
