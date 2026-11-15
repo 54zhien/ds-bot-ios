@@ -35,8 +35,8 @@ export function SheetHeader({ title, left, right }: { title: string; left?: Head
     </View>
   )
   return (
-    <View style={[styles.bar, { borderBottomColor: p.line }]}>
-      {Platform.OS === 'ios' ? <View style={[styles.grab, { backgroundColor: p.line2 }]} /> : null}
+    // The system grabber sits in the top of the sheet, so the row starts below it.
+    <View style={[styles.bar, { borderBottomColor: p.line, paddingTop: Platform.OS === 'ios' ? 14 : 0 }]}>
       <View style={styles.row}>
         {action(left, 'flex-start')}
         <Text style={[typeScale.headerTitle, { color: p.ink, flex: 1, textAlign: 'center' }]} numberOfLines={1}>{title}</Text>
@@ -56,7 +56,6 @@ export function confirmDanger(title: string, action: string, onConfirm: () => vo
 
 const styles = StyleSheet.create({
   bar: { borderBottomWidth: StyleSheet.hairlineWidth },
-  grab: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginTop: 6 },
   row: { flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingHorizontal: 16, gap: 8 },
   side: { minWidth: 72, maxWidth: '34%', flexShrink: 0 },
   action: { minHeight: 44, justifyContent: 'center' },

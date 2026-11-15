@@ -5,6 +5,7 @@ import { t, getLang, setLang } from '../ui/i18n.ts'
 import { ChevronRightIcon } from '../ui/icons.tsx'
 import { readPrefs, writePrefs } from '../store.ts'
 import { radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { Glass } from '../ui/glass.tsx'
 
 function Row({ label, value, onPress, end }: { label: string; value?: string; onPress?: () => void; end?: React.ReactNode }) {
   const { p } = useTheme()
@@ -13,7 +14,7 @@ function Row({ label, value, onPress, end }: { label: string; value?: string; on
       <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1, minWidth: 96 }]}>{label}</Text>
       {value !== undefined ? <Text style={[typeScale.settingsRow, { color: p.ink2, flexShrink: 1, maxWidth: '52%', textAlign: 'right' }]} numberOfLines={1}>{value}</Text> : null}
       {end}
-      {onPress ? <View style={{ flexShrink: 0 }}><ChevronRightIcon size={16} color={p.ink3} /></View> : null}
+      {onPress ? <View style={{ flexShrink: 0 }}><ChevronRightIcon size={20} color={p.ink3} /></View> : null}
     </View>
   )
   return onPress ? <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed ? { backgroundColor: p.hover } : null}>{body}</Pressable> : body
@@ -25,7 +26,7 @@ function Choice<T extends string>({ label, options, value, onPick }: { label: st
   return (
     <View style={styles.choice}>
       <Text style={[typeScale.settingsRow, { color: p.ink }]}>{label}</Text>
-      <View style={[styles.segments, { backgroundColor: p.hover }]} accessibilityRole="radiogroup">
+      <Glass radius={9} style={[styles.segments, { backgroundColor: p.hover }]} accessibilityRole="radiogroup">
         {options.map(option => {
           const on = option.id === value
           return (
@@ -35,7 +36,7 @@ function Choice<T extends string>({ label, options, value, onPick }: { label: st
             </Pressable>
           )
         })}
-      </View>
+      </Glass>
     </View>
   )
 }
@@ -46,14 +47,14 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   return (
     <View style={{ marginTop: 16 }}>
       <Text style={[typeScale.caption, { color: p.ink3, paddingHorizontal: 18, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6, fontSize: 11 }]}>{label}</Text>
-      <View style={[styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+      <Glass radius={radius.card} style={[styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
         {items.map((child, i) => (
           <Fragment key={i}>
             {i > 0 ? <View style={[styles.divider, { backgroundColor: p.line }]} /> : null}
             {child}
           </Fragment>
         ))}
-      </View>
+      </Glass>
     </View>
   )
 }

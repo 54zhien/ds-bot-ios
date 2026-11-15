@@ -5,6 +5,7 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { ArrowUpIcon, ChevronLeftIcon, CloseIcon } from '../ui/icons.tsx'
 import { radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { Glass, GlassControl, GlassPill } from '../ui/glass.tsx'
 import { Avatar } from '../ui/marks.tsx'
 import type { Bot } from '../connection.ts'
 import { Markdown } from './chat/markdown.tsx'
@@ -51,17 +52,23 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: p.main }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={insets.top}>
       <View style={{ paddingTop: insets.top }}>
         <View style={styles.head}>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('Back')} onPress={() => navigation.goBack()} hitSlop={8} style={styles.headBtn}><ChevronLeftIcon size={20} color={p.ink2} /></Pressable>
-          <Avatar bot={bot} dark={dark} size={28} ring={p.main} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[typeScale.rowName, { color: p.ink }]} numberOfLines={1}>{bot.name}</Text>
-            <Text style={[typeScale.caption, { color: p.ink3 }]} numberOfLines={1}>{t('Side chat')}</Text>
+          <GlassControl label={t('Back')} iconSize={24} onPress={() => navigation.goBack()}>
+            <ChevronLeftIcon size={24} color={p.ink2} />
+          </GlassControl>
+          <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
+            <GlassPill height={52} style={{ maxWidth: '100%' }}>
+              <Avatar bot={bot} dark={dark} size={28} ring={p.main} />
+              <View style={{ flexShrink: 1, minWidth: 0 }}>
+                <Text style={[typeScale.rowName, { color: p.ink }]} numberOfLines={1}>{bot.name}</Text>
+                <Text style={[typeScale.caption, { color: p.ink3 }]} numberOfLines={1}>{t('Side chat')}</Text>
+              </View>
+            </GlassPill>
           </View>
           {chat !== undefined ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={t('Close')} onPress={() => { void call('side-close', { chatId: chat.chatId }).then(() => setOpenId(null)).catch(() => {}) }} style={styles.headBtn}>
-              <CloseIcon size={18} color={p.ink2} />
-            </Pressable>
-          ) : <View style={styles.headBtn} />}
+            <GlassControl size={40} iconSize={20} label={t('Close')} onPress={() => { void call('side-close', { chatId: chat.chatId }).then(() => setOpenId(null)).catch(() => {}) }}>
+              <CloseIcon size={20} color={p.ink2} />
+            </GlassControl>
+          ) : <View style={{ width: 40, height: 40 }} />}
         </View>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 10 }}>
@@ -105,24 +112,25 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
         )}
         {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 8 }]}>{error}</Text> : null}
       </ScrollView>
-      <View style={[styles.composer, { borderTopColor: p.line, backgroundColor: p.main, paddingBottom: insets.bottom + 8 }]}>
-        <TextInput style={[styles.input, { color: p.ink, borderColor: p.line }]} value={draft} onChangeText={setDraft}
-          placeholder={t('Ask about the work so far')} placeholderTextColor={p.ink3} multiline />
-        <Pressable accessibilityRole="button" disabled={draft.trim() === '' || busy} onPress={() => void send()}
-          style={[styles.send, { backgroundColor: p.accent, opacity: draft.trim() === '' || busy ? 0.4 : 1 }]}>
-          <ArrowUpIcon size={18} color={p.accentInk} />
-        </Pressable>
+      <View style={[styles.composer, { paddingBottom: insets.bottom + 8 }]}>
+        <Glass radius={radius.pill} style={styles.inputGlass} contentStyle={styles.inputIn}>
+          <TextInput style={[styles.input, { color: p.ink }]} value={draft} onChangeText={setDraft}
+            placeholder={t('Ask about the work so far')} placeholderTextColor={p.ink3} multiline />
+        </Glass>
+        <GlassControl size={44} iconSize={24} label={t('Send')} accent disabled={draft.trim() === '' || busy} onPress={() => void send()}>
+          <ArrowUpIcon size={24} color={p.accentInk} />
+        </GlassControl>
       </View>
     </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8 },
-  headBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8 },
   card: { borderRadius: radius.card, borderWidth: 1, padding: 14, marginBottom: 10, ...shadow(1) },
   bubble: { borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 8, maxWidth: '85%' },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1 },
-  input: { flex: 1, borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, maxHeight: 120, fontSize: 15 },
-  send: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingTop: 8 },
+  inputGlass: { flex: 1, minHeight: 48 },
+  inputIn: { alignItems: 'stretch', paddingHorizontal: 12, paddingVertical: 2 },
+  input: { flexGrow: 1, paddingHorizontal: 2, paddingTop: 10, paddingBottom: 10, maxHeight: 120, fontSize: 15 },
 })

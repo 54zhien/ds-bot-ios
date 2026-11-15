@@ -8,6 +8,7 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { ChevronLeftIcon, ChevronRightIcon } from '../ui/icons.tsx'
 import { radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { Glass } from '../ui/glass.tsx'
 
 function Screen({ children }: { children: React.ReactNode }) {
   const { p } = useTheme()
@@ -19,7 +20,7 @@ function Back({ title, onBack }: { title: string; onBack: () => void }) {
   const { p } = useTheme()
   return (
     <View style={styles.backRow}>
-      <Pressable accessibilityRole="button" accessibilityLabel={t('Back')} onPress={onBack} hitSlop={8} style={styles.backBtn}><ChevronLeftIcon size={20} color={p.ink2} /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Back')} onPress={onBack} hitSlop={8} style={styles.backBtn}><ChevronLeftIcon size={24} color={p.ink2} /></Pressable>
       <Text style={[typeScale.rowName, { color: p.ink, flex: 1, textAlign: 'center' }]}>{title}</Text>
       <View style={styles.backBtn} />
     </View>
@@ -31,14 +32,14 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   return (
     <View style={{ marginTop: 16 }}>
       <Text style={[typeScale.caption, { color: p.ink3, paddingHorizontal: 18, marginBottom: 6, fontSize: 11 }]}>{label}</Text>
-      <View style={[styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+      <Glass radius={radius.card} style={[styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
         {items.map((child, i) => (
           <Fragment key={i}>
             {i > 0 ? <View style={[styles.divider, { backgroundColor: p.line }]} /> : null}
             {child}
           </Fragment>
         ))}
-      </View>
+      </Glass>
     </View>
   )
 }
@@ -52,7 +53,7 @@ function Row({ label, hint, value, onPress, end }: { label: string; hint?: strin
       </View>
       {value !== undefined ? <Text style={[typeScale.settingsRow, { color: p.ink2, flexShrink: 1, maxWidth: '54%', textAlign: 'right' }]} numberOfLines={1}>{value}</Text> : null}
       {end}
-      {onPress ? <View style={{ flexShrink: 0 }}><ChevronRightIcon size={16} color={p.ink3} /></View> : null}
+      {onPress ? <View style={{ flexShrink: 0 }}><ChevronRightIcon size={20} color={p.ink3} /></View> : null}
     </View>
   )
   return onPress ? <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed ? { backgroundColor: p.hover } : null}>{body}</Pressable> : body
@@ -70,12 +71,14 @@ const keyLabel = (key?: { configured?: boolean; writable?: boolean }) =>
 
 // A field whose label stays above it once it has a value; the placeholder alone
 // would leave a filled form with no way to tell its fields apart.
-export function LabeledInput({ label, ...props }: React.ComponentProps<typeof TextInput> & { label: string }) {
+export function LabeledInput({ label, style, ...props }: React.ComponentProps<typeof TextInput> & { label: string }) {
   const { p } = useTheme()
   return (
-    <View>
+    <View style={{ marginBottom: 8 }}>
       {props.value ? <Text style={[typeScale.small, { color: p.ink3, marginBottom: 2, marginLeft: 2 }]}>{label}</Text> : null}
-      <TextInput placeholder={label} {...props} />
+      <Glass radius={radius.input} style={styles.fieldShell} contentStyle={styles.fieldIn}>
+        <TextInput placeholder={label} {...props} style={[style, styles.fieldInner, { color: p.ink }]} />
+      </Glass>
     </View>
   )
 }
@@ -120,14 +123,16 @@ export function Providers({ navigation }: any) {
                   {provider.error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 2 }]}>{provider.error}</Text> : null}
                 </View>
                 <Text style={[typeScale.settingsRow, { color: p.ink2, flexShrink: 0 }]}>{provider.models.length === 0 ? t('No models') : t('{count} models', { count: provider.models.length })}</Text>
-                <View style={{ flexShrink: 0 }}><ChevronRightIcon size={16} color={p.ink3} /></View>
+                <View style={{ flexShrink: 0 }}><ChevronRightIcon size={20} color={p.ink3} /></View>
               </Pressable>
               {open === provider.id ? (
                 <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: p.line }}>
                   {provider.key?.writable === true ? (
                     <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
                       <Text style={[typeScale.small, { color: p.ink3, marginBottom: 6 }]}>{provider.key.configured ? t('Replace the API key') : t('API key')}</Text>
-                      <TextInput style={[typeScale.settingsRow, { color: p.ink, borderWidth: 1, borderColor: p.line, borderRadius: 10, paddingHorizontal: 12, minHeight: 40, paddingVertical: 6 }]} value={key} onChangeText={setKey} placeholder={t('{provider} API key', { provider: provider.name })} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry />
+                      <Glass radius={radius.input} style={styles.fieldShell} contentStyle={styles.fieldIn}>
+                        <TextInput style={[typeScale.settingsRow, styles.fieldInner, { color: p.ink }]} value={key} onChangeText={setKey} placeholder={t('{provider} API key', { provider: provider.name })} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry />
+                      </Glass>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                         {provider.key.configured ? (
                           <Pressable accessibilityRole="button" onPress={() => void apply(call('provider-key', { provider: provider.id, value: null }), load)} style={[styles.smallBtn, { backgroundColor: p.hover }]}>
@@ -164,13 +169,13 @@ export function Providers({ navigation }: any) {
         {adding ? (
           <Section label={t('Add a provider')}>
             <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
-              <View style={[styles.segRow, { borderColor: p.line }]}>
+              <Glass radius={radius.pill} style={styles.segRow}>
                 {[['known', 'Known provider'], ['custom', 'Custom API']].map(([id, label]) => (
                   <Pressable key={id} onPress={() => setMode(id as 'known' | 'custom')} style={[styles.seg, mode === id ? { backgroundColor: p.accent } : null]}>
                     <Text style={[typeScale.caption, { color: mode === id ? p.accentInk : p.ink2, fontWeight: '500' }]}>{t(label)}</Text>
                   </Pressable>
                 ))}
-              </View>
+              </Glass>
             </View>
             {mode === 'known' ? (
               <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
@@ -193,7 +198,9 @@ export function Providers({ navigation }: any) {
                 <LabeledInput label={t('API base URL')} style={[typeScale.settingsRow, { color: p.ink, borderWidth: 1, borderColor: p.line, borderRadius: 10, paddingHorizontal: 12, height: 40, marginBottom: 6 }]} value={draft.baseURL} onChangeText={v => setDraft(d => ({ ...d, baseURL: v }))} placeholder={t('API base URL')} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} />
                 <LabeledInput label={t('Provider id')} style={[typeScale.settingsRow, { color: p.ink, borderWidth: 1, borderColor: p.line, borderRadius: 10, paddingHorizontal: 12, height: 40, marginBottom: 6 }]} value={draft.provider} onChangeText={v => setDraft(d => ({ ...d, provider: v }))} placeholder={t('Provider id')} placeholderTextColor={p.ink3} autoCapitalize="none" />
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-                  <TextInput style={[typeScale.settingsRow, { color: p.ink, flex: 1, minWidth: 160, borderWidth: 1, borderColor: p.line, borderRadius: 10, paddingHorizontal: 12, minHeight: 40, paddingVertical: 6 }]} value={draft.key} onChangeText={v => setDraft(d => ({ ...d, key: v }))} placeholder={t('API key')} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry />
+                  <Glass radius={radius.input} style={styles.fieldShellFlex} contentStyle={styles.fieldIn}>
+                    <TextInput style={[typeScale.settingsRow, styles.fieldInner, { color: p.ink }]} value={draft.key} onChangeText={v => setDraft(d => ({ ...d, key: v }))} placeholder={t('API key')} placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry />
+                  </Glass>
                   <Pressable accessibilityRole="button" disabled={draft.baseURL.trim() === ''} onPress={discover} style={[styles.smallBtn, { backgroundColor: p.hover, opacity: draft.baseURL.trim() === '' ? 0.4 : 1 }]}>
                     <Text style={{ color: p.ink, fontSize: 14 }}>{t('Find models')}</Text>
                   </Pressable>
@@ -350,7 +357,7 @@ export function Capabilities({ navigation }: any) {
                     {item.description ? <Text style={[typeScale.small, { color: p.ink3, marginTop: 2 }]} numberOfLines={2}>{item.description}</Text> : null}
                     <Text style={[typeScale.small, { color: status?.state === 'needs-approval' ? p.accent : status?.state === 'error' ? p.danger : p.ink3, marginTop: 2 }]}>{[detail(item as { kind?: string; transport?: string; items?: string[] }), text].filter(Boolean).join(' · ')}</Text>
                   </View>
-                  <ChevronRightIcon size={16} color={p.ink3} />
+                  <ChevronRightIcon size={20} color={p.ink3} />
                 </Pressable>
                 {open === item.name ? (
                   <View style={{ borderTopWidth: 1, borderTopColor: p.line, paddingHorizontal: 16, paddingVertical: 10 }}>
@@ -377,23 +384,23 @@ export function Capabilities({ navigation }: any) {
           <Section label={editing.originalName !== undefined ? t('Edit capability') : t('Add capability')}>
             <View style={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
               <LabeledInput label={t('Name')} style={[typeScale.settingsRow, styles.field, { color: p.ink, borderColor: p.line }]} value={editing.name} editable={editing.originalName === undefined} onChangeText={v => setField('name', v)} placeholder={t('Name')} placeholderTextColor={p.ink3} autoCapitalize="none" />
-              <View style={[styles.segRow, { borderColor: p.line }]}>
+              <Glass radius={radius.pill} style={styles.segRow}>
                 {[['mcp', 'MCP'], ['skill', 'Skill'], ['pack', 'Pack']].map(([id, label]) => (
                   <Pressable key={id} disabled={editing.originalName !== undefined} onPress={() => setField('kind', id)} style={[styles.seg, editing.kind === id ? { backgroundColor: p.accent } : null]}>
                     <Text style={[typeScale.caption, { color: editing.kind === id ? p.accentInk : p.ink2, fontWeight: '500' }]}>{t(label)}</Text>
                   </Pressable>
                 ))}
-              </View>
+              </Glass>
               <LabeledInput label={t('Description')} style={[typeScale.settingsRow, styles.field, { color: p.ink, borderColor: p.line }]} value={editing.description} onChangeText={v => setField('description', v)} placeholder={t('Description')} placeholderTextColor={p.ink3} />
               {editing.kind === 'mcp' ? (
                 <>
-                  <View style={[styles.segRow, { borderColor: p.line }]}>
+                  <Glass radius={radius.pill} style={styles.segRow}>
                     {[['stdio', 'Local command'], ['streamable-http', 'HTTP server']].map(([id, label]) => (
                       <Pressable key={id} onPress={() => setField('transport', id)} style={[styles.seg, editing.transport === id ? { backgroundColor: p.accent } : null]}>
                         <Text style={[typeScale.caption, { color: editing.transport === id ? p.accentInk : p.ink2, fontWeight: '500' }]}>{t(label)}</Text>
                       </Pressable>
                     ))}
-                  </View>
+                  </Glass>
                   {editing.transport === 'stdio' ? (
                     <>
                       <LabeledInput label={t('Command')} style={[typeScale.settingsRow, styles.field, { color: p.ink, borderColor: p.line }]} value={editing.command} onChangeText={v => setField('command', v)} placeholder={t('Command')} placeholderTextColor={p.ink3} autoCapitalize="none" />
@@ -590,6 +597,10 @@ const styles = StyleSheet.create({
   segRow: { flexDirection: 'row', borderWidth: 1, borderRadius: radius.pill, overflow: 'hidden' },
   seg: { flex: 1, minHeight: 38, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   cta: { minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  field: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, minHeight: 40, paddingVertical: 6 },
+  field: { minHeight: 40 },
+  fieldShell: { minHeight: 44 },
+  fieldShellFlex: { flex: 1, minWidth: 160, minHeight: 44 },
+  fieldIn: { alignItems: 'stretch', paddingHorizontal: 12, paddingVertical: 6 },
+  fieldInner: { flexGrow: 1, borderWidth: 0, borderRadius: 0, paddingHorizontal: 0, paddingVertical: 0, minHeight: 0, marginTop: 0, marginBottom: 0 },
   multi: { minHeight: 80, paddingVertical: 10, textAlignVertical: 'top', fontFamily: 'monospace' },
 })

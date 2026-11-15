@@ -7,43 +7,43 @@ import { useTheme } from './tokens.ts'
 interface IconProps { size?: number; color?: string }
 const use = (color: string | undefined, fallback: string) => color ?? fallback
 
-export function ChevronLeftIcon({ size = 20, color }: IconProps) {
+export function ChevronLeftIcon({ size = 24, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: 'none', stroke: use(color, p.ink2), strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' },
     h(Path, { d: 'M12.5 4.5L7 10l5.5 5.5' }))
 }
-export function ChevronRightIcon({ size = 20, color }: IconProps) {
+export function ChevronRightIcon({ size = 24, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: 'none', stroke: use(color, p.ink2), strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' },
     h(Path, { d: 'M7.5 4.5L13 10l-5.5 5.5' }))
 }
-export function SidebarIcon({ size = 20, color }: IconProps) {
+export function SidebarIcon({ size = 24, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: 'none', stroke: use(color, p.ink2), strokeWidth: 1.6 },
     h(Rect, { x: 3, y: 4, width: 14, height: 12, rx: 2.5 }), h(Path, { d: 'M8 4v12' }))
 }
-export function SearchIcon({ size = 16, color }: IconProps) {
+export function SearchIcon({ size = 20, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20' },
     h(Circle, { cx: 8.5, cy: 8.5, r: 5.5, stroke: use(color, p.ink2), strokeWidth: 1.6, fill: 'none' }),
     h(Path, { d: 'M13 13l4 4', stroke: use(color, p.ink2), strokeWidth: 1.6, strokeLinecap: 'round' }))
 }
-export function PlusIcon({ size = 16, color }: IconProps) {
+export function PlusIcon({ size = 20, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20' },
     h(Path, { d: 'M10 4v12M4 10h12', stroke: use(color, p.ink2), strokeWidth: 1.6, strokeLinecap: 'round' }))
 }
-export function ArrowUpIcon({ size = 16, color }: IconProps) {
+export function ArrowUpIcon({ size = 20, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20' },
     h(Path, { d: 'M10 16V4M5 9l5-5 5 5', stroke: use(color, p.accentInk), strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }))
 }
-export function ArrowDownIcon({ size = 16, color }: IconProps) {
+export function ArrowDownIcon({ size = 20, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20' },
     h(Path, { d: 'M10 4v12M5 11l5 5 5-5', stroke: use(color, p.ink2), strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }))
 }
-export function GearIcon({ size = 20, color }: IconProps) {
+export function GearIcon({ size = 22, color }: IconProps) {
   const { p } = useTheme()
   const c = use(color, p.ink2)
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: 'none', stroke: c, strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
@@ -77,10 +77,10 @@ export function MainStarIcon({ size = 16, color }: IconProps) {
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: use(color, p.star) },
     h(Path, { d: 'M10 2.4l2.29 5.04 5.51.63-4.09 3.74 1.11 5.42L10 14.5l-4.82 2.73 1.11-5.42L2.2 8.07l5.51-.63z' }))
 }
-export function StopIcon({ size = 14, color }: IconProps) {
+export function StopIcon({ size = 20, color }: IconProps) {
   const { p } = useTheme()
   return h(Svg, { width: size, height: size, viewBox: '0 0 20 20', fill: use(color, p.accentInk) },
-    h(Rect, { x: 5, y: 5, width: 10, height: 10, rx: 2 }))
+    h(Rect, { x: 3.5, y: 3.5, width: 13, height: 13, rx: 3 }))
 }
 export function DotsIcon({ size = 20, color }: IconProps) {
   const { p } = useTheme()
@@ -93,7 +93,7 @@ export function CheckIcon({ size = 15, color }: IconProps) {
     h(Path, { d: 'M4.5 10.5l3.5 3.5 7.5-8' }))
 }
 
-export function CloseIcon({ size = 18, color }: IconProps) {
+export function CloseIcon({ size = 20, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round">
       <Path d="M5 5l10 10M15 5L5 15" />
@@ -101,7 +101,7 @@ export function CloseIcon({ size = 18, color }: IconProps) {
   )
 }
 
-export function SideIcon({ size = 20, color }: IconProps) {
+export function SideIcon({ size = 24, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M17 11.5a6.5 6.5 0 0 1-6.5 6.5H4l2-2.6A6.5 6.5 0 1 1 17 11.5Z" />

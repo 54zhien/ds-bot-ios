@@ -6,6 +6,7 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { CheckIcon, ChevronRightIcon } from '../ui/icons.tsx'
 import { radius, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { Glass, GlassButton } from '../ui/glass.tsx'
 
 // The desktop's model menu (ds-bot/src/client/model-menu.js) as a bottom sheet:
 // models grouped by provider, the default one marked, and the thinking-level
@@ -174,20 +175,20 @@ export function ModelPicker({ current, onPick }: { current?: string; onPick: (re
   const model = models.find(item => item.ref === current)
   return (
     <>
-      <Pressable accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)}
-        style={[styles.trigger, { backgroundColor: p.card, borderColor: p.line }]}>
+      <GlassButton accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)} radius={radius.card}
+        style={[styles.trigger, { backgroundColor: p.card, borderColor: p.line }]} contentStyle={styles.triggerIn}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[typeScale.settingsRow, { color: p.ink, fontWeight: '500' }]} numberOfLines={1}>{model?.name ?? t('Choose a model')}</Text>
           {model ? <Text style={[typeScale.caption, { color: p.ink3 }]} numberOfLines={1}>{model.providerName ?? model.ref.split('/')[0]}</Text> : null}
         </View>
         <Text style={{ color: p.ink3, fontSize: 12 }}>⌄</Text>
-      </Pressable>
+      </GlassButton>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.scrim} onPress={() => setOpen(false)} accessibilityLabel={t('Close')} />
-        <View style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
+        <Glass radius={16} style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.grab, { backgroundColor: p.line }]} />
           <ModelGroups models={models} current={current} fallback={team?.defaultModel} onPick={ref => { onPick(ref); setOpen(false) }} />
-        </View>
+        </Glass>
       </Modal>
     </>
   )
@@ -209,19 +210,19 @@ export function ModelMenu({ bot, onManage }: { bot: Bot; onManage: () => void })
   }
   return (
     <>
-      <Pressable accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)}
-        style={[styles.trigger, { backgroundColor: p.card, borderColor: p.line }]}>
+      <GlassButton accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)} radius={radius.card}
+        style={[styles.trigger, { backgroundColor: p.card, borderColor: p.line }]} contentStyle={styles.triggerIn}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[typeScale.settingsRow, { color: p.ink, fontWeight: '500' }]} numberOfLines={1}>{model?.name ?? t('Choose a model')}</Text>
           {model ? <Text style={[typeScale.caption, { color: p.ink3 }]} numberOfLines={1}>{[model.provider, level].filter(Boolean).join(' · ')}</Text> : null}
         </View>
         <Text style={{ color: p.ink3, fontSize: 12 }}>⌄</Text>
-      </Pressable>
+      </GlassButton>
       {model ? null : <Text style={[typeScale.small, { color: p.ink3, marginTop: 6 }]}>{t('Pick a model and {name} can start.', { name: bot.name })}</Text>}
       {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 6 }]}>{error}</Text> : null}
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.scrim} onPress={() => setOpen(false)} accessibilityLabel={t('Close')} />
-        <View style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
+        <Glass radius={16} style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.grab, { backgroundColor: p.line }]} />
           <ModelGroups models={models} current={model?.ref} fallback={team?.defaultModel} onPick={ref => { if (ref !== bot.model) save({ model: ref }) }} />
           {model && (reasoning?.efforts?.length ?? 0) > 0 ? (
@@ -234,14 +235,15 @@ export function ModelMenu({ bot, onManage }: { bot: Bot; onManage: () => void })
             <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]}>{t('Models and providers…')}</Text>
             <ChevronRightIcon color={p.ink3} />
           </Pressable>
-        </View>
+        </Glass>
       </Modal>
     </>
   )
 }
 
 const styles = StyleSheet.create({
-  trigger: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 8 },
+  trigger: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 8 },
+  triggerIn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
   sheet: { borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingTop: 8 },
   grab: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, marginBottom: 4 },

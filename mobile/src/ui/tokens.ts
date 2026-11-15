@@ -104,6 +104,9 @@ export const shadow = (level: 0 | 1 | 2 | 3 | 4, color = '#000') => {
   ][level]
 }
 
+// Liquid Glass metrics: every glass surface takes its sizes from here.
+export const glass = { control: 44, controlSmall: 40, icon: 22, iconLarge: 24, pill: 44, gap: 8 }
+
 export const MONO = 'monospace'
 
 export interface Theme { dark: boolean; p: Palette }

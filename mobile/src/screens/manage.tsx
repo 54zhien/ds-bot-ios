@@ -17,6 +17,7 @@ import { t, timeLabel, weekdayShort } from '../ui/i18n.ts'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GearIcon } from '../ui/icons.tsx'
 import { Avatar, COLOR_PAINT, RoomAvatar } from '../ui/marks.tsx'
 import { inkColor, radius, shadow, type as typeScale, useTheme, type Palette } from '../ui/tokens.ts'
+import { Glass, GlassButton, GlassControl } from '../ui/glass.tsx'
 import type { Bot, Room, TeamState } from '../connection.ts'
 import { capabilityStatusText } from './settings-pages.tsx'
 import { ModelMenu, ModelPicker } from './model-menu.tsx'
@@ -53,7 +54,7 @@ export function BackRow({ title, onBack, end }: { title: string; onBack: () => v
   return (
     <View style={styles.backRow}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('Back')} onPress={onBack} hitSlop={8} style={styles.backBtn}>
-        <ChevronLeftIcon size={20} color={p.ink2} />
+        <ChevronLeftIcon size={24} color={p.ink2} />
       </Pressable>
       <Text style={[typeScale.rowName, { color: p.ink, flex: 1, textAlign: 'center' }]} numberOfLines={1}>{title}</Text>
       <View style={styles.backBtn}>{end}</View>
@@ -67,14 +68,14 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   return (
     <View style={{ marginTop: 18 }}>
       <Text style={[typeScale.caption, { color: p.ink3, paddingHorizontal: 18, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6, fontSize: 11 }]}>{label}</Text>
-      <View style={[styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+      <Glass radius={radius.card} style={[styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
         {items.map((child, i) => (
           <Fragment key={i}>
             {i > 0 ? <View style={[styles.divider, { backgroundColor: p.line }]} /> : null}
             {child}
           </Fragment>
         ))}
-      </View>
+      </Glass>
     </View>
   )
 }
@@ -89,7 +90,7 @@ function Row({ label, hint, value, onPress, disabled, end }: { label: string; hi
       </View>
       {value !== undefined ? <Text style={[typeScale.settingsRow, { color: p.ink2, flexShrink: 1, maxWidth: '54%', textAlign: 'right' }]} numberOfLines={1}>{value}</Text> : null}
       {end}
-      {onPress ? <View style={{ flexShrink: 0 }}><ChevronRightIcon size={16} color={p.ink3} /></View> : null}
+      {onPress ? <View style={{ flexShrink: 0 }}><ChevronRightIcon size={20} color={p.ink3} /></View> : null}
     </View>
   )
   if (!onPress || disabled) return <View style={disabled ? { opacity: 0.45 } : null}>{body}</View>
@@ -137,7 +138,7 @@ function SwitchRow({ label, hint, on, disabled, onChange }: { label: string; hin
 function Segmented({ options, value, onPick }: { options: { id: string; label: string }[]; value: string; onPick: (id: string) => void }) {
   const { p } = useTheme()
   return (
-    <View style={[styles.segRow, { backgroundColor: p.hover }]} accessibilityRole="radiogroup">
+    <Glass radius={9} style={[styles.segRow, { backgroundColor: p.hover }]} accessibilityRole="radiogroup">
       {options.map(option => {
         const on = option.id === value
         return (
@@ -147,7 +148,7 @@ function Segmented({ options, value, onPick }: { options: { id: string; label: s
           </Pressable>
         )
       })}
-    </View>
+    </Glass>
   )
 }
 
@@ -209,7 +210,7 @@ export function BotDetails({ route, navigation }: any) {
       <View style={[styles.detailTop, { paddingTop: 8 }]}>
         <RoundButton label={t('Back')} onPress={() => navigation.goBack()}><ChevronLeftIcon color={p.ink2} /></RoundButton>
         <View style={{ flex: 1 }} />
-        <RoundButton label={t('Edit Bot')} onPress={() => navigation.navigate('BotEdit', { botId: bot.id })}><GearIcon size={18} color={p.ink2} /></RoundButton>
+        <RoundButton label={t('Edit Bot')} onPress={() => navigation.navigate('BotEdit', { botId: bot.id })}><GearIcon size={22} color={p.ink2} /></RoundButton>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 18 }}>
         <View style={{ alignItems: 'center', paddingTop: 4 }}>
@@ -217,10 +218,10 @@ export function BotDetails({ route, navigation }: any) {
           <Text style={[typeScale.rowName, { color: p.ink, marginTop: 10, fontSize: 18 }]}>{bot.name}</Text>
           {bot.role ? <Text style={[typeScale.caption, { color: p.ink3, marginTop: 2 }]}>{bot.role}</Text> : null}
         </View>
-        <View style={[styles.tabs, { backgroundColor: p.hover }]}>
+        <Glass radius={10} style={[styles.tabs, { backgroundColor: p.hover }]}>
           <View style={[styles.tab, { backgroundColor: p.card }]}><Text style={[typeScale.small, { color: p.ink, fontWeight: '500' }]}>{t('Details')}</Text></View>
           <Pressable accessibilityRole="tab" onPress={() => navigation.navigate('BotBrowser', { bot })} style={styles.tab}><Text style={[typeScale.small, { color: p.ink2 }]}>{t('Browser')}</Text></Pressable>
-        </View>
+        </Glass>
         {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 10 }]}>{error}</Text> : null}
         <DetailTitle text={t('Model')} />
         <ModelMenu bot={bot} onManage={() => navigation.navigate('Settings', { screen: 'Providers', initial: false })} />
@@ -231,11 +232,11 @@ export function BotDetails({ route, navigation }: any) {
           </>
         ) : null}
         <DetailTitle text={t('Working folder')} />
-        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Folder', { current: bot.workDir, onPick: 'bot', botId: bot.id })}
-          style={[styles.dropdown, { backgroundColor: p.card, borderColor: p.line }]}>
+        <GlassButton accessibilityRole="button" radius={radius.card} onPress={() => navigation.navigate('Folder', { current: bot.workDir, onPick: 'bot', botId: bot.id })}
+          style={[styles.dropdown, { backgroundColor: p.card, borderColor: p.line }]} contentStyle={styles.dropdownIn}>
           <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]} numberOfLines={1}>{bot.workDir ? bot.workDir.split(/[\\/]/).filter(Boolean).pop() : t('Team workspace')}</Text>
           <Text style={{ color: p.ink3, fontSize: 12 }}>⌄</Text>
-        </Pressable>
+        </GlassButton>
         {bot.instructions
           ? <Text style={[typeScale.small, { color: p.ink2, marginTop: 14 }]} numberOfLines={5}>{bot.instructions}</Text>
           : <Pressable accessibilityRole="button" onPress={() => navigation.navigate('BotEdit', { botId: bot.id })} style={{ alignItems: 'center', paddingVertical: 14 }}>
@@ -250,13 +251,7 @@ export function BotDetails({ route, navigation }: any) {
 }
 
 function RoundButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
-  const { p } = useTheme()
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={6}
-      style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: p.line, backgroundColor: p.card }}>
-      {children}
-    </Pressable>
-  )
+  return <GlassControl label={label} iconSize={22} onPress={onPress}>{children}</GlassControl>
 }
 
 function DetailTitle({ text }: { text: string }) {
@@ -274,7 +269,7 @@ function PermissionPicker({ options, saved, onPick }: { options: { value: string
   useEffect(() => { if (pending === saved) setPending(null) }, [saved, pending])
   const current = pending ?? saved
   return (
-    <View style={[styles.segments, { backgroundColor: p.hover }]} accessibilityRole="radiogroup">
+    <Glass radius={10} style={[styles.segments, { backgroundColor: p.hover }]} accessibilityRole="radiogroup">
       {options.map(option => {
         const on = option.value === current
         const danger = option.value === 'danger-full-access'
@@ -287,7 +282,7 @@ function PermissionPicker({ options, saved, onPick }: { options: { value: string
           </Pressable>
         )
       })}
-    </View>
+    </Glass>
   )
 }
 
@@ -305,12 +300,12 @@ function MemorySummary({ bot, onOpen }: { bot: Bot; onOpen: () => void }) {
   return (
     <>
       <DetailTitle text={t('Memory')} />
-      <Pressable accessibilityRole="button" accessibilityLabel={t("Manage {name}'s memory", { name: bot.name })} onPress={onOpen}
-        style={[styles.dropdown, { backgroundColor: p.card, borderColor: p.line }]}>
+      <GlassButton accessibilityRole="button" accessibilityLabel={t("Manage {name}'s memory", { name: bot.name })} radius={radius.card} onPress={onOpen}
+        style={[styles.dropdown, { backgroundColor: p.card, borderColor: p.line }]} contentStyle={styles.dropdownIn}>
         <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]}>{label}</Text>
         <Text style={[typeScale.small, { color: p.ink3 }]}>{t('Manage')}</Text>
         <ChevronRightIcon color={p.ink3} />
-      </Pressable>
+      </GlassButton>
     </>
   )
 }
@@ -548,7 +543,7 @@ export function GroupDetails({ route, navigation }: any) {
       <View style={[styles.detailTop, { paddingTop: 8 }]}>
         <RoundButton label={t('Back')} onPress={() => navigation.goBack()}><ChevronLeftIcon color={p.ink2} /></RoundButton>
         <View style={{ flex: 1 }} />
-        <RoundButton label={t('Group settings')} onPress={() => navigation.navigate('GroupSettings', { roomId: room.id })}><GearIcon size={18} color={p.ink2} /></RoundButton>
+        <RoundButton label={t('Group settings')} onPress={() => navigation.navigate('GroupSettings', { roomId: room.id })}><GearIcon size={22} color={p.ink2} /></RoundButton>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 18 }}>
         <View style={{ alignItems: 'center', paddingTop: 4 }}>
@@ -579,12 +574,12 @@ export function GroupDetails({ route, navigation }: any) {
         {team?.memory === false ? null : (
           <>
             <DetailTitle text={t('Memory')} />
-            <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Memory', { id: room.id, name: room.name, group: true })}
-              style={[styles.dropdown, { backgroundColor: p.card, borderColor: p.line }]}>
+            <GlassButton accessibilityRole="button" radius={radius.card} onPress={() => navigation.navigate('Memory', { id: room.id, name: room.name, group: true })}
+              style={[styles.dropdown, { backgroundColor: p.card, borderColor: p.line }]} contentStyle={styles.dropdownIn}>
               <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]}>{t('Memory')}</Text>
               <Text style={[typeScale.small, { color: p.ink3 }]}>{t('Manage')}</Text>
               <ChevronRightIcon color={p.ink3} />
-            </Pressable>
+            </GlassButton>
           </>
         )}
       </ScrollView>
@@ -750,14 +745,14 @@ export function Memory({ route, navigation }: any) {
       <BackRow title={t('Memory')} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {summary !== null ? <Text style={[typeScale.caption, { color: p.ink3, margin: 18 }]}>{summary}</Text> : null}
-        <View style={[styles.card, { backgroundColor: p.card, borderColor: p.line, marginTop: 14 }]}>
+        <Glass radius={radius.card} style={[styles.card, { backgroundColor: p.card, borderColor: p.line, marginTop: 14 }]}>
           <View style={styles.row}>
             <TextInput style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]} value={question} onChangeText={setQuestion}
               placeholder={t('Ask memory')} placeholderTextColor={p.ink3} onSubmitEditing={ask} />
             <Pressable accessibilityRole="button" onPress={ask}><Text style={[typeScale.settingsRow, { color: p.accent }]}>{asking ? '…' : t('Ask')}</Text></Pressable>
           </View>
           {answer !== null ? <Text style={[typeScale.settingsRow, { color: p.ink, paddingHorizontal: 16, paddingBottom: 12 }]}>{answer}</Text> : null}
-        </View>
+        </Glass>
         <Section label={t('{count} entries', { count: view?.entries?.length ?? 0 })}>
           {(view?.entries ?? []).map((entry, i) => {
             const by = entry.source === 'memory panel' ? t('by you') : entry.by ? t('by {name}', { name: entry.by }) : null
@@ -783,7 +778,7 @@ export function Memory({ route, navigation }: any) {
       <Modal visible={editor !== null} transparent animationType="fade" onRequestClose={() => setEditor(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalWrap}>
           <Pressable style={styles.scrim} onPress={() => setEditor(null)} />
-          <View style={[styles.sheet, { backgroundColor: p.card, borderColor: p.line }]}>
+          <Glass radius={radius.card} style={[styles.sheet, { backgroundColor: p.card, borderColor: p.line }]}>
             <View style={styles.row}><TextInput style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]} value={editor?.topic ?? ''} onChangeText={topic => setEditor(prev => prev === null ? null : { ...prev, topic })} placeholder={t('Topic')} placeholderTextColor={p.ink3} /></View>
             <View style={[styles.divider, { backgroundColor: p.line }]} />
             <View style={styles.row}><TextInput style={[typeScale.settingsRow, { color: p.ink, flex: 1, minHeight: 80, maxHeight: 180, textAlignVertical: 'top' }]} value={editor?.text ?? ''} onChangeText={text => setEditor(prev => prev === null ? null : { ...prev, text })} placeholder={t('Text')} placeholderTextColor={p.ink3} multiline autoFocus /></View>
@@ -792,7 +787,7 @@ export function Memory({ route, navigation }: any) {
               <Pressable accessibilityRole="button" onPress={() => setEditor(null)} style={{ flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' }}><Text style={[typeScale.settingsRow, { color: p.ink2 }]}>{t('Cancel')}</Text></Pressable>
               <Pressable accessibilityRole="button" onPress={saveEditor} style={{ flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center' }}><Text style={[typeScale.settingsRow, { color: p.accent, fontWeight: '600' }]}>{t('Save')}</Text></Pressable>
             </View>
-          </View>
+          </Glass>
         </KeyboardAvoidingView>
       </Modal>
     </Screen>
@@ -1108,7 +1103,8 @@ const styles = StyleSheet.create({
   tab: { minWidth: 64, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   segments: { flexDirection: 'row', borderRadius: 10, padding: 2 },
   segment: { flex: 1, minHeight: 36, paddingVertical: 6, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  dropdown: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14 },
+  dropdown: { minHeight: 48, paddingHorizontal: 14 },
+  dropdownIn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   card: { marginHorizontal: 14, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', ...shadow(1) },

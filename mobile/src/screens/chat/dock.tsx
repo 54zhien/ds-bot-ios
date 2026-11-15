@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import type { Approval, Question, ShownView } from '../../connection.ts'
 import { t } from '../../ui/i18n.ts'
 import { radius, shadow, SPRING_TAP, type as typeScale, type Palette } from '../../ui/tokens.ts'
+import { Glass, GlassButton, GlassPill } from '../../ui/glass.tsx'
 import { Avatar } from '../../ui/marks.tsx'
 import type { Bot } from '../../connection.ts'
 
@@ -27,15 +28,15 @@ function useChevron(expanded: boolean) {
 function AccordionCard({ title, dot, expanded, onToggle, p, children }: { title: string; dot?: boolean; expanded: boolean; onToggle: () => void; p: Palette; children: React.ReactNode }) {
   const chevron = useChevron(expanded)
   return (
-    <View style={[styles.accordion, { backgroundColor: p.card, borderColor: p.line }]}>
+    <Glass radius={radius.card} style={[styles.accordion, { backgroundColor: p.card, borderColor: p.line }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => { void Haptics.selectionAsync(); onToggle() }}
         style={{ flexDirection: 'row', alignItems: 'center', minHeight: 46, paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
         <Text style={[typeScale.settingsRow, { color: p.ink, fontWeight: '600', flex: 1, minWidth: 0 }]} numberOfLines={expanded ? 4 : 1}>{title}</Text>
         {dot === true ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: p.accent, flexShrink: 0 }} /> : null}
-        <Animated.View style={[chevron, { flexShrink: 0 }]}><ChevronRightIcon size={16} color={p.ink3} /></Animated.View>
+        <Animated.View style={[chevron, { flexShrink: 0 }]}><ChevronRightIcon size={20} color={p.ink3} /></Animated.View>
       </Pressable>
       {expanded ? <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>{children}</View> : null}
-    </View>
+    </Glass>
   )
 }
 
@@ -90,7 +91,7 @@ export function QuestionCard({ question, sessionId, call, p , bare = false }: { 
   }
 
   return (
-    <View style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+    <Glass radius={radius.card} intensity={bare ? 'none' : 'regular'} style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
       {bare ? null : <Text style={[type.settingsRow, { color: p.ink, fontWeight: '600' }]}>{question.question}</Text>}
       {question.detail ? <Text style={[type.small, { color: p.ink2, marginTop: 4 }]}>{question.detail}</Text> : null}
       <View style={{ marginTop: 12, borderRadius: radius.option, borderWidth: 1, borderColor: p.line, overflow: 'hidden' }}>
@@ -103,16 +104,18 @@ export function QuestionCard({ question, sessionId, call, p , bare = false }: { 
       </View>
       {question.multiSelect === true || options.length === 0
         ? <View style={styles.answerRow}>
-            <TextInput value={custom} onChangeText={setCustom} placeholder={t('Your answer')} placeholderTextColor={p.ink3}
-              style={[styles.answerInput, { color: p.ink, backgroundColor: p.hover }]} />
-            <Pressable accessibilityRole="button" disabled={busy || (picked.size === 0 && custom.trim() === '')} onPress={() => void send([...picked])}
-              style={[styles.submit, { backgroundColor: p.accent, opacity: busy || (picked.size === 0 && custom.trim() === '') ? 0.35 : 1 }]}>
+            <Glass radius={radius.input} style={styles.answerShell} contentStyle={styles.fieldIn}>
+              <TextInput value={custom} onChangeText={setCustom} placeholder={t('Your answer')} placeholderTextColor={p.ink3}
+                style={[styles.answerInput, { color: p.ink }]} />
+            </Glass>
+            <GlassButton accessibilityRole="button" accent disabled={busy || (picked.size === 0 && custom.trim() === '')} onPress={() => void send([...picked])}
+              style={[styles.submit, { opacity: busy || (picked.size === 0 && custom.trim() === '') ? 0.35 : 1 }]}>
               <Text style={{ color: p.accentInk, fontSize: 13, fontWeight: '600' }}>{t('Submit')}</Text>
-            </Pressable>
+            </GlassButton>
           </View>
         : null}
       {failed ? <Text style={[type.small, { color: p.danger, marginTop: 8 }]}>{t('This question is no longer open.')}</Text> : null}
-    </View>
+    </Glass>
   )
 }
 
@@ -125,8 +128,8 @@ export function ApprovalCard({ approval, call, p , bare = false }: { approval: A
     catch { setFailed(true) } finally { setBusy(false) }
   }
   return (
-    <View accessibilityLabel={t('{name} is waiting for your approval', { name: '' })}
-      style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+    <Glass radius={radius.card} intensity={bare ? 'none' : 'regular'} style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}
+      accessibilityLabel={t('{name} is waiting for your approval', { name: '' })}>
       {bare ? null : <Text style={[type.settingsRow, { color: p.ink, fontWeight: '600' }]} numberOfLines={2}>{approval.tool || 'Approval'}</Text>}
       {typeof approval.detail?.text === 'string' && approval.detail.text !== ''
         ? <Text selectable style={[type.small, { color: p.ink, marginTop: 4 }]}>{approval.detail.text}</Text> : null}
@@ -134,18 +137,18 @@ export function ApprovalCard({ approval, call, p , bare = false }: { approval: A
       {approval.detail?.code ? <Text selectable style={[type.small, { color: p.ink3, marginTop: 6, fontFamily: 'monospace' }]} numberOfLines={3}>{approval.detail.code}</Text> : null}
       {approval.answerable === true
         ? <View style={styles.answerRow}>
-            <Pressable accessibilityRole="button" disabled={busy} onPress={() => void answer('reject')}
-              style={[styles.choice, { backgroundColor: p.hover, opacity: busy ? 0.35 : 1 }]}>
+            <GlassButton accessibilityRole="button" disabled={busy} onPress={() => void answer('reject')}
+              style={[styles.choice, { opacity: busy ? 0.35 : 1 }]}>
               <Text style={{ color: p.ink, fontSize: 14 }}>{t('Reject')}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" disabled={busy} onPress={() => void answer('allow')}
-              style={[styles.choice, { backgroundColor: p.accent, opacity: busy ? 0.35 : 1 }]}>
+            </GlassButton>
+            <GlassButton accessibilityRole="button" accent disabled={busy} onPress={() => void answer('allow')}
+              style={[styles.choice, { opacity: busy ? 0.35 : 1 }]}>
               <Text style={{ color: p.accentInk, fontSize: 14, fontWeight: '600' }}>{t('Allow once')}</Text>
-            </Pressable>
+            </GlassButton>
           </View>
         : <Text style={[type.small, { color: p.ink2, marginTop: 8 }]}>{t('Answer on the computer.')}</Text>}
       {failed ? <Text style={[type.small, { color: p.danger, marginTop: 8 }]}>{t('This approval is no longer open.')}</Text> : null}
-    </View>
+    </Glass>
   )
 }
 
@@ -168,31 +171,33 @@ export function SecretCard({ secret, call, p , bare = false }: { secret: SecretR
     } finally { setBusy(false) }
   }
   return (
-    <View style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+    <Glass radius={radius.card} intensity={bare ? 'none' : 'regular'} style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
       {bare && !allow ? null : <Text style={[type.settingsRow, { color: p.ink, fontWeight: '600' }]}>{allow ? t('Let {bot} use {name}?', { bot: t('the Bot'), name: secret.name ?? "" }) : t('{name} needs a key', { name: secret.name ?? "" })}</Text>}
       {allow && secret.scope ? <Text style={[type.small, { color: p.ink2, marginTop: 6 }]}>{Array.isArray(secret.scope) ? secret.scope.join(", ") : secret.scope}</Text> : null}
       {!allow ? (
-        <TextInput style={[styles.secretInput, { color: p.ink, borderColor: p.line }]} value={value} onChangeText={setValue}
-          placeholder={t('Value of {name}', { name: secret.name ?? "" })} placeholderTextColor={p.ink3}
-          autoCapitalize="none" autoCorrect={false} secureTextEntry />
+        <Glass radius={radius.input} style={styles.secretShell} contentStyle={styles.fieldIn}>
+          <TextInput style={[styles.secretInput, { color: p.ink }]} value={value} onChangeText={setValue}
+            placeholder={t('Value of {name}', { name: secret.name ?? "" })} placeholderTextColor={p.ink3}
+            autoCapitalize="none" autoCorrect={false} secureTextEntry />
+        </Glass>
       ) : null}
       <View style={styles.answerRow}>
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => void send('secret-cancel', {})} style={[styles.choice, { backgroundColor: p.hover, opacity: busy ? 0.35 : 1 }]}>
+        <GlassButton accessibilityRole="button" disabled={busy} onPress={() => void send('secret-cancel', {})} style={[styles.choice, { opacity: busy ? 0.35 : 1 }]}>
           <Text style={{ color: p.ink, fontSize: 14 }}>{t('Cancel')}</Text>
-        </Pressable>
+        </GlassButton>
         {allow ? (
-          <Pressable accessibilityRole="button" disabled={busy} onPress={() => void send('secret-allow', {})} style={[styles.choice, { backgroundColor: p.accent, opacity: busy ? 0.35 : 1 }]}>
+          <GlassButton accessibilityRole="button" accent disabled={busy} onPress={() => void send('secret-allow', {})} style={[styles.choice, { opacity: busy ? 0.35 : 1 }]}>
             <Text style={{ color: p.accentInk, fontSize: 14, fontWeight: '600' }}>{busy ? t('Allowing…') : t('Allow')}</Text>
-          </Pressable>
+          </GlassButton>
         ) : (
-          <Pressable accessibilityRole="button" disabled={busy || value.trim() === ''} onPress={() => { const next = value; setValue(''); void send('secret-set', { value: next }) }}
-            style={[styles.choice, { backgroundColor: p.accent, opacity: busy || value.trim() === '' ? 0.35 : 1 }]}>
+          <GlassButton accessibilityRole="button" accent disabled={busy || value.trim() === ''} onPress={() => { const next = value; setValue(''); void send('secret-set', { value: next }) }}
+            style={[styles.choice, { opacity: busy || value.trim() === '' ? 0.35 : 1 }]}>
             <Text style={{ color: p.accentInk, fontSize: 14, fontWeight: '600' }}>{busy ? t('Saving…') : t('Save')}</Text>
-          </Pressable>
+          </GlassButton>
         )}
       </View>
       {failed ? <Text style={[type.small, { color: p.danger, marginTop: 8 }]}>{t('This approval is no longer open.')}</Text> : null}
-    </View>
+    </Glass>
   )
 }
 
@@ -206,7 +211,7 @@ export function BtwCard({ card, sessionId, call, p , bare = false }: { card: Btw
     void call('btw-delete', { sessionId, cardId: card.id }).catch(() => {}).finally(() => setBusy(false))
   }
   return (
-    <View style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+    <Glass radius={radius.card} intensity={bare ? 'none' : 'regular'} style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
       {!bare ? (
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -227,7 +232,7 @@ export function BtwCard({ card, sessionId, call, p , bare = false }: { card: Btw
           <Text style={[typeScale.caption, { color: p.ink2 }]}>{t('Dismiss')}</Text>
         </Pressable>
       ) : null}
-    </View>
+    </Glass>
   )
 }
 
@@ -241,15 +246,15 @@ export function HandoffCard({ handoff, botId, onView, call, p , bare = false }: 
     void call('browser-give-back', { botId, outcome, callId: handoff.callId }).catch(() => {}).finally(() => setBusy(false))
   }
   return (
-    <View style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
+    <Glass radius={radius.card} intensity={bare ? 'none' : 'regular'} style={bare ? undefined : [styles.card, { backgroundColor: p.card, borderColor: p.line }]}>
       {bare ? null : <Text style={[type.settingsRow, { color: p.ink, fontWeight: '600' }]}>{t('Browser handoff')}</Text>}
       {handoff.note || handoff.reason ? <Text style={[type.small, { color: p.ink2, marginTop: 4 }]}>{handoff.note ?? handoff.reason}</Text> : null}
       <View style={styles.answerRow}>
-        {onView !== undefined ? <Pressable accessibilityRole="button" onPress={onView} style={[styles.choice, { backgroundColor: p.hover }]}><Text style={{ color: p.ink, fontSize: 14 }}>{t('Card')}</Text></Pressable> : null}
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => answer('skip')} style={[styles.choice, { backgroundColor: p.hover, opacity: busy ? 0.35 : 1 }]}><Text style={{ color: p.ink, fontSize: 14 }}>{t('Skip')}</Text></Pressable>
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => answer('done')} style={[styles.choice, { backgroundColor: p.accent, opacity: busy ? 0.35 : 1 }]}><Text style={{ color: p.accentInk, fontSize: 14, fontWeight: '600' }}>{t('Done')}</Text></Pressable>
+        {onView !== undefined ? <GlassButton accessibilityRole="button" onPress={onView} style={styles.choice}><Text style={{ color: p.ink, fontSize: 14 }}>{t('Card')}</Text></GlassButton> : null}
+        <GlassButton accessibilityRole="button" disabled={busy} onPress={() => answer('skip')} style={[styles.choice, { opacity: busy ? 0.35 : 1 }]}><Text style={{ color: p.ink, fontSize: 14 }}>{t('Skip')}</Text></GlassButton>
+        <GlassButton accessibilityRole="button" accent disabled={busy} onPress={() => answer('done')} style={[styles.choice, { opacity: busy ? 0.35 : 1 }]}><Text style={{ color: p.accentInk, fontSize: 14, fontWeight: '600' }}>{t('Done')}</Text></GlassButton>
       </View>
-    </View>
+    </Glass>
   )
 }
 
@@ -263,8 +268,10 @@ export function ActionRow({ bot, doing, p, dark }: { bot: Bot; doing: string; p:
   const style = useAnimatedStyle(() => ({ opacity: shimmer.value }))
   return (
     <View style={styles.action}>
-      <Avatar bot={bot} dark={dark} size={28} ring={p.main} working />
-      <Animated.Text style={[type.rowPreview, { color: p.ink2, marginLeft: 8, flex: 1 }, style]} numberOfLines={1}>{doing}…</Animated.Text>
+      <GlassPill height={40} style={{ maxWidth: '100%' }}>
+        <Avatar bot={bot} dark={dark} size={28} ring={p.main} working />
+        <Animated.Text style={[type.rowPreview, { color: p.ink2, flexShrink: 1 }, style]} numberOfLines={1}>{doing}…</Animated.Text>
+      </GlassPill>
     </View>
   )
 }
@@ -279,17 +286,17 @@ function DockView({ sessionId, view, p, cap, collapsed, onCollapse }: { sessionI
   useEffect(() => { spin.value = reduced ? (shut ? 0 : 90) : withSpring(shut ? 0 : 90, SPRING_TAP) }, [shut, reduced])
   const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }))
   return (
-    <View style={[styles.card, { backgroundColor: p.card, borderColor: p.line, paddingVertical: 0 }]}>
+    <Glass radius={radius.card} style={[styles.card, { backgroundColor: p.card, borderColor: p.line, paddingVertical: 0 }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: !shut }} onPress={() => onCollapse?.(id, !shut)} style={styles.viewHead}>
         <Text style={[typeScale.settingsRow, { color: p.ink, fontWeight: '600', flex: 1, minWidth: 0 }]}>{title}</Text>
-        <Animated.View style={[chevron, { flexShrink: 0 }]}><ChevronRightIcon size={16} color={p.ink3} /></Animated.View>
+        <Animated.View style={[chevron, { flexShrink: 0 }]}><ChevronRightIcon size={20} color={p.ink3} /></Animated.View>
       </Pressable>
       {shut ? null : (
         <View style={{ paddingBottom: 14 }} onLayout={e => { if (cap !== undefined && collapsed === null && e.nativeEvent.layout.height > cap) onCollapse?.(id, true) }}>
           <ViewCard sessionId={sessionId} id={view.id} title={view.title} root={view.view} p={p} bare />
         </View>
       )}
-    </View>
+    </Glass>
   )
 }
 
@@ -300,9 +307,12 @@ const styles = StyleSheet.create({
   option: { paddingHorizontal: 12, paddingVertical: 10, minHeight: 44, justifyContent: 'center' },
   answerRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 },
   viewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 44 },
-  answerInput: { flex: 1, minWidth: 160, minHeight: 40, borderRadius: radius.input, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15 },
+  answerShell: { flex: 1, minWidth: 160, minHeight: 40 },
+  fieldIn: { alignItems: 'stretch', paddingHorizontal: 12 },
+  answerInput: { flexGrow: 1, paddingVertical: 8, fontSize: 15 },
   submit: { minHeight: 40, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
-  secretInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, minHeight: 40, paddingVertical: 8, marginTop: 10, fontSize: 14 },
+  secretShell: { minHeight: 40, marginTop: 10 },
+  secretInput: { flexGrow: 1, paddingVertical: 8, fontSize: 14 },
   choice: { flex: 1, minWidth: 104, minHeight: 44, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
-  action: { flexDirection: 'row', alignItems: 'center', height: 36, marginHorizontal: 12 },
+  action: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginBottom: 8 },
 })

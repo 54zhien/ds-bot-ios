@@ -9,6 +9,7 @@ import { Drawer, useDrawer } from './Drawer.tsx'
 import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { GlassCluster, GlassControl, GlassPill } from '../ui/glass.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { GearIcon, PeopleIcon, PlusIcon, SearchIcon, SidebarIcon, SideIcon } from '../ui/icons.tsx'
 import { ChatView, prefetchChat } from '../screens/Chat.tsx'
@@ -60,21 +61,21 @@ function DrawerContent() {
   return (
     <View style={{ flex: 1, backgroundColor: p.sidebar }}>
       {/* The desktop sidebar's head: the product name, search and New. */}
-      <View style={[styles.drawerHead, { paddingTop: insets.top + 6 }]}>
+      <GlassCluster style={[styles.drawerHead, { paddingTop: insets.top + 6 }]}>
         <Text style={{ color: p.ink, fontSize: 17, fontWeight: '600', flex: 1 }}>DS Bot</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={t('Search')} onPress={() => setSearching(on => !on)} hitSlop={4} style={[styles.round, { borderColor: p.line, backgroundColor: p.card }]}>
-          <SearchIcon size={16} color={p.ink2} />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={t('New')} onPress={() => setNewOpen(true)} hitSlop={4} style={[styles.round, { borderColor: p.line, backgroundColor: p.card }]}>
-          <PlusIcon size={16} color={p.ink2} />
-        </Pressable>
-      </View>
+        <GlassControl label={t('Search')} iconSize={22} onPress={() => setSearching(on => !on)}>
+          <SearchIcon size={22} color={p.ink2} />
+        </GlassControl>
+        <GlassControl label={t('New')} iconSize={22} onPress={() => setNewOpen(true)}>
+          <PlusIcon size={22} color={p.ink2} />
+        </GlassControl>
+      </GlassCluster>
       {searching ? (
-        <View style={[styles.search, { backgroundColor: p.hover }]}>
-          <SearchIcon size={15} color={p.ink3} />
+        <GlassPill height={44} style={{ marginHorizontal: 14, marginBottom: 8 }}>
+          <SearchIcon size={20} color={p.ink3} />
           <TextInput value={query} onChangeText={setQuery} placeholder={t('Search the team')} placeholderTextColor={p.ink3} autoFocus
             style={{ flex: 1, fontSize: 15, paddingVertical: 4, color: p.ink }} autoCapitalize="none" autoCorrect={false} />
-        </View>
+        </GlassPill>
       ) : null}
       {pending > 0 ? (
         <Pressable accessibilityRole="button" onPress={() => open({ kind: 'needs' })}
@@ -102,9 +103,9 @@ function DrawerContent() {
         </Pressable>
       </Modal>
       <View style={[styles.foot, { paddingBottom: insets.bottom + 8 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={t('Settings')} onPress={() => open({ kind: 'settings' })} hitSlop={4} style={[styles.round, { borderColor: p.line, backgroundColor: p.card }]}>
-          <GearIcon size={18} color={p.ink2} />
-        </Pressable>
+        <GlassControl label={t('Settings')} iconSize={22} onPress={() => open({ kind: 'settings' })}>
+          <GearIcon size={22} color={p.ink2} />
+        </GlassControl>
       </View>
     </View>
   )
@@ -113,10 +114,10 @@ function DrawerContent() {
 function Pill({ title, bot, room, bots }: { title: string; bot?: Parameters<typeof Avatar>[0]['bot']; room?: Room; bots: Bot[] }) {
   const { p, dark } = useTheme()
   return (
-    <View style={[styles.pill, { backgroundColor: p.card, borderColor: p.line2 }]}>
-      {bot ? <Avatar bot={bot} dark={dark} size={24} ring={p.card} /> : room ? <RoomAvatar room={room} bots={bots} dark={dark} size={24} ring={p.card} /> : null}
-      <Text style={{ color: p.ink, fontSize: 14, lineHeight: 20, fontWeight: '500', marginLeft: bot || room ? 8 : 0, flexShrink: 1 }} numberOfLines={1}>{title}</Text>
-    </View>
+    <GlassPill height={44} style={{ maxWidth: '100%' }}>
+      {bot ? <Avatar bot={bot} dark={dark} size={28} ring={p.main} /> : room ? <RoomAvatar room={room} bots={bots} dark={dark} size={28} ring={p.main} /> : null}
+      <Text style={{ color: p.ink, fontSize: 15, lineHeight: 20, fontWeight: '500', flexShrink: 1 }} numberOfLines={1}>{title}</Text>
+    </GlassPill>
   )
 }
 
@@ -128,12 +129,12 @@ function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title
   // The link dropped after the team loaded: the screen keeps what it shows and says so.
   const reconnecting = team !== null && !online
   return (
-    <View style={{ backgroundColor: p.main }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: insets.top + 4, paddingBottom: 8, paddingHorizontal: 10 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={t('Open team list')} onPress={onMenu} hitSlop={8} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-        <SidebarIcon size={20} color={p.ink2} />
-        {pending ? <View style={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: p.accent }} /> : null}
-      </Pressable>
+    // Floats over the list so messages pass under the glass instead of stopping at a line.
+    <View pointerEvents="box-none" style={styles.header}>
+    <GlassCluster spacing={6} pointerEvents="box-none" style={[styles.headerRow, { paddingTop: insets.top + 4 }]}>
+      <GlassControl label={t('Open team list')} iconSize={24} onPress={onMenu} dot={pending}>
+        <SidebarIcon size={24} color={p.ink2} />
+      </GlassControl>
       {/* A long group name ends in an ellipsis inside the pill instead of pushing past the side buttons. */}
       <View style={{ flex: 1, alignItems: 'center', minWidth: 0 }}>
         {title === '' ? null
@@ -141,15 +142,17 @@ function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title
             : onPill !== undefined ? <Pressable accessibilityRole="button" onPress={onPill} style={{ maxWidth: '100%' }}><Pill title={title} bot={bot} room={room} bots={bots} /></Pressable> : <Pill title={title} bot={bot} room={room} bots={bots} />}
       </View>
       {onSide !== undefined ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={t('Side chat')} onPress={onSide} hitSlop={8} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-          <SideIcon size={20} color={p.ink2} />
-        </Pressable>
-      ) : <View style={{ width: 44 }} />}
-    </View>
+        <GlassControl label={t('Side chat')} iconSize={24} onPress={onSide}>
+          <SideIcon size={24} color={p.ink2} />
+        </GlassControl>
+      ) : <View style={{ width: 44, height: 44 }} />}
+    </GlassCluster>
     {reconnecting ? (
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingBottom: 6 }} accessibilityRole="alert">
-        <ActivityIndicator size="small" color={p.ink3} />
-        <Text style={[typeScale.caption, { color: p.ink3 }]}>{t('Reconnecting…')}</Text>
+      <View pointerEvents="none" style={{ alignItems: 'center', paddingBottom: 6 }} accessibilityRole="alert">
+        <GlassPill height={30} style={{ paddingHorizontal: 0 }}>
+          <ActivityIndicator size="small" color={p.ink3} />
+          <Text style={[typeScale.caption, { color: p.ink3 }]}>{t('Reconnecting…')}</Text>
+        </GlassPill>
       </View>
     ) : null}
     </View>
@@ -283,10 +286,11 @@ const PUSH = Platform.OS === 'android' ? 'slide_from_right' as const : 'default'
 const RISE = Platform.OS === 'android' ? 'slide_from_bottom' as const : 'default' as const
 function Inner({ initial }: { initial: ChatTarget | null }) {
   const { p } = useTheme()
+  // iOS 26 blurs what scrolls under the glass bar, and sheets come from the system.
   return (
     <View style={{ flex: 1 }}>
     <NoticeBanner />
-    <Stack.Navigator initialRouteName="Chat" screenOptions={{ headerShown: false, animation: PUSH, contentStyle: { backgroundColor: p.main } }}>
+    <Stack.Navigator initialRouteName="Chat" screenOptions={{ headerShown: false, animation: PUSH, contentStyle: { backgroundColor: p.main }, scrollEdgeEffects: { top: 'soft', bottom: 'soft', left: 'soft', right: 'soft' } }}>
       <Stack.Screen name="Chat" component={ChatScreenB} initialParams={initial ?? undefined} />
       <Stack.Screen name="BotDetails" component={BotDetails} />
       <Stack.Screen name="BotEdit" component={BotEdit} />
@@ -298,9 +302,9 @@ function Inner({ initial }: { initial: ChatTarget | null }) {
       <Stack.Screen name="Usage" component={Usage} />
       <Stack.Screen name="BotBrowser">{({ route, navigation }: any) => <BotBrowser bot={route.params.bot} navigation={navigation} />}</Stack.Screen>
       <Stack.Screen name="Side">{({ route, navigation }: any) => <Side bot={route.params.bot} sessionId={route.params.sessionId} navigation={navigation} />}</Stack.Screen>
-      <Stack.Group screenOptions={{ presentation: 'modal', animation: RISE }}>
+      <Stack.Group screenOptions={{ presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal', animation: RISE, sheetGrabberVisible: true, sheetAllowedDetents: [1] }}>
         <Stack.Screen name="Settings" component={SettingsSheet} />
-        <Stack.Screen name="Needs" component={NeedsSheet} />
+        <Stack.Screen name="Needs" component={NeedsSheet} options={{ sheetAllowedDetents: [0.55, 1] }} />
         <Stack.Screen name="NewBot" component={NewBot} />
         <Stack.Screen name="NewGroup" component={NewGroup} />
       </Stack.Group>
@@ -346,12 +350,11 @@ const styles = StyleSheet.create({
   badge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   foot: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 8 },
   drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
-  round: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginBottom: 8, borderRadius: 10, paddingHorizontal: 10, height: 36 },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8, paddingHorizontal: 10 },
   you: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, height: 44 },
   sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'flex-end' },
   newSheet: { marginHorizontal: 12, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   newRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 14 },
   newIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  pill: { flexDirection: 'row', alignItems: 'center', height: 40, borderRadius: 20, paddingHorizontal: 14, borderWidth: 0.5, maxWidth: '100%', ...shadow(1) },
 })
