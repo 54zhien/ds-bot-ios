@@ -6,7 +6,7 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { CheckIcon, ChevronRightIcon } from '../ui/icons.tsx'
 import { radius, type as typeScale, useTheme } from '../ui/tokens.ts'
-import { Glass, GlassButton } from '../ui/glass.tsx'
+import { Material, materialSkin } from '../ui/material.tsx'
 
 // The desktop's model menu (ds-bot/src/client/model-menu.js) as a bottom sheet:
 // models grouped by provider, the default one marked, and the thinking-level
@@ -167,7 +167,7 @@ function ModelGroups({ models, current, fallback, onPick }: { models: Model[]; c
 // A model picker for a Bot that does not exist yet (Create new Bot): the same trigger
 // and sheet as a Bot's model menu, without the thinking level.
 export function ModelPicker({ current, onPick }: { current?: string; onPick: (ref: string) => void }) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   const { team } = useTeam()
   const [open, setOpen] = useState(false)
   const insets = useSafeAreaInsets()
@@ -175,20 +175,20 @@ export function ModelPicker({ current, onPick }: { current?: string; onPick: (re
   const model = models.find(item => item.ref === current)
   return (
     <>
-      <GlassButton accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)} radius={radius.card}
-        style={[styles.trigger, { backgroundColor: p.card, borderColor: p.line }]} contentStyle={styles.triggerIn}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)}
+        style={[styles.trigger, materialSkin(dark, 26)]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[typeScale.settingsRow, { color: p.ink, fontWeight: '500' }]} numberOfLines={1}>{model?.name ?? t('Choose a model')}</Text>
           {model ? <Text style={[typeScale.caption, { color: p.ink3 }]} numberOfLines={1}>{model.providerName ?? model.ref.split('/')[0]}</Text> : null}
         </View>
         <Text style={{ color: p.ink3, fontSize: 12 }}>⌄</Text>
-      </GlassButton>
+      </Pressable>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.scrim} onPress={() => setOpen(false)} accessibilityLabel={t('Close')} />
-        <Glass radius={16} style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
+        <Material radius={26} style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.grab, { backgroundColor: p.line }]} />
           <ModelGroups models={models} current={current} fallback={team?.defaultModel} onPick={ref => { onPick(ref); setOpen(false) }} />
-        </Glass>
+        </Material>
       </Modal>
     </>
   )
@@ -196,7 +196,7 @@ export function ModelPicker({ current, onPick }: { current?: string; onPick: (re
 
 // The trigger shows the model name over its provider and thinking level, as on the desktop.
 export function ModelMenu({ bot, onManage }: { bot: Bot; onManage: () => void }) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   const { team, call } = useTeam()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -210,19 +210,19 @@ export function ModelMenu({ bot, onManage }: { bot: Bot; onManage: () => void })
   }
   return (
     <>
-      <GlassButton accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)} radius={radius.card}
-        style={[styles.trigger, { backgroundColor: p.card, borderColor: p.line }]} contentStyle={styles.triggerIn}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Model')} onPress={() => setOpen(true)}
+        style={[styles.trigger, materialSkin(dark, 26)]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[typeScale.settingsRow, { color: p.ink, fontWeight: '500' }]} numberOfLines={1}>{model?.name ?? t('Choose a model')}</Text>
           {model ? <Text style={[typeScale.caption, { color: p.ink3 }]} numberOfLines={1}>{[model.provider, level].filter(Boolean).join(' · ')}</Text> : null}
         </View>
         <Text style={{ color: p.ink3, fontSize: 12 }}>⌄</Text>
-      </GlassButton>
+      </Pressable>
       {model ? null : <Text style={[typeScale.small, { color: p.ink3, marginTop: 6 }]}>{t('Pick a model and {name} can start.', { name: bot.name })}</Text>}
       {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 6 }]}>{error}</Text> : null}
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.scrim} onPress={() => setOpen(false)} accessibilityLabel={t('Close')} />
-        <Glass radius={16} style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
+        <Material radius={26} style={[styles.sheet, { backgroundColor: p.card, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.grab, { backgroundColor: p.line }]} />
           <ModelGroups models={models} current={model?.ref} fallback={team?.defaultModel} onPick={ref => { if (ref !== bot.model) save({ model: ref }) }} />
           {model && (reasoning?.efforts?.length ?? 0) > 0 ? (
@@ -235,15 +235,14 @@ export function ModelMenu({ bot, onManage }: { bot: Bot; onManage: () => void })
             <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1 }]}>{t('Models and providers…')}</Text>
             <ChevronRightIcon color={p.ink3} />
           </Pressable>
-        </Glass>
+        </Material>
       </Modal>
     </>
   )
 }
 
 const styles = StyleSheet.create({
-  trigger: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 8 },
-  triggerIn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trigger: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 8 },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
   sheet: { borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingTop: 8 },
   grab: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, marginBottom: 4 },

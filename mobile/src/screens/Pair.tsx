@@ -8,10 +8,10 @@ import { addComputer, type PhoneIdentity, type SavedComputer } from '../store.ts
 import { errorText } from '../team/link.ts'
 import { t } from '../ui/i18n.ts'
 import { radius, type as typeScale, useTheme } from '../ui/tokens.ts'
-import { Glass, GlassButton } from '../ui/glass.tsx'
+import { materialSkin } from '../ui/material.tsx'
 
 export function Pair({ identity, offer, onPaired, onCancel }: { identity: PhoneIdentity; offer?: string | null; onPaired: (computer: SavedComputer) => void; onCancel?: () => void }) {
-  const { p } = useTheme()
+  const { p, dark } = useTheme()
   const insets = useSafeAreaInsets()
   const [permission, requestPermission] = useCameraPermissions()
   const [link, setLink] = useState('')
@@ -45,21 +45,19 @@ export function Pair({ identity, offer, onPaired, onCancel }: { identity: PhoneI
         <View style={[styles.camera, { backgroundColor: p.sidebar, borderColor: p.line }]}>
           {permission?.granted
             ? <CameraView style={StyleSheet.absoluteFill} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={busy ? undefined : ({ data }) => void pair(data)} />
-            : <GlassButton accessibilityRole="button" accent onPress={() => void requestPermission()} style={styles.button}>
+            : <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={[styles.button, { backgroundColor: p.accent, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }]}>
                 <Text style={[typeScale.settingsRow, { color: p.accentInk, fontWeight: '600' }]}>{t('Use the camera')}</Text>
-              </GlassButton>}
+              </Pressable>}
         </View>
         <Text style={[typeScale.settingsRow, { color: p.ink2, marginTop: 16, textAlign: 'center' }]}>{t('No camera? Paste the pairing link.')}</Text>
         <View style={styles.pairRow}>
-          <Glass radius={radius.input} style={styles.inputShell} contentStyle={styles.fieldIn}>
-            <TextInput value={link} onChangeText={setLink} placeholder="dsbot://pair?…" placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false}
-              returnKeyType="go" onSubmitEditing={() => { if (link.trim() !== '') void pair(link) }}
-              style={[styles.input, { color: p.ink }]} accessibilityLabel={t('Pairing link')} />
-          </Glass>
-          <GlassButton accessibilityRole="button" accent disabled={busy || link.trim() === ''} onPress={() => void pair(link)}
-            style={[styles.button, { opacity: busy || link.trim() === '' ? 0.35 : 1 }]}>
+          <TextInput value={link} onChangeText={setLink} placeholder="dsbot://pair?…" placeholderTextColor={p.ink3} autoCapitalize="none" autoCorrect={false}
+            returnKeyType="go" onSubmitEditing={() => { if (link.trim() !== '') void pair(link) }}
+            style={[styles.input, { color: p.ink }, materialSkin(dark, 22)]} accessibilityLabel={t('Pairing link')} />
+          <Pressable accessibilityRole="button" disabled={busy || link.trim() === ''} onPress={() => void pair(link)}
+            style={[styles.button, { backgroundColor: p.accent, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', opacity: busy || link.trim() === '' ? 0.35 : 1 }]}>
             <Text style={[typeScale.settingsRow, { color: p.accentInk, fontWeight: '600' }]}>{t('Pair')}</Text>
-          </GlassButton>
+          </Pressable>
         </View>
         {busy ? <ActivityIndicator style={{ marginTop: 20 }} color={p.accent} /> : null}
         {error ? <Text style={[typeScale.settingsRow, { color: p.danger, marginTop: 12, textAlign: 'center' }]} accessibilityRole="alert">{error}</Text> : null}
@@ -77,8 +75,6 @@ const styles = StyleSheet.create({
   center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   camera: { marginTop: 20, width: 260, height: 260, maxWidth: '100%', borderRadius: radius.card, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
   pairRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, alignSelf: 'stretch' },
-  inputShell: { flex: 1, minHeight: 44 },
-  fieldIn: { alignItems: 'stretch', paddingHorizontal: 12 },
-  input: { flexGrow: 1, paddingVertical: 8, fontSize: 16 },
+  input: { flex: 1, minHeight: 44, borderRadius: radius.input, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16 },
   button: { minHeight: 44, borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
 })

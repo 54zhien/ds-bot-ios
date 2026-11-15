@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import { Platform } from 'react-native'
+import { Dimensions, Platform } from 'react-native'
 import { allThemes } from '../../../ds-bot/src/client/themes.js'
 import { ACCENT_INKS, INKS, luminance } from '../../../ds-bot/src/client/inks.js'
 
@@ -105,7 +105,27 @@ export const shadow = (level: 0 | 1 | 2 | 3 | 4, color = '#000') => {
 }
 
 // Liquid Glass metrics: every glass surface takes its sizes from here.
-export const glass = { control: 44, controlSmall: 40, icon: 22, iconLarge: 24, pill: 44, gap: 8 }
+export const glass = { control: 44, controlSmall: 40, icon: 22, iconLarge: 24, iconXL: 26, pill: 44, gap: 8, margin: 16 }
+
+// The floating chat header is the status bar plus the 44pt bar plus 8 below it.
+// Screens that have to clear it (list padding, goal bar, fade layers) ask here.
+export const headerHeight = (insetTop: number) => insetTop + glass.control + 8
+
+// Approximate display corner radius: iOS devices with a home indicator round the
+// display at about 55pt, SE-class screens are square. Swap in a real value once
+// the platform exposes one.
+export const screenRadius = (bottomInset: number, os: string): number => {
+  if (os !== 'ios') return 0
+  // Read per call, not once: rotation and stage manager change the window.
+  const { width, height } = Dimensions.get('window')
+  if (Math.min(width, height) >= 600) return 18
+  return bottomInset >= 20 ? 55 : 0
+}
+
+// A resting composer is inset and lifted by R - h/2, so its end circles share the
+// display corner's centre. Clamped: never sneak toward the middle, never hug the edge.
+export const concentricInset = (screenR: number, height: number): number =>
+  screenR === 0 ? 16 : Math.min(32, Math.max(12, screenR - height / 2))
 
 export const MONO = 'monospace'
 

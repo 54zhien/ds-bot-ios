@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { BackHandler, Pressable, StyleSheet, View } from 'react-native'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { BackHandler, Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated'
-import { SPRING_SHAPE } from '../ui/tokens.ts'
+import { screenRadius, SPRING_SHAPE } from '../ui/tokens.ts'
 import { t } from '../ui/i18n.ts'
 
 const DrawerCtx = createContext({ open: () => {}, close: () => {} })
@@ -13,12 +14,25 @@ export const useDrawer = () => useContext(DrawerCtx)
 // button closes it first.
 export function Drawer({ width, edgeWidth = 24, edgeEnabled = true, content, children }: { width: number; edgeWidth?: number; edgeEnabled?: boolean; content: ReactNode; children: ReactNode }) {
   const reduced = useReducedMotion()
+  const insets = useSafeAreaInsets()
+  // Same display radius the composer uses, so the panel corner matches the screen.
+  const corner = screenRadius(insets.bottom, Platform.OS)
   const x = useSharedValue(-width)
   const [shown, setShown] = useState(false)
+  // The keyboard owns the bottom half while it is up; a drawer opened under it
+  // would slide against a shrinking viewport, so it goes first.
+  const opened = useRef(false)
 
+  const startOpening = () => {
+    if (opened.current) return
+    opened.current = true
+    Keyboard.dismiss()
+    setShown(true)
+  }
   const snapTo = (to: number) => {
     const opening = to === 0
-    if (opening) setShown(true)
+    if (opening) startOpening()
+    else opened.current = false
     if (reduced) {
       x.value = to
       if (!opening) setShown(false)
@@ -44,10 +58,16 @@ export function Drawer({ width, edgeWidth = 24, edgeEnabled = true, content, chi
     'worklet'
     return Math.min(0, Math.max(-width, v))
   }
+  // The drag dismisses once, on its first real movement, not on every frame.
+  const dragged = useSharedValue(false)
   const edgePan = Gesture.Pan()
     .activeOffsetX(8)
     .failOffsetY([-12, 12])
-    .onUpdate(e => { x.value = clampX(-width + Math.max(0, e.translationX)) })
+    .onBegin(() => { dragged.value = false })
+    .onUpdate(e => {
+      x.value = clampX(-width + Math.max(0, e.translationX))
+      if (!dragged.value && e.translationX > 8) { dragged.value = true; runOnJS(startOpening)() }
+    })
     .onEnd(e => { runOnJS(snapTo)(e.velocityX > 350 || x.value > -width / 2 ? 0 : -width) })
   const drawerPan = Gesture.Pan()
     .activeOffsetX(-8)
@@ -72,7 +92,7 @@ export function Drawer({ width, edgeWidth = 24, edgeEnabled = true, content, chi
             <Pressable style={{ flex: 1 }} onPress={close} accessibilityLabel={t('Close team list')} />
           </Animated.View>
           <GestureDetector gesture={drawerPan}>
-            <Animated.View style={[styles.panel, { width }, panelStyle]}>{content}</Animated.View>
+            <Animated.View style={[styles.panel, { width, borderTopRightRadius: corner, borderBottomRightRadius: corner }, panelStyle]}>{content}</Animated.View>
           </GestureDetector>
         </View>
       </View>
@@ -83,5 +103,5 @@ export function Drawer({ width, edgeWidth = 24, edgeEnabled = true, content, chi
 const styles = StyleSheet.create({
   edge: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   scrim: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.32)' },
-  panel: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  panel: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
 })

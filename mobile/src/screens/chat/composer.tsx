@@ -2,12 +2,12 @@ import * as Haptics from 'expo-haptics'
 import * as ImagePicker from 'expo-image-picker'
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator'
 import { useState } from 'react'
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { t } from '../../ui/i18n.ts'
 import { ArrowUpIcon, CloseIcon, PlusIcon, StopIcon } from '../../ui/icons.tsx'
 import { Glass, GlassControl } from '../../ui/glass.tsx'
-import { radius, type as typeScale, type Palette } from '../../ui/tokens.ts'
+import { concentricInset, radius, screenRadius, type as typeScale, type Palette } from '../../ui/tokens.ts'
 
 // A photo ready to send: shown from `uri`, sent as base64 JPEG.
 export interface Photo { uri: string; mediaType: string; data: string }
@@ -23,23 +23,31 @@ async function prepare(asset: ImagePicker.ImagePickerAsset): Promise<Photo> {
   return { uri: out.uri, mediaType: 'image/jpeg', data: out.base64 ?? '' }
 }
 
-// The composer is one glass capsule at every size: min height 48, radius.pill,
-// and send / stop are 40pt glass circles. While the Bot runs and the draft is
-// empty a stop button shows instead of send. "+" adds photos when the computer
-// takes them.
-export function Composer({ name, running, canStop, canAttach, onSend, onStop, p }: {
+// zen's composer geometry: one resting capsule that shares the display corner's
+// centre (inset = R - h/2), and an editing card that grows from 124 up to 46% of
+// the screen with a 52pt control bar. Attachments live inside the card.
+const LINE = 22
+const RESTING = Math.max(50, LINE + 20) + 12
+const EDITING = 124
+const TEXT_TOP = 14
+const BAR = 52
+const EDGE = 16
+const EDITING_BOTTOM = 12
+const MEDIA = 80
+const MIN_TEXT = 120
+
+export function Composer({ name, running, canStop, canAttach, onSend, onStop, onHeight, p }: {
   name: string; running: boolean; canStop: boolean; canAttach: boolean
-  onSend: (text: string, photos: Photo[]) => Promise<void>; onStop: () => void; p: Palette
+  onSend: (text: string, photos: Photo[]) => Promise<void>; onStop: () => void; onHeight?: (height: number) => void; p: Palette
 }) {
   const [text, setText] = useState('')
   const [photos, setPhotos] = useState<Photo[]>([])
   const [preparing, setPreparing] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
-  // Float above the home indicator (iOS) or the gesture bar (Android, drawn edge to
-  // edge). The matching negative keyboardVerticalOffset in ChatView keeps the card
-  // hugging the keyboard.
+  const [focused, setFocused] = useState(false)
+  const [textHeight, setTextHeight] = useState(LINE)
   const insets = useSafeAreaInsets()
-  const bottom = Math.max(insets.bottom, 10)
+  const { width: screenWidth, height: windowHeight } = useWindowDimensions()
   const draft = text.trim()
   const ready = (draft !== '' || photos.length > 0) && !preparing
   // The message shows in the chat at once; the composer is free for the next one.
@@ -62,12 +70,27 @@ export function Composer({ name, running, canStop, canAttach, onSend, onStop, p 
       setPickError(failure instanceof Error ? failure.message : String(failure))
     } finally { setPreparing(false) }
   }
+  // Resting is the empty, unfocused state; anything typed keeps the card open.
+  const expanded = focused || text !== '' || photos.length > 0
+  const media = photos.length > 0 || preparing ? MEDIA : 0
+  const available = windowHeight - insets.top
+  const cap = Math.min(available - 12, Math.max(available * 0.46, TEXT_TOP + BAR + LINE))
+  const height = expanded ? Math.min(cap, Math.max(EDITING, TEXT_TOP + media + textHeight + BAR)) : RESTING
+  const corner = expanded ? 26 : RESTING / 2
+  // Concentric only while resting: an editing card returns to the standard margins.
+  const screenR = screenRadius(insets.bottom, Platform.OS)
+  const tight = concentricInset(screenR, RESTING)
+  const fits = screenWidth - 2 * tight - 88 >= MIN_TEXT
+  const android = Platform.OS === 'android'
+  const inset = android ? 12 : expanded ? EDGE : fits ? tight : EDGE
+  const bottom = android ? Math.max(insets.bottom, 10) : expanded ? EDITING_BOTTOM : concentricInset(screenR, RESTING)
+  const stop = running && canStop && !ready
   return (
-    <View style={{ marginBottom: bottom }}>
+    <View style={{ paddingBottom: bottom }} onLayout={event => onHeight?.(event.nativeEvent.layout.height)}>
       {pickError !== null ? <Text style={[typeScale.small, { color: p.danger, textAlign: 'center', marginBottom: 4 }]}>{pickError}</Text> : null}
-      <Glass radius={radius.pill} style={styles.card} contentStyle={styles.cardIn}>
+      <Glass radius={corner} style={{ marginHorizontal: inset, height }} contentStyle={styles.cardIn}>
         {photos.length > 0 || preparing ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.photos} keyboardShouldPersistTaps="handled">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.media} contentContainerStyle={styles.photos} keyboardShouldPersistTaps="handled">
             {photos.map(photo => (
               <View key={photo.uri}>
                 <Image source={{ uri: photo.uri }} style={[styles.photo, { backgroundColor: p.hover }]} />
@@ -80,30 +103,52 @@ export function Composer({ name, running, canStop, canAttach, onSend, onStop, p 
             {preparing ? <View style={[styles.photo, { backgroundColor: p.hover, alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color={p.ink3} /></View> : null}
           </ScrollView>
         ) : null}
-        <View style={styles.line}>
-          {canAttach ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={t('Add photos')} onPress={() => void pick()} hitSlop={6} style={styles.attach}>
-              <PlusIcon size={20} color={p.ink2} />
-            </Pressable>
-          ) : null}
-          <TextInput value={text} onChangeText={setText} placeholder={t('Message {name}', { name })} placeholderTextColor={p.ink3}
-            multiline style={[styles.input, { color: p.ink, paddingLeft: canAttach ? 2 : 6 }]} accessibilityLabel={t('Message {name}', { name })} />
-          {running && canStop && !ready
-            ? <GlassControl size={40} iconSize={20} label={t('Stop')} onPress={onStop}><StopIcon size={20} /></GlassControl>
-            : <GlassControl size={40} iconSize={20} label={t('Send')} accent disabled={!ready} onPress={send}><ArrowUpIcon size={20} /></GlassControl>}
-        </View>
+        {expanded ? (
+          <>
+            <TextInput value={text} onChangeText={setText} placeholder={t('Message {name}', { name })} placeholderTextColor={p.ink3}
+              multiline scrollEnabled onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+              onContentSizeChange={event => setTextHeight(event.nativeEvent.contentSize.height)}
+              style={[styles.text, { color: p.ink }]} accessibilityLabel={t('Message {name}', { name })} />
+            <View style={styles.bar}>
+              {canAttach
+                ? <Pressable accessibilityRole="button" accessibilityLabel={t('Add photos')} onPress={() => void pick()} hitSlop={2} style={styles.hit}>
+                    <PlusIcon size={22} color={p.ink2} />
+                  </Pressable>
+                : <View style={styles.hit} />}
+              {stop
+                ? <GlassControl label={t('Stop')} onPress={onStop}><StopIcon size={24} /></GlassControl>
+                : <GlassControl label={t('Send')} accent disabled={!ready} onPress={send}><ArrowUpIcon size={24} /></GlassControl>}
+            </View>
+          </>
+        ) : (
+          <View style={styles.row}>
+            {canAttach
+              ? <Pressable accessibilityRole="button" accessibilityLabel={t('Add photos')} onPress={() => void pick()} hitSlop={2} style={styles.hit}>
+                  <PlusIcon size={22} color={p.ink2} />
+                </Pressable>
+              : null}
+            <TextInput value={text} onChangeText={setText} placeholder={t('Message {name}', { name })} placeholderTextColor={p.ink3}
+              multiline onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+              style={[styles.resting, { color: p.ink }]} accessibilityLabel={t('Message {name}', { name })} />
+            {stop
+              ? <GlassControl label={t('Stop')} onPress={onStop}><StopIcon size={24} /></GlassControl>
+              : <GlassControl label={t('Send')} accent disabled={!ready} onPress={send}><ArrowUpIcon size={24} /></GlassControl>}
+          </View>
+        )}
       </Glass>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  card: { marginHorizontal: 12, minHeight: 48 },
-  cardIn: { alignItems: 'stretch', paddingHorizontal: 7.5, paddingVertical: 5 },
-  line: { flexDirection: 'row', alignItems: 'flex-end' },
-  photos: { gap: 8, paddingHorizontal: 6, paddingTop: 6, paddingBottom: 8 },
+  cardIn: { alignItems: 'stretch' },
+  media: { flexGrow: 0 },
+  photos: { gap: 8, paddingHorizontal: 9, paddingTop: 9 },
   photo: { width: 64, height: 64, borderRadius: 12 },
   unpick: { position: 'absolute', top: -5, right: -5, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  attach: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, fontSize: 16, lineHeight: 22, paddingTop: 7, paddingBottom: 7, paddingRight: 6, maxHeight: 130 },
+  row: { flexDirection: 'row', alignItems: 'center', flexGrow: 1, paddingHorizontal: 9 },
+  hit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  resting: { flex: 1, fontSize: 16, lineHeight: LINE, paddingVertical: 10, paddingHorizontal: 3 },
+  text: { flexGrow: 1, fontSize: 16, lineHeight: LINE, paddingTop: TEXT_TOP, paddingHorizontal: 12 },
+  bar: { height: BAR, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 9 },
 })

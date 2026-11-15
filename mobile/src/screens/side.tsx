@@ -4,8 +4,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { ArrowUpIcon, ChevronLeftIcon, CloseIcon } from '../ui/icons.tsx'
-import { radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { headerHeight, radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { Glass, GlassControl, GlassPill } from '../ui/glass.tsx'
+import { Fade } from '../ui/fade.tsx'
 import { Avatar } from '../ui/marks.tsx'
 import type { Bot } from '../connection.ts'
 import { Markdown } from './chat/markdown.tsx'
@@ -50,13 +51,13 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
   }, [running, call])
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: p.main }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={insets.top}>
-      <View style={{ paddingTop: insets.top }}>
+      <View style={{ paddingTop: insets.top, zIndex: 1 }}>
         <View style={styles.head}>
-          <GlassControl label={t('Back')} iconSize={24} onPress={() => navigation.goBack()}>
-            <ChevronLeftIcon size={24} color={p.ink2} />
+          <GlassControl label={t('Back')} onPress={() => navigation.goBack()}>
+            <ChevronLeftIcon size={26} color={p.ink2} />
           </GlassControl>
           <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
-            <GlassPill height={52} style={{ maxWidth: '100%' }}>
+            <GlassPill height={44} style={{ maxWidth: '100%' }}>
               <Avatar bot={bot} dark={dark} size={28} ring={p.main} />
               <View style={{ flexShrink: 1, minWidth: 0 }}>
                 <Text style={[typeScale.rowName, { color: p.ink }]} numberOfLines={1}>{bot.name}</Text>
@@ -65,10 +66,10 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
             </GlassPill>
           </View>
           {chat !== undefined ? (
-            <GlassControl size={40} iconSize={20} label={t('Close')} onPress={() => { void call('side-close', { chatId: chat.chatId }).then(() => setOpenId(null)).catch(() => {}) }}>
-              <CloseIcon size={20} color={p.ink2} />
+            <GlassControl label={t('Close')} onPress={() => { void call('side-close', { chatId: chat.chatId }).then(() => setOpenId(null)).catch(() => {}) }}>
+              <CloseIcon size={26} color={p.ink2} />
             </GlassControl>
-          ) : <View style={{ width: 40, height: 40 }} />}
+          ) : <View style={{ width: 44, height: 44 }} />}
         </View>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 10 }}>
@@ -112,12 +113,13 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
         )}
         {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 8 }]}>{error}</Text> : null}
       </ScrollView>
+      <Fade color={p.main} height={headerHeight(insets.top) + 36} edge="top" />
       <View style={[styles.composer, { paddingBottom: insets.bottom + 8 }]}>
         <Glass radius={radius.pill} style={styles.inputGlass} contentStyle={styles.inputIn}>
           <TextInput style={[styles.input, { color: p.ink }]} value={draft} onChangeText={setDraft}
             placeholder={t('Ask about the work so far')} placeholderTextColor={p.ink3} multiline />
         </Glass>
-        <GlassControl size={44} iconSize={24} label={t('Send')} accent disabled={draft.trim() === '' || busy} onPress={() => void send()}>
+        <GlassControl label={t('Send')} accent disabled={draft.trim() === '' || busy} onPress={() => void send()}>
           <ArrowUpIcon size={24} color={p.accentInk} />
         </GlassControl>
       </View>
@@ -126,7 +128,7 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
   card: { borderRadius: radius.card, borderWidth: 1, padding: 14, marginBottom: 10, ...shadow(1) },
   bubble: { borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 8, maxWidth: '85%' },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingTop: 8 },

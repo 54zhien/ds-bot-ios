@@ -8,9 +8,9 @@ import { createChatCache } from '../team/chat-cache.ts'
 import { useTeam } from '../team/context.tsx'
 import { markSeen } from '../team/seen.ts'
 import { messageClock, t } from '../ui/i18n.ts'
-import { useTheme } from '../ui/tokens.ts'
+import { headerHeight, shadow, useTheme } from '../ui/tokens.ts'
+import { Fade } from '../ui/fade.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
-import { Glass, GlassButton, GlassControl } from '../ui/glass.tsx'
 import { ArrowDownIcon } from '../ui/icons.tsx'
 import { workPhrase } from '../ui/phrases.ts'
 import { ActionRow, Dock } from './chat/dock.tsx'
@@ -201,7 +201,9 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
   const doingText = doing !== undefined ? workPhrase(doing) : roomWork[0] !== undefined ? `${doingBot?.name ?? ''} · ${workPhrase(roomWork[0])}` : ''
   const flat = team?.prefs?.layout === 'flat'
   const width = Math.min(100, Math.max(50, team?.prefs?.width ?? 80))
-  const [chatWidth, setChatWidth] = useState(() => Math.max(0, Dimensions.get('window').width - 24))
+  const [chatWidth, setChatWidth] = useState(() => Math.max(0, Dimensions.get('window').width - 32))
+  // Measured by the composer so the bottom fade starts where its card does.
+  const [composerHeight, setComposerHeight] = useState(0)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [menuText, setMenuText] = useState<string | null>(null)
   const [readerText, setReaderText] = useState<string | null>(null)
@@ -338,9 +340,9 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
     <PhotoViewerCtx.Provider value={setPhotos}>
     <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={KEYBOARD_GAP - insets.bottom} style={[styles.screen, { backgroundColor: p.main }]}>
       {room !== undefined && (room as { goal?: Goal }).goal
-        ? <View style={{ paddingTop: insets.top + 52 }}><GoalBar goal={(room as { goal?: Goal }).goal!} p={p} /></View>
+        ? <View style={{ paddingTop: headerHeight(insets.top) }}><GoalBar goal={(room as { goal?: Goal }).goal!} p={p} /></View>
         : null}
-      <View style={styles.list} onLayout={event => setChatWidth(event.nativeEvent.layout.width - 24)}>
+      <View style={styles.list} onLayout={event => setChatWidth(event.nativeEvent.layout.width - 32)}>
         {gone
           ? <Text style={[type.caption, { color: p.ink3, textAlign: 'center', marginTop: 24 }]}>{t('No messages yet')}</Text>
           : page === null && loadError !== null
@@ -357,7 +359,7 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
                 keyExtractor={row => row.key}
                 renderItem={renderRow}
                 extraData={openSteps}
-                contentContainerStyle={[styles.listContent, { paddingBottom: insets.top + 56 }]}
+                contentContainerStyle={[styles.listContent, { paddingBottom: headerHeight(insets.top) }]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
                 initialNumToRender={14}
@@ -373,13 +375,14 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
               />}
         {empty && !gone ? <EmptyChat bot={bot} room={room} bots={team?.bots ?? []} p={p} dark={dark} /> : null}
         {awayFromLatest ? (
-          <View style={styles.toLatest}>
-            <GlassControl size={44} iconSize={20} label={t('Latest messages')} onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}>
-              <ArrowDownIcon size={20} color={p.ink2} />
-            </GlassControl>
-          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('Latest messages')} onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}
+            style={[styles.toLatest, { backgroundColor: p.card, borderColor: p.line2 }, shadow(2)]}>
+            <ArrowDownIcon size={18} color={p.ink2} />
+          </Pressable>
         ) : null}
       </View>
+      <Fade color={p.main} height={headerHeight(insets.top) + 36} edge="top" />
+      {composerHeight > 0 ? <Fade color={p.main} height={composerHeight + 36} edge="bottom" /> : null}
       {/* After the list: the native scroll edge effect only takes the first scroll view in the screen's child chain. */}
       {header}
       {bot?.blocked !== undefined ? <BlockedCard bot={bot} p={p} /> : null}
@@ -388,7 +391,7 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
       <Dock question={question} sessionId={sessionId} approvals={approvals} secrets={secrets} btw={btw} handoff={browserHold} view={team?.views?.[sessionId]} call={call} p={p} expanded={expandedKey} onExpand={setExpandedKey} />
       {fileError ? <Text style={[type.small, { color: p.danger, textAlign: 'center', marginBottom: 4 }]} accessibilityRole="alert">{fileError}</Text> : null}
       {page !== null && loadError !== null ? <Text style={[type.small, { color: p.danger, textAlign: 'center', marginBottom: 4, marginHorizontal: 16 }]} accessibilityRole="alert">{loadError}</Text> : null}
-      <Composer name={bot?.name ?? room?.name ?? ''} running={running} canStop={canStop} canAttach={hello?.capabilities?.includes('send-images') === true} onSend={send} onStop={stop} p={p} />
+      <Composer name={bot?.name ?? room?.name ?? ''} running={running} canStop={canStop} canAttach={hello?.capabilities?.includes('send-images') === true} onSend={send} onStop={stop} onHeight={setComposerHeight} p={p} />
       <Actions visible={menuText !== null} text={menuText ?? ''} p={p}
         onClose={() => setMenuText(null)}
         onSelect={() => { setReaderTitle(null); setReaderText(menuText); setMenuText(null) }} />
@@ -398,9 +401,9 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
             {readerTitle !== null ? <Text style={[type.caption, { color: p.ink3, marginBottom: 10 }]}>{readerTitle}</Text> : null}
             <Text selectable style={[type.bubble, { color: p.ink, fontFamily: readerTitle === null || readerTitle.match(/\.(md|markdown|txt)$/i) ? undefined : 'monospace' }]}>{readerText ?? ''}</Text>
           </ScrollView>
-          <GlassButton accessibilityRole="button" onPress={() => setReaderText(null)} style={[styles.readerClose, { bottom: insets.bottom + 16 }]}>
+          <Pressable accessibilityRole="button" onPress={() => setReaderText(null)} style={[styles.readerClose, { backgroundColor: p.card, borderColor: p.line, bottom: insets.bottom + 16 }]}>
             <Text style={[type.settingsRow, { color: p.accent }]}>{t('Done')}</Text>
-          </GlassButton>
+          </Pressable>
         </View>
       </Modal>
       <PhotoViewer open={photos} onClose={() => setPhotos(null)} />
@@ -454,8 +457,8 @@ function GoalBar({ goal, p }: { goal: Goal; p: ReturnType<typeof useTheme>['p'] 
               : checking ? t('Checking · {title}', { title: current.title ?? '' }) : current.title ?? ''
   const segment = (i: number) => stages[i].status === 'passed' ? p.green : i === at && RUNNING.has(goal.status ?? '') ? p.accent : p.line
   return (
-    <GlassButton accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(on => !on)} radius={16}
-      style={styles.goal} contentStyle={styles.cardIn}>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(on => !on)}
+      style={[styles.goal, { backgroundColor: p.card, borderColor: p.line }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={[type.settingsRow, { color: p.ink, fontWeight: '600', flex: 1 }]} numberOfLines={1}>{goal.title ?? ''}</Text>
         {number !== undefined ? <Text style={[type.caption, { color: p.ink3 }]}>{`${number}/${stages.length}`}</Text> : null}
@@ -469,7 +472,7 @@ function GoalBar({ goal, p }: { goal: Goal; p: ReturnType<typeof useTheme>['p'] 
           {stage.status === 'passed' ? <Text style={{ color: p.green, fontSize: 13 }}>✓</Text> : null}
         </View>
       )) : null}
-    </GlassButton>
+    </Pressable>
   )
 }
 
@@ -487,20 +490,20 @@ function ComputerCards({ bot, p }: { bot: Bot; p: ReturnType<typeof useTheme>['p
   return (
     <View>
       {asks.map(ask => (
-        <Glass key={ask.id} radius={16} style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line }]}>
+        <View key={ask.id} style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line }]}>
           <Text style={[type.settingsRow, { color: p.ink }]}>{t('Allow {name} to use {app}?', { name: bot.name, app: ask.appName ?? '' })}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-            <GlassButton accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'deny' })} style={styles.fix}><Text style={{ color: p.ink }}>{t('Deny')}</Text></GlassButton>
-            <GlassButton accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'once' })} style={styles.fix}><Text style={{ color: p.ink }}>{t('This time')}</Text></GlassButton>
-            <GlassButton accessibilityRole="button" accent onPress={() => act('computer-app-answer', { id: ask.id, answer: 'always' })} style={styles.fix}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Always')}</Text></GlassButton>
+            <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'deny' })} style={[styles.fix, { backgroundColor: p.hover }]}><Text style={{ color: p.ink }}>{t('Deny')}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'once' })} style={[styles.fix, { backgroundColor: p.hover }]}><Text style={{ color: p.ink }}>{t('This time')}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'always' })} style={[styles.fix, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Always')}</Text></Pressable>
           </View>
-        </Glass>
+        </View>
       ))}
       {acting ? (
-        <Glass radius={16} style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line, paddingVertical: 8 }]} contentStyle={styles.rowIn}>
+        <View style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line, flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }]}>
           <Text style={[type.small, { color: p.ink, flex: 1 }]} numberOfLines={1}>{control?.app ? `${t('Computer use')} · ${control.app}` : t('Computer use')}</Text>
-          <GlassButton accessibilityRole="button" onPress={() => act('computer-stop', { botId: bot.id })} style={[styles.fix, { minHeight: 36 }]}><Text style={{ color: p.danger }}>{t('Stop')}</Text></GlassButton>
-        </Glass>
+          <Pressable accessibilityRole="button" onPress={() => act('computer-stop', { botId: bot.id })} style={[styles.fix, { backgroundColor: p.hover, minHeight: 36 }]}><Text style={{ color: p.danger }}>{t('Stop')}</Text></Pressable>
+        </View>
       ) : null}
       {error ? <Text style={[type.small, { color: p.danger, marginHorizontal: 16, marginBottom: 6 }]}>{error}</Text> : null}
     </View>
@@ -529,14 +532,14 @@ function BlockedCard({ bot, p }: { bot: Bot; p: ReturnType<typeof useTheme>['p']
   const key = ['MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'AUTH'].includes(blocked.code)
   const topUp = blocked.code === 'QUOTA' && blocked.provider === 'deepseek-official' || blocked.code === 'ACCOUNT_QUOTA'
   return (
-    <Glass radius={16} accessibilityRole="alert" style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line }]}>
+    <View style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line }]} accessibilityRole="alert">
       <Text style={[type.settingsRow, { color: p.ink }]}>{failureText(blocked.code, bot.name, provider, blocked.status)}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-        {key ? <GlassButton accessibilityRole="button" accent onPress={() => navigation.navigate('Settings', { screen: 'Providers', initial: false })} style={styles.fix}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{blocked.code === 'MISSING_CREDENTIAL' ? t('Enter API key') : t('Enter the key again')}</Text></GlassButton> : null}
-        {topUp ? <GlassButton accessibilityRole="button" accent onPress={() => void Linking.openURL('https://platform.deepseek.com/top_up')} style={styles.fix}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Top up ↗')}</Text></GlassButton> : null}
-        <GlassButton accessibilityRole="button" onPress={() => navigation.navigate('BotDetails', { botId: bot.id })} style={styles.fix}><Text style={{ color: p.ink }}>{t('Pick another model')}</Text></GlassButton>
+        {key ? <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Settings', { screen: 'Providers', initial: false })} style={[styles.fix, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{blocked.code === 'MISSING_CREDENTIAL' ? t('Enter API key') : t('Enter the key again')}</Text></Pressable> : null}
+        {topUp ? <Pressable accessibilityRole="button" onPress={() => void Linking.openURL('https://platform.deepseek.com/top_up')} style={[styles.fix, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Top up ↗')}</Text></Pressable> : null}
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('BotDetails', { botId: bot.id })} style={[styles.fix, { backgroundColor: p.hover }]}><Text style={{ color: p.ink }}>{t('Pick another model')}</Text></Pressable>
       </View>
-    </Glass>
+    </View>
   )
 }
 
@@ -566,15 +569,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   loading: { flex: 1 },
   list: { flex: 1 },
-  // The list runs under the floating header; its inverted order puts the header gap at paddingBottom.
-  listContent: { paddingVertical: 8, paddingHorizontal: 12 },
+  listContent: { paddingVertical: 8, paddingHorizontal: 16 },
   reader: { flex: 1 },
   empty: { position: 'absolute', left: 24, right: 24, top: '28%', alignItems: 'center' },
-  toLatest: { position: 'absolute', right: 14, bottom: 10 },
-  goal: { marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  blocked: { marginHorizontal: 12, marginBottom: 8, padding: 14 },
-  cardIn: { alignItems: 'stretch', justifyContent: 'flex-start' },
-  rowIn: { flexDirection: 'row', alignItems: 'center' },
-  fix: { minHeight: 44, paddingHorizontal: 16 },
-  readerClose: { position: 'absolute', alignSelf: 'center', minHeight: 44, paddingHorizontal: 24, paddingVertical: 10 },
+  toLatest: { position: 'absolute', right: 14, bottom: 10, width: 38, height: 38, borderRadius: 19, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  goal: { marginHorizontal: 12, marginBottom: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 10 },
+  blocked: { marginHorizontal: 12, marginBottom: 8, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 14 },
+  fix: { minHeight: 44, borderRadius: 20, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  readerClose: { position: 'absolute', bottom: 30, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },
 })

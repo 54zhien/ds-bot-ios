@@ -8,7 +8,7 @@ import { onPrefsChange, readPrefs } from '../store.ts'
 import { Drawer, useDrawer } from './Drawer.tsx'
 import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
-import { shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { screenRadius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { GlassCluster, GlassControl, GlassPill } from '../ui/glass.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { GearIcon, PeopleIcon, PlusIcon, SearchIcon, SidebarIcon, SideIcon } from '../ui/icons.tsx'
@@ -41,6 +41,9 @@ function DrawerContent() {
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
   const [newOpen, setNewOpen] = useState(false)
+  // The gear sits concentric with the display corner, like the composer: its
+  // centre is R from both edges, so the panel and the control share a centre.
+  const gearInset = Math.max(16, screenRadius(insets.bottom, Platform.OS) - 22)
   const create = (screen: 'NewBot' | 'NewGroup') => { setNewOpen(false); drawer.close(); navigation.navigate(screen) }
   // The chat on screen is marked in the list, as the desktop marks its open chat. The
   // drawer sits outside the navigator, so it follows the container's own state.
@@ -63,15 +66,15 @@ function DrawerContent() {
       {/* The desktop sidebar's head: the product name, search and New. */}
       <GlassCluster style={[styles.drawerHead, { paddingTop: insets.top + 6 }]}>
         <Text style={{ color: p.ink, fontSize: 17, fontWeight: '600', flex: 1 }}>DS Bot</Text>
-        <GlassControl label={t('Search')} iconSize={22} onPress={() => setSearching(on => !on)}>
-          <SearchIcon size={22} color={p.ink2} />
+        <GlassControl label={t('Search')} onPress={() => setSearching(on => !on)}>
+          <SearchIcon size={24} color={p.ink2} />
         </GlassControl>
-        <GlassControl label={t('New')} iconSize={22} onPress={() => setNewOpen(true)}>
-          <PlusIcon size={22} color={p.ink2} />
+        <GlassControl label={t('New')} onPress={() => setNewOpen(true)}>
+          <PlusIcon size={24} color={p.ink2} />
         </GlassControl>
       </GlassCluster>
       {searching ? (
-        <GlassPill height={44} style={{ marginHorizontal: 14, marginBottom: 8 }}>
+        <GlassPill height={44} style={{ marginHorizontal: 16, marginBottom: 8 }}>
           <SearchIcon size={20} color={p.ink3} />
           <TextInput value={query} onChangeText={setQuery} placeholder={t('Search the team')} placeholderTextColor={p.ink3} autoFocus
             style={{ flex: 1, fontSize: 15, paddingVertical: 4, color: p.ink }} autoCapitalize="none" autoCorrect={false} />
@@ -102,9 +105,9 @@ function DrawerContent() {
           </View>
         </Pressable>
       </Modal>
-      <View style={[styles.foot, { paddingBottom: insets.bottom + 8 }]}>
-        <GlassControl label={t('Settings')} iconSize={22} onPress={() => open({ kind: 'settings' })}>
-          <GearIcon size={22} color={p.ink2} />
+      <View style={[styles.foot, { paddingBottom: gearInset, paddingLeft: gearInset }]}>
+        <GlassControl label={t('Settings')} onPress={() => open({ kind: 'settings' })}>
+          <GearIcon size={24} color={p.ink2} />
         </GlassControl>
       </View>
     </View>
@@ -131,9 +134,9 @@ function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title
   return (
     // Floats over the list so messages pass under the glass instead of stopping at a line.
     <View pointerEvents="box-none" style={styles.header}>
-    <GlassCluster spacing={6} pointerEvents="box-none" style={[styles.headerRow, { paddingTop: insets.top + 4 }]}>
-      <GlassControl label={t('Open team list')} iconSize={24} onPress={onMenu} dot={pending}>
-        <SidebarIcon size={24} color={p.ink2} />
+    <GlassCluster spacing={6} pointerEvents="box-none" style={[styles.headerRow, { paddingTop: insets.top }]}>
+      <GlassControl label={t('Open team list')} onPress={onMenu} dot={pending}>
+        <SidebarIcon size={26} color={p.ink2} />
       </GlassControl>
       {/* A long group name ends in an ellipsis inside the pill instead of pushing past the side buttons. */}
       <View style={{ flex: 1, alignItems: 'center', minWidth: 0 }}>
@@ -142,8 +145,8 @@ function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title
             : onPill !== undefined ? <Pressable accessibilityRole="button" onPress={onPill} style={{ maxWidth: '100%' }}><Pill title={title} bot={bot} room={room} bots={bots} /></Pressable> : <Pill title={title} bot={bot} room={room} bots={bots} />}
       </View>
       {onSide !== undefined ? (
-        <GlassControl label={t('Side chat')} iconSize={24} onPress={onSide}>
-          <SideIcon size={24} color={p.ink2} />
+        <GlassControl label={t('Side chat')} onPress={onSide}>
+          <SideIcon size={26} color={p.ink2} />
         </GlassControl>
       ) : <View style={{ width: 44, height: 44 }} />}
     </GlassCluster>
@@ -290,6 +293,7 @@ function Inner({ initial }: { initial: ChatTarget | null }) {
   return (
     <View style={{ flex: 1 }}>
     <NoticeBanner />
+    {/* scrollEdgeEffects needs a native navigation bar to attach to; with headerShown false and a drawn header it draws nothing, and the Fade layers do that job. */}
     <Stack.Navigator initialRouteName="Chat" screenOptions={{ headerShown: false, animation: PUSH, contentStyle: { backgroundColor: p.main }, scrollEdgeEffects: { top: 'soft', bottom: 'soft', left: 'soft', right: 'soft' } }}>
       <Stack.Screen name="Chat" component={ChatScreenB} initialParams={initial ?? undefined} />
       <Stack.Screen name="BotDetails" component={BotDetails} />
@@ -348,10 +352,10 @@ export default function ShellB() {
 const styles = StyleSheet.create({
   needsRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginBottom: 4, borderRadius: 10, paddingHorizontal: 12, height: 44 },
   badge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  foot: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 8 },
+  foot: { flexDirection: 'row', alignItems: 'center' },
   drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8, paddingHorizontal: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 8, paddingHorizontal: 16 },
   you: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, height: 44 },
   sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'flex-end' },
   newSheet: { marginHorizontal: 12, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },

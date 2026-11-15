@@ -112,11 +112,10 @@ export function GlassCluster({ spacing = 6, style, pointerEvents, children }: {
   return <GlassContainer spacing={spacing} style={style} pointerEvents={pointerEvents}>{children}</GlassContainer>
 }
 
-// 44pt is the HIG minimum hit target; the icon slot keeps the glyph optically
-// centred inside the circle.
-export function GlassControl({ size = metrics.control, iconSize = metrics.icon, label, onPress, accent = false, dot = false, disabled = false, children }: {
+// 44pt is the HIG minimum hit target. The glyph is centred by the glass content
+// itself; the SVG already carries its own size, so no fixed slot is involved.
+export function GlassControl({ size = metrics.control, label, onPress, accent = false, dot = false, disabled = false, children }: {
   size?: number
-  iconSize?: number
   label: string
   onPress: () => void
   accent?: boolean
@@ -128,8 +127,8 @@ export function GlassControl({ size = metrics.control, iconSize = metrics.icon, 
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} hitSlop={4}
       style={({ pressed }) => [styles.control, { width: size, height: size }, (pressed || disabled) && { opacity: disabled ? 0.35 : 0.7 }]}>
-      <Glass radius={size / 2} intensity={accent ? 'strong' : 'thin'} tint={accent ? p.accent : undefined} interactive style={styles.fill}>
-        <View style={{ width: iconSize, height: iconSize, alignItems: 'center', justifyContent: 'center' }}>{children}</View>
+      <Glass radius={size / 2} intensity={accent ? 'strong' : 'thin'} tint={accent ? p.accent : undefined} interactive style={styles.fill} contentStyle={styles.controlIn}>
+        {children}
         {dot ? <View style={{ position: 'absolute', top: size * 0.17, right: size * 0.17, width: 8, height: 8, borderRadius: 4, backgroundColor: p.accent }} /> : null}
       </Glass>
     </Pressable>
@@ -177,6 +176,7 @@ const styles = StyleSheet.create({
   surface: { flexGrow: 1, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth },
   content: { flexGrow: 1 },
   control: { alignItems: 'stretch' },
+  controlIn: { alignItems: 'center', justifyContent: 'center' },
   // Flow, not absolute: the glass measures itself from its content, so a button
   // without minHeight keeps its height instead of collapsing to zero.
   fill: { flexGrow: 1, alignSelf: 'stretch' },

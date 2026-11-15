@@ -140,10 +140,10 @@ function RoomRow({ room, bots, p, dark, approvals, preview, unread, working, sel
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 10 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
   tile: { width: 104, alignItems: 'center', borderRadius: radius.card, paddingTop: 10, paddingBottom: 8, paddingHorizontal: 6 },
   tag: { marginTop: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, maxWidth: '100%' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 6, paddingHorizontal: 10, marginHorizontal: 8, borderRadius: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: 8, borderRadius: 10 },
   rowBody: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   waitDot: { position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
