@@ -152,6 +152,15 @@ export const composerInset = ({ screenR, screenWidth, expanded, android }: {
   return screenWidth - 2 * tight - 88 >= 120 ? tight : glass.margin
 }
 
+// Detail pages: one floating bar (back row or the detail top row) plus the fade
+// above the content. Two values, because the two bar styles measure differently.
+export const PAGE_BAR = 60
+export const PAGE_BAR_TIGHT = 56
+export const pageHeaderHeight = (insetTop: number, tight = false) => insetTop + (tight ? PAGE_BAR_TIGHT : PAGE_BAR)
+
+// A sheet header: the grabber's 14pt lead plus the 52pt row.
+export const SHEET_HEAD = 66
+
 export const MONO = 'monospace'
 
 export interface Theme { dark: boolean; p: Palette }

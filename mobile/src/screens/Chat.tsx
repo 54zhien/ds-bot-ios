@@ -9,7 +9,7 @@ import { useTeam } from '../team/context.tsx'
 import { markSeen } from '../team/seen.ts'
 import { messageClock, t } from '../ui/i18n.ts'
 import { headerHeight, shadow, useTheme } from '../ui/tokens.ts'
-import { Fade } from '../ui/fade.tsx'
+import { GlassFade } from '../ui/fade.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { ArrowDownIcon } from '../ui/icons.tsx'
 import { workPhrase } from '../ui/phrases.ts'
@@ -390,7 +390,7 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
           </Pressable>
         ) : null}
       </View>
-      <Fade color={p.main} height={headerHeight(insets.top) + 36} edge="top" />
+      <GlassFade height={headerHeight(insets.top) + 36} edge="top" />
       {/* After the list: the native scroll edge effect only takes the first scroll view in the screen's child chain. */}
       {header}
       {bot?.blocked !== undefined ? <BlockedCard bot={bot} p={p} /> : null}

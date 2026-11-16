@@ -16,8 +16,10 @@ import { memorySummaryText } from '../team/memory.ts'
 import { t, timeLabel, weekdayShort } from '../ui/i18n.ts'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GearIcon } from '../ui/icons.tsx'
 import { Avatar, COLOR_PAINT, RoomAvatar } from '../ui/marks.tsx'
-import { inkColor, radius, shadow, type as typeScale, useTheme, type Palette } from '../ui/tokens.ts'
+import { inkColor, PAGE_BAR, PAGE_BAR_TIGHT, radius, shadow, type as typeScale, useTheme, type Palette } from '../ui/tokens.ts'
 import { Material, materialSkin, rimSkin } from '../ui/material.tsx'
+import { GlassFade } from '../ui/fade.tsx'
+import { GlassControl } from '../ui/glass.tsx'
 import type { Bot, Room, TeamState } from '../connection.ts'
 import { capabilityStatusText } from './settings-pages.tsx'
 import { ModelMenu, ModelPicker } from './model-menu.tsx'
@@ -38,13 +40,16 @@ export const roomOf = (team: TeamState | null, id: string) => team?.rooms?.find(
 const mainsOf = (team: TeamState | null) => new Set(team?.mainBotIds ?? (team?.mainBotId ? [team.mainBotId] : []))
 const isMain = (team: TeamState | null, id: string) => mainsOf(team).has(id)
 
-function Screen({ title, children }: { title: string; children: React.ReactNode }) {
+function Screen({ title, header, children }: { title: string; header?: React.ReactNode; children: React.ReactNode }) {
   const { p } = useTheme()
   const insets = useSafeAreaInsets()
   const inSheet = useInSheet()
+  // The bar floats: the list scrolls under it, then the glass edge softens the cut.
   return (
     <View style={{ flex: 1, backgroundColor: p.main, paddingTop: inSheet ? 0 : insets.top }}>
       {children}
+      <GlassFade edge="top" height={PAGE_BAR + 36} />
+      {header !== undefined ? <View pointerEvents="box-none" style={styles.topBar}>{header}</View> : null}
     </View>
   )
 }
@@ -54,7 +59,7 @@ export function BackRow({ title, onBack, end }: { title: string; onBack: () => v
   return (
     <View style={styles.backRow}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('Back')} onPress={onBack} hitSlop={8} style={styles.backBtn}>
-        <ChevronLeftIcon size={20} color={p.ink2} />
+        <ChevronLeftIcon size={26} color={p.ink2} />
       </Pressable>
       <Text style={[typeScale.rowName, { color: p.ink, flex: 1, textAlign: 'center' }]} numberOfLines={1}>{title}</Text>
       <View style={styles.backBtn}>{end}</View>
@@ -206,13 +211,14 @@ export function BotDetails({ route, navigation }: any) {
   // permission, folder, instructions, memory, usage and scheduled tasks. Its gear
   // opens the Bot settings.
   return (
-    <Screen title={bot.name}>
+    <Screen title={bot.name} header={
       <View style={[styles.detailTop, { paddingTop: 8 }]}>
-        <RoundButton label={t('Back')} onPress={() => navigation.goBack()}><ChevronLeftIcon color={p.ink2} /></RoundButton>
+        <RoundButton label={t('Back')} onPress={() => navigation.goBack()}><ChevronLeftIcon size={26} color={p.ink2} /></RoundButton>
         <View style={{ flex: 1 }} />
-        <RoundButton label={t('Edit Bot')} onPress={() => navigation.navigate('BotEdit', { botId: bot.id })}><GearIcon size={18} color={p.ink2} /></RoundButton>
+        <RoundButton label={t('Edit Bot')} onPress={() => navigation.navigate('BotEdit', { botId: bot.id })}><GearIcon size={24} color={p.ink2} /></RoundButton>
       </View>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 18 }}>
+    }>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 18, paddingTop: PAGE_BAR_TIGHT }}>
         <View style={{ alignItems: 'center', paddingTop: 4 }}>
           <Avatar bot={bot} dark={dark} size={64} ring={p.main} main={main} />
           <Text style={[typeScale.rowName, { color: p.ink, marginTop: 10, fontSize: 18 }]}>{bot.name}</Text>
@@ -251,13 +257,7 @@ export function BotDetails({ route, navigation }: any) {
 }
 
 function RoundButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
-  const { p } = useTheme()
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={6}
-      style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: p.line, backgroundColor: p.card }}>
-      {children}
-    </Pressable>
-  )
+  return <GlassControl label={label} onPress={onPress}>{children}</GlassControl>
 }
 
 function DetailTitle({ text }: { text: string }) {
@@ -405,9 +405,8 @@ export function BotEdit({ route, navigation }: any) {
   const color = bot.color ?? 'blue'
   const main = isMain(team, bot.id)
   return (
-    <Screen title={bot.name}>
-      <BackRow title={t('Settings')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title={bot.name} header={<BackRow title={t('Settings')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <View style={{ alignItems: 'center', paddingTop: 12 }}>
           <Avatar bot={bot} dark={dark} size={56} ring={p.main} />
         </View>
@@ -498,7 +497,7 @@ export function NewBot({ navigation }: any) {
     <Sheet>
       <SheetHeader title={t('Create new Bot')} left={{ label: t('Cancel'), onPress: () => navigation.goBack() }}
         right={{ label: t('Create'), onPress: () => void create(), disabled: busy || clash, strong: true }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         {error ? <Text style={[typeScale.small, { color: p.danger, marginHorizontal: 18, marginTop: 10 }]}>{error}</Text> : null}
         {/* The Bot as it will look, over its name, as the picks change. */}
         <View style={{ alignItems: 'center', marginTop: 8 }}>
@@ -545,13 +544,14 @@ export function GroupDetails({ route, navigation }: any) {
   const mode = admin !== undefined ? (room.mode ?? 'admin') : 'everyone'
   const notice = (room as { notice?: string }).notice
   return (
-    <Screen title={room.name}>
+    <Screen title={room.name} header={
       <View style={[styles.detailTop, { paddingTop: 8 }]}>
-        <RoundButton label={t('Back')} onPress={() => navigation.goBack()}><ChevronLeftIcon color={p.ink2} /></RoundButton>
+        <RoundButton label={t('Back')} onPress={() => navigation.goBack()}><ChevronLeftIcon size={26} color={p.ink2} /></RoundButton>
         <View style={{ flex: 1 }} />
-        <RoundButton label={t('Group settings')} onPress={() => navigation.navigate('GroupSettings', { roomId: room.id })}><GearIcon size={18} color={p.ink2} /></RoundButton>
+        <RoundButton label={t('Group settings')} onPress={() => navigation.navigate('GroupSettings', { roomId: room.id })}><GearIcon size={24} color={p.ink2} /></RoundButton>
       </View>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 18 }}>
+    }>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 18, paddingTop: PAGE_BAR_TIGHT }}>
         <View style={{ alignItems: 'center', paddingTop: 4 }}>
           <RoomAvatar room={room} bots={bots} dark={dark} size={56} ring={p.main} />
           <Text style={[typeScale.rowName, { color: p.ink, marginTop: 10, fontSize: 18, textAlign: 'center' }]}>{room.name}</Text>
@@ -604,9 +604,8 @@ export function GroupSettings({ route, navigation }: any) {
   const update = (patch: Record<string, unknown>) => void run('update-room', { id: room.id, ...patch })
   const mode = room.admin !== undefined && bots.some(b => b.id === room.admin) ? (room.mode ?? 'admin') : 'everyone'
   return (
-    <Screen title={room.name}>
-      <BackRow title={t('Group settings')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title={room.name} header={<BackRow title={t('Group settings')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         {error ? <Text style={[typeScale.small, { color: p.danger, marginHorizontal: 18, marginTop: 10 }]}>{error}</Text> : null}
         <Section label={t('Profile')}>
           <Field label={t('Name')} value={room.named === true ? room.name : ''} placeholder={t('Name after members')} onSave={name => update({ name })} />
@@ -678,7 +677,7 @@ export function NewGroup({ navigation }: any) {
     <Sheet>
       <SheetHeader title={t('Create group chat')} left={{ label: t('Cancel'), onPress: () => navigation.goBack() }}
         right={{ label: t('Create'), onPress: create, disabled: !ready, strong: true }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Text style={[typeScale.small, { color: p.ink3, marginHorizontal: 18, marginTop: 14 }]}>{t('Pick at least two Bots. The admin leads the group.')}</Text>
         {error ? <Text style={[typeScale.small, { color: p.danger, marginHorizontal: 18, marginTop: 10 }]}>{error}</Text> : null}
         {/* One list: tick the members; among them, the admin is marked and another
@@ -747,9 +746,8 @@ export function Memory({ route, navigation }: any) {
   const ask = () => { if (!question.trim()) return; setAsking(true); void call('memory-ask', { ...owner, text: question.trim() }).then(v => { const r = v as { reply?: string; view?: typeof view }; setAnswer(typeof r.reply === 'string' ? r.reply : null); if (r.view !== undefined) setView(r.view) }).catch(() => {}).finally(() => setAsking(false)) }
   const summary = memorySummaryText(view?.summary)
   return (
-    <Screen title={name}>
-      <BackRow title={t('Memory')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title={name} header={<BackRow title={t('Memory')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         {summary !== null ? <Text style={[typeScale.caption, { color: p.ink3, margin: 18 }]}>{summary}</Text> : null}
         <Material radius={26} style={[styles.card, { backgroundColor: p.card, borderColor: p.line, marginTop: 14 }]}>
           <View style={styles.row}>
@@ -860,9 +858,8 @@ export function Schedules({ route, navigation }: any) {
     setAdding(false)
   }
   return (
-    <Screen title={String(route.params?.name ?? '')}>
-      <BackRow title={t('Schedules')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title={String(route.params?.name ?? '')} header={<BackRow title={t('Schedules')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Section label={t('Schedules')}>
           {tasks.map(task => (
             <View key={task.id} style={styles.row}>
@@ -943,9 +940,8 @@ export function Folder({ route, navigation }: any) {
     void run(target[0] as string, target[1] as Record<string, unknown>, () => navigation.goBack())
   }
   return (
-    <Screen title="">
-      <BackRow title={t('Working folder')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title="" header={<BackRow title={t('Working folder')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         {recent.length > 0 ? (
           <Section label={t('Folders')}>
             {recent.map(folder => <Row key={folder.path} label={folder.title} value={folder.path} onPress={() => load(folder.path)} />)}
@@ -987,9 +983,8 @@ export function Usage({ route, navigation }: any) {
   const pressure = stats?.contextPressure
   const context = pressure?.pressureTokens !== undefined && pressure.contextWindow ? `${Math.round(pressure.pressureTokens / pressure.contextWindow * 100)}%` : '—'
   return (
-    <Screen title={String(route.params?.name ?? '')}>
-      <BackRow title={t('Usage')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title={String(route.params?.name ?? '')} header={<BackRow title={t('Usage')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Section label={t('Usage')}>
           <Row label={t('Day')} value={total(summary?.day)} />
           <Row label={t('Week')} value={total(summary?.week)} />
@@ -1030,9 +1025,8 @@ export function Computers({ navigation }: any) {
   const actions = useContext(ComputersCtx)
   const forget = (id: string, name: string) => confirmDanger(t('Forget {name}?', { name }), t('Forget'), () => { void removeComputer(id).then(next => { setList(next); if (computer?.hostDeviceId === id) actions.reload() }) })
   return (
-    <Screen title="">
-      <BackRow title={t('Computers')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title="" header={<BackRow title={t('Computers')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Section label={t('Computers')}>
           {list.map(item => {
             const active = item.hostDeviceId === computer?.hostDeviceId
@@ -1071,9 +1065,8 @@ export function Secrets({ navigation }: any) {
   const secrets = (team as { secrets?: { name: string; description?: string; scope?: string | string[] }[] } | null)?.secrets ?? []
   const save = () => { if (!name.trim() || !value) return; const next = value; setValue(''); void run('secret-set', { name: name.trim(), value: next }, () => setName('')) }
   return (
-    <Screen title="">
-      <BackRow title={t('Secrets')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen title="" header={<BackRow title={t('Secrets')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         {error ? <Text style={[typeScale.small, { color: p.danger, marginHorizontal: 18, marginTop: 10 }]}>{error}</Text> : null}
         <Section label={t('Secrets')}>
           {secrets.map(secret => (
@@ -1104,12 +1097,13 @@ export function Secrets({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  detailTop: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 4 },
-  tabs: { flexDirection: 'row', alignSelf: 'center', borderRadius: 10, padding: 2, marginTop: 14 },
-  tab: { minWidth: 64, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1.5, borderColor: 'transparent' },
-  segments: { flexDirection: 'row', borderRadius: 10, padding: 2 },
-  segment: { flex: 1, minHeight: 36, paddingVertical: 6, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderWidth: 1.5, borderColor: 'transparent' },
+  detailTop: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
+  tabs: { flexDirection: 'row', alignSelf: 'center', borderRadius: 18, padding: 2, marginTop: 14 },
+  tab: { minWidth: 64, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1.5, borderColor: 'transparent' },
+  segments: { flexDirection: 'row', borderRadius: 20, padding: 2 },
+  segment: { flex: 1, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderWidth: 1.5, borderColor: 'transparent' },
   dropdown: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14 },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   card: { marginHorizontal: 16, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', ...shadow(1) },
@@ -1117,8 +1111,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, minHeight: 50, gap: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   cell: { width: 52, height: 52, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  segRow: { flexDirection: 'row', borderRadius: 9, padding: 2 },
-  seg: { flex: 1, minHeight: 34, paddingVertical: 5, borderRadius: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderWidth: 1.5, borderColor: 'transparent' },
+  segRow: { flexDirection: 'row', borderRadius: 19, padding: 2 },
+  seg: { flex: 1, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderWidth: 1.5, borderColor: 'transparent' },
   switch: { width: 46, height: 28, borderRadius: 14, padding: 3, justifyContent: 'center' },
   knob: { width: 22, height: 22, borderRadius: 11 },
   check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
@@ -1155,8 +1149,7 @@ export function BotBrowser({ bot, navigation }: { bot: Bot; navigation: { goBack
   }, [focused, refresh])
   const act = (endpoint: string, payload: Record<string, unknown>) => void call(endpoint, payload).catch(() => {}).then(refresh)
   return (
-    <Screen title={t('Browser')}>
-      <BackRow title={t('Browser')} onBack={() => navigation.goBack()} />
+    <Screen title={t('Browser')} header={<BackRow title={t('Browser')} onBack={() => navigation.goBack()} />}>
       <ScrollView contentContainerStyle={{ padding: 14 }}>
         {frame?.data ? (
           <Image source={{ uri: `data:${frame.mime};base64,${frame.data}` }} style={{ width: '100%', aspectRatio: 0.62, borderRadius: radius.card, backgroundColor: p.hover }} resizeMode="contain" />

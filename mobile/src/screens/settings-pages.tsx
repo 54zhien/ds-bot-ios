@@ -7,20 +7,28 @@ import * as Clipboard from 'expo-clipboard'
 import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { ChevronLeftIcon, ChevronRightIcon } from '../ui/icons.tsx'
-import { radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { PAGE_BAR, radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { Material, materialSkin, rimSkin } from '../ui/material.tsx'
+import { GlassFade } from '../ui/fade.tsx'
 
-function Screen({ children }: { children: React.ReactNode }) {
+function Screen({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) {
   const { p } = useTheme()
   const insets = useSafeAreaInsets()
   const inSheet = useInSheet()
-  return <View style={{ flex: 1, backgroundColor: p.main, paddingTop: inSheet ? 0 : insets.top }}>{children}</View>
+  // The bar floats: the list scrolls under it, then the glass edge softens the cut.
+  return (
+    <View style={{ flex: 1, backgroundColor: p.main, paddingTop: inSheet ? 0 : insets.top }}>
+      {children}
+      <GlassFade edge="top" height={PAGE_BAR + 36} />
+      {header !== undefined ? <View pointerEvents="box-none" style={styles.topBar}>{header}</View> : null}
+    </View>
+  )
 }
 function Back({ title, onBack }: { title: string; onBack: () => void }) {
   const { p } = useTheme()
   return (
     <View style={styles.backRow}>
-      <Pressable accessibilityRole="button" accessibilityLabel={t('Back')} onPress={onBack} hitSlop={8} style={styles.backBtn}><ChevronLeftIcon size={20} color={p.ink2} /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('Back')} onPress={onBack} hitSlop={8} style={styles.backBtn}><ChevronLeftIcon size={26} color={p.ink2} /></Pressable>
       <Text style={[typeScale.rowName, { color: p.ink, flex: 1, textAlign: 'center' }]}>{title}</Text>
       <View style={styles.backBtn} />
     </View>
@@ -106,9 +114,8 @@ export function Providers({ navigation }: any) {
   const addKnown = () => { if (draft.provider === '') return; void apply(call('provider-add', { provider: draft.provider, key: draft.key }), () => { setAdding(false); setDraft(d => ({ ...d, provider: '', key: '' })); load() }) }
   const addCustom = () => { if (!ready) return; void apply(call('provider-add', { custom: true, provider: draft.provider.trim(), name: draft.name, baseURL: draft.baseURL, api: draft.api || (view?.protocols ?? [])[0], key: draft.key, models }), () => { setAdding(false); setFound(null); setPicked([]); setDraft({ provider: '', name: '', baseURL: '', api: '', key: '', typed: '' }); load() }) }
   return (
-    <Screen>
-      <Back title={t('Model providers')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen header={<Back title={t('Model providers')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         {view?.available === false ? <Text style={[typeScale.small, { color: p.ink3, margin: 18 }]}>{t('This DSH cannot set up model providers.')}</Text> : null}
         {error ? <Text style={[typeScale.small, { color: p.danger, margin: 18 }]}>{error}</Text> : null}
         <Section label={t('Model providers · {count}', { count: view?.providers?.length ?? 0 })}>
@@ -254,8 +261,8 @@ export function Connectors({ navigation }: any) {
     return task.then(() => { setError(null); after?.() }, (f: { code?: string; message?: string }) => { if (f?.code !== 'unlock/canceled') setError(f?.message ?? String(f)) }).finally(() => setBusy(null))
   }
   return (
-    <Screen><Back title={t('Connectors')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen header={<Back title={t('Connectors')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         {error ? <Text style={[typeScale.small, { color: p.danger, margin: 18 }]}>{error}</Text> : null}
         <Section label={t('Connectors')}>
           {connectors.map(item => {
@@ -336,8 +343,8 @@ export function Capabilities({ navigation }: any) {
   const act = (endpoint: string, payload: Record<string, unknown>) =>
     call(endpoint, payload).catch((f: { code?: string; message?: string }) => { if (f?.code !== 'unlock/canceled') setError(f?.message ?? String(f)) })
   return (
-    <Screen><Back title={t('Capabilities')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen header={<Back title={t('Capabilities')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         {error ? <Text style={[typeScale.small, { color: p.danger, margin: 18 }]}>{error}</Text> : null}
         <Section label={t('Capabilities')}>
           {items.map(item => {
@@ -447,8 +454,8 @@ export function TeamUsage({ navigation }: any) {
   const owners = (view?.owners ?? []).map((owner, index) => ({ owner, total: sum(row => row[1] === index) })).filter(entry => entry.total.input + entry.total.output > 0)
   const models = (view?.models ?? []).map((model, index) => ({ model, total: sum(row => row[2] === index) })).filter(entry => entry.total.input + entry.total.output > 0)
   return (
-    <Screen><Back title={t('Usage')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen header={<Back title={t('Usage')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Section label={t('Usage')}>
           <Row label={t('Tokens in')} value={view === null ? '—' : fmt(all.input)} />
           <Row label={t('Tokens out')} value={view === null ? '—' : fmt(all.output)} />
@@ -473,8 +480,8 @@ export function Location({ navigation }: any) {
   useEffect(() => { if (focused) void call('folders').then(v => setWorkspace((v as { team?: string })?.team ?? '')).catch(() => {}) }, [focused, team?.revision])
   const dataPath = (team as { dataPath?: string } | null)?.dataPath
   return (
-    <Screen><Back title={t('Location')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen header={<Back title={t('Location')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Section label={t('Location')}>
           <Row label={t('Team workspace')} value={workspace} onPress={() => navigation.navigate('Folder', { current: workspace, onPick: 'team' })} />
           {dataPath !== undefined ? <Row label={t('Data location')} value={dataPath} /> : null}
@@ -521,8 +528,8 @@ export function Updates({ navigation }: any) {
   const loadLog = () => { if (log !== null) { setLog(null); return } void call('diagnostics-log').then(v => setLog(typeof v === 'string' ? v.split('\n') : [])).catch(() => {}) }
   const clearDiag = () => { void call('diagnostics-clear').catch(() => {}) }
   return (
-    <Screen><Back title={t('Updates & diagnostics')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen header={<Back title={t('Updates & diagnostics')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Section label={t('DS Bot')}>
           <Row label={update?.current ? `DS Bot ${update.current}` : t('DS Bot')} value={updateText(update)} />
           {update?.notes ? <Row label={t('What is new')} value={update.notes} /> : null}
@@ -564,8 +571,8 @@ export function About({ navigation }: any) {
   const dsh = versions?.dsh?.current
   const appVersion = require('expo-constants').default.expoConfig?.version ?? require('expo-constants').default.manifest?.version ?? '—'
   return (
-    <Screen><Back title={t('About')} onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <Screen header={<Back title={t('About')} onBack={() => navigation.goBack()} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: PAGE_BAR }}>
         <Section label={t('About')}>
           <Row label={t('DS Bot')} value={version} />
           {dsh !== undefined ? <Row label={t('DSH')} value={dsh} /> : null}
@@ -582,6 +589,7 @@ export function About({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8 },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   card: { marginHorizontal: 16, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', ...shadow(1) },
@@ -589,7 +597,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, minHeight: 50, gap: 10 },
   smallBtn: { borderRadius: 10, paddingHorizontal: 12, minHeight: 36, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   segRow: { flexDirection: 'row', borderWidth: 1, borderRadius: radius.pill, overflow: 'hidden' },
-  seg: { flex: 1, minHeight: 38, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderWidth: 1.5, borderColor: 'transparent' },
+  seg: { flex: 1, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderWidth: 1.5, borderColor: 'transparent' },
   cta: { minHeight: 48, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   field: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, minHeight: 40, paddingVertical: 6 },
   multi: { minHeight: 80, paddingVertical: 10, textAlignVertical: 'top', fontFamily: 'monospace' },

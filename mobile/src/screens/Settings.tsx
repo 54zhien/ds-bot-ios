@@ -4,7 +4,7 @@ import { useTeam } from '../team/context.tsx'
 import { t, getLang, setLang } from '../ui/i18n.ts'
 import { ChevronRightIcon } from '../ui/icons.tsx'
 import { readPrefs, writePrefs } from '../store.ts'
-import { radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { radius, shadow, SHEET_HEAD, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { Material } from '../ui/material.tsx'
 
 function Row({ label, value, onPress, end }: { label: string; value?: string; onPress?: () => void; end?: React.ReactNode }) {
@@ -69,7 +69,7 @@ export function Settings({ navigation }: { navigation?: any }) {
   const theme = prefs.theme ?? 'system'
   const lang = getLang()
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: SHEET_HEAD }}>
       <Section label={t('Phone')}>
         <Row label={t('Computers')} value={computer?.name ?? ''} onPress={() => navigation?.navigate('Computers')} />
         <Choice label={t('Appearance')} value={theme as 'system' | 'light' | 'dark'} onPick={next => set('theme', next)}
@@ -98,6 +98,6 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, minHeight: 50, gap: 10 },
   choice: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  segments: { flexDirection: 'row', borderRadius: 9, padding: 2 },
-  segment: { flex: 1, minHeight: 34, paddingVertical: 5, borderRadius: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  segments: { flexDirection: 'row', borderRadius: 19, padding: 2 },
+  segment: { flex: 1, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderWidth: 1.5, borderColor: 'transparent' },
 })

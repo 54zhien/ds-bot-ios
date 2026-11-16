@@ -6,7 +6,7 @@ import { t } from '../ui/i18n.ts'
 import { ArrowUpIcon, ChevronLeftIcon, CloseIcon } from '../ui/icons.tsx'
 import { headerHeight, radius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { Glass, GlassControl, GlassPill } from '../ui/glass.tsx'
-import { Fade } from '../ui/fade.tsx'
+import { GlassFade } from '../ui/fade.tsx'
 import { Avatar } from '../ui/marks.tsx'
 import type { Bot } from '../connection.ts'
 import { Markdown } from './chat/markdown.tsx'
@@ -120,7 +120,7 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
         )}
         {error ? <Text style={[typeScale.small, { color: p.danger, marginTop: 8 }]}>{error}</Text> : null}
       </ScrollView>
-      <Fade color={p.main} height={headerHeight(insets.top) + 36} edge="top" />
+      <GlassFade height={headerHeight(insets.top) + 36} edge="top" />
       <View style={[styles.composer, { paddingBottom: keyboardUp ? 12 : insets.bottom + 8 }]}>
         <Glass radius={radius.pill} style={styles.inputGlass} contentStyle={styles.inputIn}>
           <TextInput style={[styles.input, { color: p.ink }]} value={draft} onChangeText={setDraft}

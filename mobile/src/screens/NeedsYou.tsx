@@ -1,7 +1,7 @@
 import { SectionList, StyleSheet, Text, View, Pressable } from 'react-native'
 import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
-import { type as typeScale, useTheme, radius } from '../ui/tokens.ts'
+import { type as typeScale, useTheme, radius, SHEET_HEAD } from '../ui/tokens.ts'
 import { Avatar } from '../ui/marks.tsx'
 import type { ChatTarget } from './TeamList.tsx'
 
@@ -52,6 +52,7 @@ export function NeedsYou({ onOpen }: { onOpen: (target: ChatTarget) => void }) {
   return (
     <SectionList
       style={{ flex: 1, backgroundColor: p.main }}
+      contentContainerStyle={{ paddingTop: SHEET_HEAD }}
       sections={sections}
       keyExtractor={row => row.key}
       renderSectionHeader={({ section }) => (

@@ -8,9 +8,9 @@ import { onPrefsChange, readPrefs } from '../store.ts'
 import { Drawer, useDrawer } from './Drawer.tsx'
 import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
-import { screenRadius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
+import { screenRadius, shadow, SHEET_HEAD, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { GlassCluster, GlassControl, GlassPill } from '../ui/glass.tsx'
-import { Fade } from '../ui/fade.tsx'
+import { GlassFade } from '../ui/fade.tsx'
 import { materialSkin, rimSkin } from '../ui/material.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { GearIcon, PeopleIcon, PlusIcon, SearchIcon, SidebarIcon, SideIcon } from '../ui/icons.tsx'
@@ -31,6 +31,8 @@ const Stack = createNativeStackNavigator()
 const LAST_KEY = 'dsbot.lastChat'
 // 44 gear + 16 margin + 36 of fade above it.
 const GEAR_FADE = 44 + 16 + 36
+// The drawer panel sits right under the head, so the list needs its own edge fade.
+const PANEL_HEAD_FADE = 36
 
 // Drawer content = the desktop sidebar as a drawer: "Needs you" row on top when
 // anything is pending, the team list, and a footer with the You mark + gear.
@@ -96,6 +98,8 @@ function DrawerContent() {
         ) : null}
         <View style={{ flex: 1 }}>
           <TeamList onOpen={open} query={searching ? query : ''} current={current} />
+          {/* Rows vanish at the panel's top edge; this softens that line. */}
+          <GlassFade height={PANEL_HEAD_FADE} edge="top" />
         </View>
       </View>
       <Modal visible={newOpen} transparent animationType="fade" onRequestClose={() => setNewOpen(false)}>
@@ -113,7 +117,7 @@ function DrawerContent() {
           </View>
         </Pressable>
       </Modal>
-      <Fade color={p.sidebar} height={GEAR_FADE} edge="bottom" />
+      <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" />
       <View style={[styles.foot, { left: gearInset, bottom: gearInset }]}>
         {/* Glass reads as nothing against the dark panel once its neighbours are gone, so the gear keeps the 1pt material rim. */}
         <Pressable accessibilityRole="button" accessibilityLabel={t('Settings')} onPress={() => open({ kind: 'settings' })} style={[styles.gear, materialSkin(dark, 22)]}>
@@ -213,8 +217,14 @@ function ChatScreenB({ route, navigation }: any) {
 function NeedsSheet({ navigation }: any) {
   return (
     <Sheet>
-      <SheetHeader title={t('Needs you')} right={{ label: t('Done'), onPress: () => navigation.goBack(), strong: true }} />
-      <NeedsYou onOpen={target => openChat(navigation, target)} />
+      {/* The bar floats so the list can run under it; the fade softens that edge. */}
+      <View style={{ flex: 1 }}>
+        <NeedsYou onOpen={target => openChat(navigation, target)} />
+        <GlassFade edge="top" height={SHEET_HEAD + 36} />
+        <View pointerEvents="box-none" style={styles.sheetHead}>
+          <SheetHeader title={t('Needs you')} right={{ label: t('Done'), onPress: () => navigation.goBack(), strong: true }} />
+        </View>
+      </View>
     </Sheet>
   )
 }
@@ -225,8 +235,11 @@ const SettingsStack = createNativeStackNavigator()
 function SettingsHome({ navigation }: any) {
   return (
     <View style={{ flex: 1 }}>
-      <SheetHeader title={t('Settings')} right={{ label: t('Done'), onPress: () => navigation.getParent()?.goBack(), strong: true }} />
       <Settings navigation={navigation} />
+      <GlassFade edge="top" height={SHEET_HEAD + 36} />
+      <View pointerEvents="box-none" style={styles.sheetHead}>
+        <SheetHeader title={t('Settings')} right={{ label: t('Done'), onPress: () => navigation.getParent()?.goBack(), strong: true }} />
+      </View>
     </View>
   )
 }
@@ -368,6 +381,7 @@ const styles = StyleSheet.create({
   gear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  sheetHead: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 8, paddingHorizontal: 16 },
   you: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, height: 44 },
   sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'flex-end' },

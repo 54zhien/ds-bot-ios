@@ -95,7 +95,7 @@ export function Avatar({ bot, dark, size = 44, ring, working = false, waiting = 
               <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: p.green }} />
             </View>
           : null}
-      {main ? <View style={[styles.star, { width: star, height: star, right: -size * 0.07, bottom: -size * 0.07 }]}><MainStarIcon size={star} stroke={ring} /></View> : null}
+      {main ? <View style={[styles.star, { width: star, height: star, right: -size * 0.07, bottom: -size * 0.07 }]}><MainStarIcon size={star} ring={ring} /></View> : null}
     </View>
   )
 }
