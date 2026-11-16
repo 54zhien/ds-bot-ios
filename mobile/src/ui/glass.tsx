@@ -136,7 +136,11 @@ export function GlassControl({ size = metrics.control, iconSize = metrics.iconXL
       style={({ pressed }) => [styles.control, { width: size, height: size }, (pressed || disabled) && { opacity: disabled ? 0.35 : 0.7 }]}>
       <Glass radius={size / 2} intensity={accent ? 'strong' : 'thin'} tint={accent ? p.accent : undefined} interactive style={styles.fill} contentStyle={styles.controlIn}>
         {children}
-        {dot ? <View style={{ position: 'absolute', top: anchor - 1, left: size - anchor - 9, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: p.main, backgroundColor: p.accent }} /> : null}
+        {dot ? (
+          <View style={{ position: 'absolute', top: anchor - 2, left: size - anchor - 10, padding: 2, backgroundColor: 'transparent' }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: p.accent }} />
+          </View>
+        ) : null}
       </Glass>
     </Pressable>
   )

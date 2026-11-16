@@ -61,7 +61,7 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
       <View style={{ paddingTop: insets.top, zIndex: 1 }}>
         <View style={styles.head}>
           <GlassControl label={t('Back')} onPress={() => navigation.goBack()}>
-            <ChevronLeftIcon size={26} color={p.ink2} />
+            <ChevronLeftIcon size={28} color={p.ink2} />
           </GlassControl>
           <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>
             <GlassPill height={44} style={{ maxWidth: '100%' }}>
@@ -74,7 +74,7 @@ export function Side({ bot, sessionId, navigation }: { bot: Bot; sessionId: stri
           </View>
           {chat !== undefined ? (
             <GlassControl label={t('Close')} onPress={() => { void call('side-close', { chatId: chat.chatId }).then(() => setOpenId(null)).catch(() => {}) }}>
-              <CloseIcon size={26} color={p.ink2} />
+              <CloseIcon size={28} color={p.ink2} />
             </GlassControl>
           ) : <View style={{ width: 44, height: 44 }} />}
         </View>

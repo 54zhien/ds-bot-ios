@@ -8,7 +8,7 @@ interface IconProps { size?: number; color?: string }
 const use = (color: string | undefined, fallback: string) => color ?? fallback
 // A thin stroke goes soft once the glyph grows; weight follows size the way the
 // system icons do.
-const strokeOf = (size: number): number => (size >= 26 ? 1.9 : size >= 22 ? 1.8 : size >= 18 ? 1.7 : 1.6)
+const strokeOf = (size: number): number => (size >= 28 ? 2 : size >= 26 ? 1.9 : size >= 22 ? 1.8 : size >= 18 ? 1.7 : 1.6)
 
 export function ChevronLeftIcon({ size = 24, color }: IconProps) {
   const { p } = useTheme()
@@ -115,7 +115,7 @@ export function CloseIcon({ size = 20, color }: IconProps) {
 export function SideIcon({ size = 24, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth={strokeOf(size)} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M7 15.2 4.2 15.8 4.8 13A6 6 0 1 1 7 15.2Z" />
+      <Path d="M17 11.5a6.5 6.5 0 0 1-6.5 6.5H4l2-2.6A6.5 6.5 0 1 1 17 11.5Z" />
       <Path d="M8.8 8.8 11.2 11.2M11.2 8.8 8.8 11.2" />
     </Svg>
   )

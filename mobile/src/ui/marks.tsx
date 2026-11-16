@@ -59,32 +59,29 @@ export function YouMark({ dark, size = 24 }: { dark: boolean; size?: number }) {
   return <Mark look={MAIN_LOOK} dark={dark} size={size} />
 }
 
-// Status badges: the working dot is a plain green dot with a transparent gap, so a
-// glass surface shows through instead of a ring in a guessed colour. On an opaque
-// row the alert badge keeps the desktop's surface ring; on glass it takes the same
-// transparent gap (bare). The Main Bot star has no plate of its own.
+// Status badges per ui-standard 8.2, scaled to the row's avatar: a waiting accent
+// "?" and a working green dot, both dot-sized, both in a 2pt transparent gap so
+// whatever sits behind the row shows through instead of a guessed ring colour.
 export function Avatar({ bot, dark, size = 44, ring, working = false, waiting = false, main = false, bare = true }: {
   bot: Bot; dark: boolean; size?: number; ring: string; working?: boolean; waiting?: boolean; main?: boolean; bare?: boolean
 }) {
-  const { p } = useTheme()
   const star = Math.min(22, Math.max(14, Math.round(size * 0.36)))
-  const dot = Math.max(8, Math.round(size * 0.2))
-  const alert = Math.round(size * 0.33)
+  const dot = Math.round(size * 0.27)
   // Same value for both axes, so the badge sits exactly on the 45° diagonal.
   const inset = Math.round(size * 0.02)
-  const gap = { padding: 2, right: inset, bottom: inset }
+  const gap = { padding: 2, right: inset, bottom: inset, backgroundColor: 'transparent' as const }
   return (
     <View style={{ width: size, height: size }}>
       <BotMark bot={bot} dark={dark} size={size} />
       {waiting
         ? <View style={[styles.badge, gap]}>
-            <View style={[styles.qPlate, { width: alert, height: alert, borderRadius: alert / 2, backgroundColor: p.accent }]}>
-              <Text style={[styles.q, { color: p.accentInk, fontSize: Math.round(alert * 0.7), lineHeight: alert }]}>?</Text>
+            <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: '#4d6bfe', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={[styles.q, { color: '#fff', fontSize: dot * 0.66, lineHeight: dot }]}>?</Text>
             </View>
           </View>
         : working
           ? <View style={[styles.badge, gap]}>
-              <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: p.green }} />
+              <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: '#00c972' }} />
             </View>
           : null}
       {main ? <View style={[styles.star, { width: star, height: star, right: -size * 0.07, bottom: -size * 0.07 }]}><MainStarIcon size={star} ring={ring} /></View> : null}
@@ -196,7 +193,6 @@ export function RoomAvatar({ room, bots, dark, size = 44, ring }: { room: Room; 
 
 const styles = StyleSheet.create({
   badge: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  qPlate: { alignItems: 'center', justifyContent: 'center' },
   star: { position: 'absolute' },
   q: { fontWeight: '600', textAlign: 'center' },
   seat: { position: 'absolute', overflow: 'hidden' },

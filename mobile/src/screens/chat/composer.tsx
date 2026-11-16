@@ -119,8 +119,8 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
     opacity: progress.value,
   }))
   const sendButton = stop
-    ? <GlassControl label={t('Stop')} onPress={onStop}><StopIcon size={24} /></GlassControl>
-    : <GlassControl label={t('Send')} accent disabled={!ready} onPress={send}><ArrowUpIcon size={24} /></GlassControl>
+    ? <GlassControl label={t('Stop')} onPress={onStop}><StopIcon size={26} /></GlassControl>
+    : <GlassControl label={t('Send')} accent disabled={!ready} onPress={send}><ArrowUpIcon size={26} /></GlassControl>
   return (
     <View>
       {pickError !== null ? <Text style={[typeScale.small, { color: p.danger, textAlign: 'center', marginBottom: 4 }]}>{pickError}</Text> : null}
@@ -149,7 +149,7 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
           <View style={[styles.row, expanded && styles.rowOpen]}>
             {!expanded && canAttach
               ? <Pressable accessibilityRole="button" accessibilityLabel={t('Add photos')} onPress={() => void pick()} hitSlop={2} style={styles.hit}>
-                  <PlusIcon size={22} color={p.ink2} />
+                  <PlusIcon size={24} color={p.ink2} />
                 </Pressable>
               : <View style={styles.hit} />}
             <View style={[styles.field, expanded && styles.fieldOpen, expanded && { maxHeight: TEXT_TOP + textMax }]}>
@@ -164,7 +164,7 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
           <Animated.View style={[styles.bar, barStyle]}>
             {canAttach
               ? <Pressable accessibilityRole="button" accessibilityLabel={t('Add photos')} onPress={() => void pick()} hitSlop={2} style={styles.hit}>
-                  <PlusIcon size={22} color={p.ink2} />
+                  <PlusIcon size={24} color={p.ink2} />
                 </Pressable>
               : <View style={styles.hit} />}
             {sendButton}

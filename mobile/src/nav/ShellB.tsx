@@ -74,12 +74,12 @@ function DrawerContent() {
         <Pressable accessibilityRole="button" accessibilityLabel={t('Search')} onPress={() => setSearching(on => !on)} hitSlop={4}
           style={({ pressed }) => [{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7 }]}>
           <BlurSurface radius={22} style={StyleSheet.absoluteFill} />
-          <SearchIcon size={24} color={p.ink2} />
+          <SearchIcon size={26} color={p.ink2} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={t('New')} onPress={() => setNewOpen(true)} hitSlop={4}
           style={({ pressed }) => [{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7 }]}>
           <BlurSurface radius={22} style={StyleSheet.absoluteFill} />
-          <PlusIcon size={24} color={p.ink2} />
+          <PlusIcon size={26} color={p.ink2} />
         </Pressable>
       </View>
       {searching ? (
@@ -122,7 +122,7 @@ function DrawerContent() {
         <Pressable accessibilityRole="button" accessibilityLabel={t('Settings')} onPress={() => open({ kind: 'settings' })}
           style={({ pressed }) => [{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7 }]}>
           <BlurSurface radius={22} style={StyleSheet.absoluteFill} />
-          <GearIcon size={26} color={p.ink2} />
+          <GearIcon size={28} color={p.ink2} />
         </Pressable>
       </View>
       <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" plain />
@@ -153,7 +153,7 @@ function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title
     <View pointerEvents="box-none" style={styles.header}>
     <GlassCluster spacing={6} pointerEvents="box-none" style={[styles.headerRow, { paddingTop: insets.top }]}>
       <GlassControl label={t('Open team list')} onPress={onMenu} dot={pending}>
-        <SidebarIcon size={26} color={p.ink2} />
+        <SidebarIcon size={28} color={p.ink2} />
       </GlassControl>
       {/* A long group name ends in an ellipsis inside the pill instead of pushing past the side buttons. */}
       <View style={{ flex: 1, alignItems: 'center', minWidth: 0 }}>
@@ -163,7 +163,7 @@ function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title
       </View>
       {onSide !== undefined ? (
         <GlassControl label={t('Side chat')} onPress={onSide}>
-          <SideIcon size={26} color={p.ink2} />
+          <SideIcon size={28} color={p.ink2} />
         </GlassControl>
       ) : <View style={{ width: 44, height: 44 }} />}
     </GlassCluster>
