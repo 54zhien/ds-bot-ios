@@ -5,7 +5,7 @@ import { characterMarkup, lookOf, MAIN_LOOK, MASK_ID, shapeOf } from '../../../d
 import { INKS } from '../../../ds-bot/src/client/inks.js'
 import type { Bot, Room } from '../connection.ts'
 import { MainStarIcon } from './icons.tsx'
-import { mix, useTheme } from './tokens.ts'
+import { useTheme } from './tokens.ts'
 
 // The Bot's own mascot, drawn by the same generator as the desktop mark
 // (ds-bot/src/client/characters.js). CSS ink variables resolve to the mode's color.
@@ -62,15 +62,13 @@ export function YouMark({ dark, size = 24 }: { dark: boolean; size?: number }) {
 // glass surface shows through instead of a ring in a guessed colour. On an opaque
 // row the alert badge keeps the desktop's surface ring; on glass it takes the same
 // transparent gap (bare). The Main Bot star has no plate of its own.
-export function Avatar({ bot, dark, size = 44, ring, working = false, waiting = false, main = false, bare = false }: {
+export function Avatar({ bot, dark, size = 44, ring, working = false, waiting = false, main = false, bare = true }: {
   bot: Bot; dark: boolean; size?: number; ring: string; working?: boolean; waiting?: boolean; main?: boolean; bare?: boolean
 }) {
   const { p } = useTheme()
   const star = Math.min(22, Math.max(14, Math.round(size * 0.36)))
   const dot = Math.max(8, Math.round(size * 0.2))
   const alert = Math.round(size * 0.33)
-  // The desktop's 1.5px ring on a 36px avatar.
-  const ringWidth = Math.min(1.5, Math.max(1.2, size / 24))
   // Same value for both axes, so the badge sits exactly on the 45° diagonal.
   const inset = Math.round(size * 0.02)
   const gap = { padding: 2, right: inset, bottom: inset }
@@ -78,18 +76,11 @@ export function Avatar({ bot, dark, size = 44, ring, working = false, waiting = 
     <View style={{ width: size, height: size }}>
       <BotMark bot={bot} dark={dark} size={size} />
       {waiting
-        ? bare
-          ? <View style={[styles.badge, gap]}>
-              <View style={[styles.qPlate, { width: alert, height: alert, borderRadius: alert / 2, backgroundColor: p.accent }]}>
-                <Text style={[styles.q, { color: p.accentInk, fontSize: Math.round(alert * 0.7), lineHeight: alert }]}>?</Text>
-              </View>
-            </View>
-          : <View style={[styles.badge, {
-              width: alert + ringWidth * 2, height: alert + ringWidth * 2, borderRadius: (alert + ringWidth * 2) / 2,
-              borderWidth: ringWidth, borderColor: ring, backgroundColor: mix(p.accent, ring, 0.78), right: inset, bottom: inset,
-            }]}>
+        ? <View style={[styles.badge, gap]}>
+            <View style={[styles.qPlate, { width: alert, height: alert, borderRadius: alert / 2, backgroundColor: p.accent }]}>
               <Text style={[styles.q, { color: p.accentInk, fontSize: Math.round(alert * 0.7), lineHeight: alert }]}>?</Text>
             </View>
+          </View>
         : working
           ? <View style={[styles.badge, gap]}>
               <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: p.green }} />

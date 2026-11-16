@@ -220,7 +220,7 @@ export function BotDetails({ route, navigation }: any) {
     }>
       <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 18, paddingTop: PAGE_BAR_TIGHT }}>
         <View style={{ alignItems: 'center', paddingTop: 4 }}>
-          <Avatar bot={bot} dark={dark} size={64} ring={p.main} main={main} />
+          <Avatar bot={bot} dark={dark} size={64} ring={p.main} main={main} bare />
           <Text style={[typeScale.rowName, { color: p.ink, marginTop: 10, fontSize: 18 }]}>{bot.name}</Text>
           {bot.role ? <Text style={[typeScale.caption, { color: p.ink3, marginTop: 2 }]}>{bot.role}</Text> : null}
         </View>
@@ -628,7 +628,7 @@ export function GroupSettings({ route, navigation }: any) {
               <View key={bot.id} style={styles.row}>
                 <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: inRoom }} onPress={toggleMember}
                   style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' }}>
-                  <Avatar bot={bot} dark={dark} size={32} ring={p.card} />
+                  <Avatar bot={bot} dark={dark} size={32} ring={p.card} bare />
                   <Text style={[typeScale.settingsRow, { color: p.ink, flex: 1, minWidth: 0, marginLeft: 10 }]} numberOfLines={1}>{bot.name}</Text>
                 </Pressable>
                 {leads ? (

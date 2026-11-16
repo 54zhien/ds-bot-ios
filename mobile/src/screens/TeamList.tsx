@@ -77,7 +77,7 @@ export function TeamList({ onOpen, query = '', current }: { onOpen: (target: Cha
             {mainList.map(main => (
               <Pressable key={main.id} accessibilityRole="button" accessibilityLabel={`${main.name}, ${t('Main Bot')}`} onPress={() => onOpen({ kind: 'bot', id: main.id })}
                 style={({ pressed }) => [styles.tile, { backgroundColor: pressed || current === main.id ? p.active : p.hover }, rimSkin(dark)]}>
-                <Avatar bot={main} dark={dark} size={52} ring={p.hover} main working={workBots[main.id] !== undefined} waiting={questions[main.sessionId ?? main.id] !== undefined} />
+                <Avatar bot={main} dark={dark} size={52} ring={p.hover} main bare working={workBots[main.id] !== undefined} waiting={questions[main.sessionId ?? main.id] !== undefined} />
                 <Text style={[typeScale.small, { color: p.ink, fontWeight: '600', marginTop: 6 }]} numberOfLines={1}>{main.name}</Text>
                 {main.role ? <View style={[styles.tag, { backgroundColor: p.active }, rimSkin(dark)]}><Text style={{ fontSize: 11, lineHeight: 15, color: p.ink2 }} numberOfLines={1}>{main.role}</Text></View> : null}
               </Pressable>
@@ -102,7 +102,7 @@ function BotRow({ bot, p, dark, mains, questions, approvals, workBots, preview, 
   const waiting = questions[bot.sessionId ?? bot.id] !== undefined || approvals.some(a => a.botId === bot.id)
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, (pressed || selected) && [{ backgroundColor: p.hover }, rimSkin(dark)]]}>
-      <Avatar bot={bot} dark={dark} size={36} ring={p.sidebar} main={mains.has(bot.id)} working={workBots[bot.id] !== undefined} waiting={waiting} />
+      <Avatar bot={bot} dark={dark} size={36} ring={p.sidebar} main={mains.has(bot.id)} bare working={workBots[bot.id] !== undefined} waiting={waiting} />
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
           <Text style={[typeScale.rowName, { color: p.ink, flexShrink: 1 }]} numberOfLines={1}>{bot.name}</Text>
@@ -124,9 +124,10 @@ function RoomRow({ room, bots, p, dark, approvals, preview, unread, working, sel
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, (pressed || selected) && [{ backgroundColor: p.hover }, rimSkin(dark)]]}>
       <View>
         <RoomAvatar room={room} bots={bots} dark={dark} size={36} ring={p.sidebar} />
-        {waiting ? <View style={[styles.waitDot, { borderColor: p.main }]}>
-          <View style={[styles.waitIn, { backgroundColor: p.accent }]}><Text style={{ color: '#fff', fontSize: 9, fontWeight: '600', textAlign: 'center', lineHeight: 11 }}>?</Text></View>
-        </View> : working ? <View style={[styles.waitDot, { borderColor: p.main }]}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: p.green }} /></View> : null}
+        // Same geometry as the Avatar badge: a transparent gap, no ring, no plate.
+        {waiting ? <View style={styles.waitDot}>
+          <View style={[styles.waitIn, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontSize: 8, fontWeight: '600', textAlign: 'center', lineHeight: 12 }}>?</Text></View>
+        </View> : working ? <View style={styles.waitDot}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: p.green }} /></View> : null}
       </View>
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
@@ -148,6 +149,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: 8, borderRadius: 10 },
   rowBody: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  waitDot: { position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  waitDot: { position: 'absolute', right: 1, bottom: 1, padding: 2, alignItems: 'center', justifyContent: 'center' },
   waitIn: { width: 12, height: 12, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
 })
