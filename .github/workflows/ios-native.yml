@@ -457,10 +457,10 @@ jobs:
           echo "unsigned: confirmed"
 
           built="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
-          # awk, not python -c: a python body inside a YAML block scalar inherits the
-          # block indentation and dies with IndentationError before printing anything.
-          declared="$(awk '/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER:/{print $2; exit}' native/project.yml)"
-          prefix="$(awk '/^[[:space:]]*bundleIdPrefix:/{print $2; exit}' native/project.yml)"
+          # awk, not python -c: one line, and nothing nested to keep in step with the block
+          # scalar. Quotes are stripped so a quoted YAML value still compares equal.
+          declared="$(awk '/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER:/{gsub(/["']/,"",$2); print $2; exit}' native/project.yml)"
+          prefix="$(awk '/^[[:space:]]*bundleIdPrefix:/{gsub(/["']/,"",$2); print $2; exit}' native/project.yml)"
           scheme="${{ steps.project.outputs.scheme }}"
           if [ -n "$declared" ]; then
             expected="$declared"

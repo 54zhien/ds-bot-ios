@@ -12,3 +12,4 @@ android/
 *.cer
 *.key
 native/.staging/
+_tmp_*
