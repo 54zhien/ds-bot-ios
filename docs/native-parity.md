@@ -7,7 +7,7 @@
 | 配对与连接 | `screens/Pair.tsx`, `team/link.ts`, `store.ts`：扫码、粘贴、多电脑、重连、feed、通知补读 | 扫码、粘贴、多电脑记录/切换/删除、重连、feed 路径已写；未真机验 | hello/notice、拒绝配对反馈与真机扫码 |
 | 团队导航 | `nav/ShellB.tsx`, `nav/Drawer.tsx`, `screens/TeamList.tsx`：主 Bot tile、Bot/群列表、搜索、未读、创建入口 | 主 Bot/Bot/群列表、搜索、目标切换、最近时间和置顶排序、预览、已读时间已写；卡片布局及创建入口未齐 | 抽屉布局、主 Bot tile、创建入口 |
 | Bot 聊天 | `screens/Chat.tsx`：最新页、旧页、feed、流式、发送、停止、滚动保持、待发消息 | 文本最新页/旧页、feed 补读、发送/停止、待发消息及失败重试已写；无流式 | 完成消息闭环与同屏核对 |
-| 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 仅纯文本与简化占位 | 按 kind 逐项渲染与打开附件 |
+| 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 文本、首张图片预览与原图打开已写；其余仍是简化占位 | 多图、Markdown、步骤、文件、视图与历史卡片 |
 | 输入框 | `screens/chat/composer.tsx`：图片、发送/停止、展开卡片、键盘、原版图标 | 文本、照片选择/压缩/暂存/发送、发送/停止、材质、展开已写；未真机验 | 图片回显、键盘/尺寸对照 |
 | 群聊 | `screens/Chat.tsx` 的 room 分支、`TeamList.tsx` | `room-chat` 文本读取、分页、发送/停止已写，待 CI | 群成员、消息形态及互动 |
 | 待处理 | `screens/NeedsYou.tsx`, `screens/chat/dock.tsx`：问题、审批、密钥、卡片、浏览器交接 | 无 | 列表与可提交动作 |

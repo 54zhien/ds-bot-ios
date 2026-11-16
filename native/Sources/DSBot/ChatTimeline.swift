@@ -39,6 +39,7 @@ struct ChatRow {
     let text: String
     let messageText: String
     let imageCount: Int
+    let imageRefs: [String]
     let time: Date?
     let sourceKey: String
     let localID: UUID?
@@ -55,8 +56,10 @@ struct ChatRow {
             parts = []
         }
         let title = value["title"]?.stringValue ?? value["question"]?["question"]?.stringValue ?? ""
-        let refCount: Int
-        if case .array(let refs)? = value["imageRefs"] { refCount = refs.count } else { refCount = 0 }
+        if case .array(let refs)? = value["imageRefs"] {
+            imageRefs = refs.compactMap { $0["attachmentId"]?.stringValue }
+        } else { imageRefs = [] }
+        let refCount = imageRefs.count
         let count = refCount > 0 ? refCount : value["images"]?.intValue ?? 0
         imageCount = count
         let base = !parts.isEmpty ? parts.joined(separator: "\n\n") : !body.isEmpty ? body : title
@@ -92,6 +95,7 @@ struct ChatRow {
         name = ""
         messageText = text
         self.imageCount = imageCount
+        imageRefs = []
         self.text = imageCount == 0 ? text : text.isEmpty ? "Photos: \(imageCount)" : "\(text)\nPhotos: \(imageCount)"
         time = Date()
         sourceKey = "local-\(localID.uuidString)"

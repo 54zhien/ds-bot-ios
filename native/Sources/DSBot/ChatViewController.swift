@@ -30,6 +30,8 @@ final class ChatViewController: UIViewController {
     }
     private var outbox: [String: [Outgoing]] = [:]
     private var acknowledgedRows: [String: Set<String>] = [:]
+    private var imageCache: [String: UIImage] = [:]
+    private var imageReads = Set<String>()
     private var cursor: JSONValue?
     private var chatSessionID: String?
     private var botID: String?
@@ -70,6 +72,48 @@ final class ChatViewController: UIViewController {
         }
         list.reloadData()
         updateEmptyState()
+    }
+
+    private func imageKey(_ attachmentID: String) -> String {
+        "\(savedOffer?.hostDeviceId ?? ""):\(chatSessionID ?? ""):\(attachmentID)"
+    }
+
+    private func loadPreview(_ attachmentID: String, sessionID: String) {
+        let key = imageKey(attachmentID)
+        guard imageCache[key] == nil, imageReads.insert(key).inserted else { return }
+        let connectionID = self.sessionID
+        Task {
+            defer { imageReads.remove(key) }
+            guard let result = try? await BotAPI.call("image", payload: .object([
+                "sessionId": .string(sessionID), "attachmentId": .string(attachmentID),
+                "preview": .bool(true),
+            ]), on: session),
+                  let encoded = result["data"]?.stringValue,
+                  let bytes = Data(base64Encoded: encoded), let image = UIImage(data: bytes),
+                  connectionID == self.sessionID else { return }
+            imageCache[key] = image
+            for path in list.indexPathsForVisibleRows ?? [] where rows[path.row].imageRefs.contains(attachmentID) {
+                if let cell = list.cellForRow(at: path) as? ChatMessageCell {
+                    cell.configure(rows[path.row], image: image)
+                }
+            }
+        }
+    }
+
+    private func openPhoto(_ attachmentID: String) {
+        guard let chatSessionID else { return }
+        let viewer = PhotoViewController(image: imageCache[imageKey(attachmentID)])
+        present(UINavigationController(rootViewController: viewer), animated: true)
+        let connectionID = sessionID
+        Task {
+            guard let result = try? await BotAPI.call("image", payload: .object([
+                "sessionId": .string(chatSessionID), "attachmentId": .string(attachmentID),
+            ]), on: session),
+                  let encoded = result["data"]?.stringValue,
+                  let bytes = Data(base64Encoded: encoded), let image = UIImage(data: bytes),
+                  connectionID == sessionID else { return }
+            viewer.show(image)
+        }
     }
 
     override func viewDidLoad() {
@@ -602,7 +646,12 @@ extension ChatViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { rows.count }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "row", for: indexPath) as! ChatMessageCell
-        cell.configure(rows[indexPath.row])
+        let row = rows[indexPath.row]
+        let image = row.imageRefs.first.flatMap { imageCache[imageKey($0)] }
+        cell.configure(row, image: image)
+        if image == nil, let attachmentID = row.imageRefs.first, let chatSessionID {
+            loadPreview(attachmentID, sessionID: chatSessionID)
+        }
         return cell
     }
 }
@@ -610,7 +659,12 @@ extension ChatViewController: UITableViewDataSource {
 extension ChatViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard rows.indices.contains(indexPath.row), let localID = rows[indexPath.row].localID,
+        guard rows.indices.contains(indexPath.row) else { return }
+        if let attachmentID = rows[indexPath.row].imageRefs.first {
+            openPhoto(attachmentID)
+            return
+        }
+        guard let localID = rows[indexPath.row].localID,
               rows[indexPath.row].failed, let key = chatKey,
               let entry = outbox[key]?.first(where: { $0.id == localID }) else { return }
         let sheet = UIAlertController(title: "Message not sent", message: entry.text, preferredStyle: .actionSheet)
@@ -636,10 +690,43 @@ extension ChatViewController: UITableViewDelegate {
     }
 }
 
+private final class PhotoViewController: UIViewController {
+    private let photo = UIImageView()
+
+    init(image: UIImage?) {
+        super.init(nibName: nil, bundle: nil)
+        photo.image = image
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Photo"
+        view.backgroundColor = .black
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .done, target: self, action: #selector(close)
+        )
+        photo.translatesAutoresizingMaskIntoConstraints = false
+        photo.contentMode = .scaleAspectFit
+        view.addSubview(photo)
+        NSLayoutConstraint.activate([
+            photo.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            photo.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            photo.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            photo.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+    }
+
+    func show(_ image: UIImage) { photo.image = image }
+    @objc private func close() { dismiss(animated: true) }
+}
+
 private final class ChatMessageCell: UITableViewCell {
     private let bubble = UIView()
     private let authorLabel = UILabel()
     private let messageLabel = UILabel()
+    private let photoView = UIImageView()
     private let timeLabel = UILabel()
     private var leading: NSLayoutConstraint!
     private var trailing: NSLayoutConstraint!
@@ -661,9 +748,18 @@ private final class ChatMessageCell: UITableViewCell {
         authorLabel.textColor = .secondaryLabel
         messageLabel.font = .preferredFont(forTextStyle: .body)
         messageLabel.numberOfLines = 0
+        photoView.contentMode = .scaleAspectFill
+        photoView.clipsToBounds = true
+        photoView.layer.cornerRadius = 12
+        let photoHeight = photoView.heightAnchor.constraint(equalToConstant: 150)
+        photoHeight.priority = .defaultHigh
+        photoHeight.isActive = true
+        let photoWidth = photoView.widthAnchor.constraint(greaterThanOrEqualToConstant: 150)
+        photoWidth.priority = .defaultHigh
+        photoWidth.isActive = true
         timeLabel.font = .preferredFont(forTextStyle: .caption2)
         timeLabel.textColor = .tertiaryLabel
-        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, timeLabel])
+        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, photoView, timeLabel])
         text.translatesAutoresizingMaskIntoConstraints = false
         text.axis = .vertical
         text.spacing = 4
@@ -686,7 +782,7 @@ private final class ChatMessageCell: UITableViewCell {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(_ row: ChatRow) {
+    func configure(_ row: ChatRow, image: UIImage? = nil) {
         leading.isActive = false
         trailing.isActive = false
         centered.isActive = false
@@ -702,6 +798,8 @@ private final class ChatMessageCell: UITableViewCell {
         authorLabel.isHidden = row.isNotice
         authorLabel.text = row.author
         messageLabel.text = row.text
+        photoView.image = image
+        photoView.isHidden = image == nil
         messageLabel.textAlignment = row.isNotice ? .center : .left
         messageLabel.textColor = row.isNotice ? .secondaryLabel : .label
         timeLabel.text = row.localID == nil ? row.time.map { Self.clock.string(from: $0) }
