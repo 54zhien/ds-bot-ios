@@ -37,6 +37,12 @@
 ### N3 收尾
 - 推送与 NSE、崩溃兜底、性能与内存、最终验收清单。
 
+## 编译只在 GitHub 上做（用户定）
+本地是 Windows，没有 Xcode，也**不装**任何本地 Swift 工具链。所有 Swift 编译、测试、出包一律走 GitHub Actions。由此产生三条纪律：
+1. `ios-native.yml` 除 dispatch 与 tag 外，**再加 `push` 到 `native/**` 的路径触发**，跑一个「只编译 + 跑测试」的快 job（不出 IPA），让每次提交都能立刻看到编译结果。
+2. 每个提交保持小步：一次只动一个文件或一个概念，编译失败时能立刻定位。
+3. 任何「本地编译通过」的说法都不成立；结论只能引用 CI 的日志与 run 号。
+
 ## 工程形态
 
 - 新目录 `native/`：XcodeGen 生成工程（`project.yml`），iOS 16.4 deployment target（与现有包一致），Swift 6。
