@@ -37,6 +37,8 @@ struct ChatRow {
     let kind: String
     let name: String
     let text: String
+    let messageText: String
+    let imageCount: Int
     let time: Date?
     let sourceKey: String
     let localID: UUID?
@@ -53,10 +55,14 @@ struct ChatRow {
             parts = []
         }
         let title = value["title"]?.stringValue ?? value["question"]?["question"]?.stringValue ?? ""
-        let imageCount = value["images"]?.intValue ?? 0
+        let refCount: Int
+        if case .array(let refs)? = value["imageRefs"] { refCount = refs.count } else { refCount = 0 }
+        let count = refCount > 0 ? refCount : value["images"]?.intValue ?? 0
+        imageCount = count
         let base = !parts.isEmpty ? parts.joined(separator: "\n\n") : !body.isEmpty ? body : title
-        if imageCount > 0 {
-            text = base.isEmpty ? "Photos: \(imageCount)" : "\(base)\nPhotos: \(imageCount)"
+        messageText = base
+        if count > 0 {
+            text = base.isEmpty ? "Photos: \(count)" : "\(base)\nPhotos: \(count)"
         } else if !base.isEmpty {
             text = base
         } else {
@@ -81,10 +87,12 @@ struct ChatRow {
         failed = false
     }
 
-    init(localID: UUID, text: String, failed: Bool) {
+    init(localID: UUID, text: String, imageCount: Int, failed: Bool) {
         kind = "user"
         name = ""
-        self.text = text
+        messageText = text
+        self.imageCount = imageCount
+        self.text = imageCount == 0 ? text : text.isEmpty ? "Photos: \(imageCount)" : "\(text)\nPhotos: \(imageCount)"
         time = Date()
         sourceKey = "local-\(localID.uuidString)"
         self.localID = localID

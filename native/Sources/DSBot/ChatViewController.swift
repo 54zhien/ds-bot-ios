@@ -1,3 +1,5 @@
+import PhotosUI
+import UniformTypeIdentifiers
 import UIKit
 
 /// N1 chat shell. Messages and composer behaviour arrive in later steps.
@@ -20,6 +22,7 @@ final class ChatViewController: UIViewController {
     private struct Outgoing {
         let id: UUID
         let text: String
+        let images: [String]
         let sessionID: String
         let known: Set<String>
         var failed = false
@@ -51,14 +54,17 @@ final class ChatViewController: UIViewController {
             outbox[key]?.removeAll { entry in
                 guard entry.delivered,
                       let row = visible.first(where: {
-                          $0.isUser && $0.text.trimmingCharacters(in: .whitespacesAndNewlines) == entry.text
+                          $0.isUser && $0.messageText.trimmingCharacters(in: .whitespacesAndNewlines) == entry.text
+                              && $0.imageCount == entry.images.count
                               && !entry.known.contains($0.sourceKey) && !matched.contains($0.sourceKey)
                       }) else { return false }
                 matched.insert(row.sourceKey)
                 return true
             }
             acknowledgedRows[key] = matched
-            rows = visible + (outbox[key] ?? []).map { ChatRow(localID: $0.id, text: $0.text, failed: $0.failed) }
+            rows = visible + (outbox[key] ?? []).map {
+                ChatRow(localID: $0.id, text: $0.text, imageCount: $0.images.count, failed: $0.failed)
+            }
         } else {
             rows = olderRows + latestRows
         }
@@ -483,7 +489,8 @@ final class ChatViewController: UIViewController {
             list.contentInset.bottom = height + 14
             UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
         }
-        composer.onSend = { [weak self] text in self?.sendMessage(text) }
+        composer.onSend = { [weak self] text, images in self?.sendMessage(text, images: images) }
+        composer.onAddPhoto = { [weak self] in self?.pickPhotos() }
         composer.onStop = { [weak self] in self?.stopChat() }
         view.addSubview(composer)
         if #available(iOS 17.0, *) {
@@ -497,13 +504,13 @@ final class ChatViewController: UIViewController {
         ])
     }
 
-    private func sendMessage(_ text: String) {
+    private func sendMessage(_ text: String, images: [String]) {
         guard linkStatus == .online, let sessionID = chatSessionID ?? botID else {
             composer.restoreDraft(text)
             return
         }
         guard let key = chatKey else { composer.restoreDraft(text); return }
-        let entry = Outgoing(id: UUID(), text: text, sessionID: sessionID,
+        let entry = Outgoing(id: UUID(), text: text, images: images, sessionID: sessionID,
                              known: Set((olderRows + latestRows).map(\.sourceKey)))
         outbox[key, default: []].append(entry)
         rebuildRows()
@@ -516,8 +523,20 @@ final class ChatViewController: UIViewController {
         let id = self.sessionID
         Task {
             do {
+                var staged: [JSONValue] = []
+                for image in entry.images {
+                    let result = try await BotAPI.call("stage-image", payload: .object([
+                        "mediaType": .string("image/jpeg"), "data": .string(image),
+                    ]), on: session)
+                    guard let imageID = result["id"]?.stringValue else { throw NSError(
+                        domain: "DSBot", code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "The photo could not be staged."]
+                    ) }
+                    staged.append(.string(imageID))
+                }
                 _ = try await BotAPI.call("send", payload: .object([
                     "sessionId": .string(entry.sessionID), "text": .string(entry.text),
+                    "images": .array(staged),
                 ]), on: session)
                 guard id == self.sessionID else { return }
                 if let index = outbox[key]?.firstIndex(where: { $0.id == entry.id }) {
@@ -533,6 +552,15 @@ final class ChatViewController: UIViewController {
                 if chatKey == key { rebuildRows() }
             }
         }
+    }
+
+    private func pickPhotos() {
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.filter = .images
+        configuration.selectionLimit = 0
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
+        present(picker, animated: true)
     }
 
     private func stopChat() {
@@ -555,6 +583,18 @@ final class ChatViewController: UIViewController {
         let alert = UIAlertController(title: "Could not complete the action", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+}
+
+extension ChatViewController: PHPickerViewControllerDelegate {
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        for result in results {
+            result.itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] data, _ in
+                guard let data else { return }
+                Task { @MainActor [weak self] in self?.composer.addPhoto(data: data) }
+            }
+        }
     }
 }
 
