@@ -114,9 +114,9 @@ final class ChatViewController: UIViewController {
     }
 
     private func previewImages(for row: ChatRow) -> [String: UIImage] {
-        Dictionary(uniqueKeysWithValues: row.imageRefs.compactMap { reference in
-            imageCache[imageKey(reference)].map { (reference, $0) }
-        })
+        var images: [String: UIImage] = [:]
+        for reference in row.imageRefs { images[reference] = imageCache[imageKey(reference)] }
+        return images
     }
 
     private func openPhoto(_ attachmentID: String) {

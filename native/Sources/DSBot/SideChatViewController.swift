@@ -9,6 +9,8 @@ final class SideChatViewController: UIViewController {
     private let table = UITableView(frame: .zero, style: .insetGrouped)
     private let field = UITextField()
     private let sendButton = UIButton(type: .system)
+    private let backButton = UIButton(type: .system)
+    private let closeChatButton = UIButton(type: .system)
     private var chats: [JSONValue] = []
     private var openID: String?
     private var entries: [JSONValue] = []
@@ -29,9 +31,21 @@ final class SideChatViewController: UIViewController {
         super.viewDidLoad()
         title = "\(botName) · Side chat"
         view.backgroundColor = .systemBackground
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Close chat", style: .plain, target: self, action: #selector(closeChat)
-        )
+        backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        backButton.accessibilityLabel = "Back"
+        backButton.addTarget(self, action: #selector(back), for: .touchUpInside)
+        let backIcon = OriginalChevronRightIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
+        backIcon.transform = CGAffineTransform(rotationAngle: .pi)
+        backIcon.isUserInteractionEnabled = false
+        backButton.addSubview(backIcon)
+        navigationItem.leftBarButtonItem = UIBarButtonItem(customView: backButton)
+        closeChatButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        closeChatButton.accessibilityLabel = "Close side chat"
+        closeChatButton.addTarget(self, action: #selector(closeChat), for: .touchUpInside)
+        let closeIcon = OriginalCloseIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
+        closeIcon.isUserInteractionEnabled = false
+        closeChatButton.addSubview(closeIcon)
+        navigationItem.rightBarButtonItem = UIBarButtonItem(customView: closeChatButton)
         table.translatesAutoresizingMaskIntoConstraints = false
         table.dataSource = self
         table.delegate = self
@@ -112,13 +126,13 @@ final class SideChatViewController: UIViewController {
     }
 
     private func updateHeader() {
-        navigationItem.leftBarButtonItem = openID == nil
-            ? UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
-            : UIBarButtonItem(title: "Chats", style: .plain, target: self, action: #selector(showChats))
-        navigationItem.rightBarButtonItem?.isEnabled = openID != nil
+        closeChatButton.isHidden = openID == nil
     }
 
-    @objc private func close() { dismiss(animated: true) }
+    @objc private func back() {
+        if openID == nil { dismiss(animated: true) }
+        else { showChats() }
+    }
 
     @objc private func showChats() {
         openID = nil

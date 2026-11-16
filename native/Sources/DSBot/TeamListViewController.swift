@@ -111,6 +111,25 @@ final class OriginalSideIcon: UIView {
     }
 }
 
+/// CloseIcon path from mobile/src/ui/icons.tsx.
+final class OriginalCloseIcon: UIView {
+    override func draw(_ rect: CGRect) {
+        let context = UIGraphicsGetCurrentContext()
+        context?.saveGState()
+        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
+        tintColor.setStroke()
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: 5, y: 5))
+        path.addLine(to: CGPoint(x: 15, y: 15))
+        path.move(to: CGPoint(x: 15, y: 5))
+        path.addLine(to: CGPoint(x: 5, y: 15))
+        path.lineWidth = 1.8
+        path.lineCapStyle = .round
+        path.stroke()
+        context?.restoreGState()
+    }
+}
+
 /// The mobile team's navigation data, in the same main/bot/room order as
 /// mobile/src/screens/TeamList.tsx.
 final class TeamListViewController: UITableViewController, UISearchResultsUpdating {
