@@ -110,6 +110,145 @@ public enum JSONValue: Codable, Sendable, Equatable {
     }
 }
 
+// MARK: - Ordered wire text
+
+/// The wire order is the TS literal order, and Foundation's JSONEncoder does not
+/// guarantee one. These frames are assembled by hand instead, key by key, so the
+/// bytes match link-test-vectors/frames.json exactly.
+public enum JSONText {
+    public static func string(_ value: String) -> String {
+        var out = "\""
+        for scalar in value.unicodeScalars {
+            switch scalar {
+            case "\"": out += "\\\""
+            case "\\": out += "\\\\"
+            case "\u{08}": out += "\\b"
+            case "\u{0C}": out += "\\f"
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            case "\t": out += "\\t"
+            default:
+                if scalar.value < 0x20 {
+                    out += String(format: "\\u%04x", scalar.value)
+                } else {
+                    out.unicodeScalars.append(scalar)
+                }
+            }
+        }
+        out += "\""
+        return out
+    }
+
+    public static func int(_ value: Int) -> String { String(value) }
+    public static func bool(_ value: Bool) -> String { value ? "true" : "false" }
+
+    public static func value(_ value: JSONValue) -> String {
+        switch value {
+        case .null: return "null"
+        case .bool(let flag): return bool(flag)
+        case .number(let number):
+            if number.rounded() == number, number.magnitude < 9_007_199_254_740_992 {
+                return String(Int(number))
+            }
+            return String(number)
+        case .string(let text): return string(text)
+        case .array(let items): return "[" + items.map(value).joined(separator: ",") + "]"
+        case .object(let fields): return "{" + fields.map { string($0.key) + ":" + value($0.value) }.joined(separator: ",") + "}"
+        }
+    }
+}
+
+/// Builds one JSON object in the order the fields are added.
+public struct OrderedObject {
+    private var parts: [String] = []
+
+    public init() {}
+
+    public mutating func add(_ key: String, _ text: String) {
+        parts.append(JSONText.string(key) + ":" + text)
+    }
+
+    public mutating func addIfPresent(_ key: String, _ value: String?) {
+        guard let value else { return }
+        add(key, JSONText.string(value))
+    }
+
+    public var text: String { "{" + parts.joined(separator: ",") + "}" }
+}
+
+/// A payload that knows its own field order. Every type the phone sends conforms.
+public protocol WirePayload: Sendable {
+    var wireJSON: String { get }
+}
+
+extension HelloPayload: WirePayload {
+    public var wireJSON: String {
+        var object = OrderedObject()
+        object.add("role", JSONText.string(role))
+        object.add("deviceId", JSONText.string(deviceId))
+        object.add("identityKey", JSONText.string(identityKey))
+        object.add("accessToken", JSONText.string(accessToken))
+        object.add("protocols", "[" + protocols.map { String($0) }.joined(separator: ",") + "]")
+        object.add("capabilities", "[" + capabilities.map(JSONText.string).joined(separator: ",") + "]")
+        object.addIfPresent("clientVersion", clientVersion)
+        return object.text
+    }
+}
+
+extension ConnectRequestPayload: WirePayload {
+    public var wireJSON: String {
+        var object = OrderedObject()
+        object.add("hostDeviceId", JSONText.string(hostDeviceId))
+        return object.text
+    }
+}
+
+extension ConnectAcceptedPayload: WirePayload {
+    public var wireJSON: String {
+        var object = OrderedObject()
+        object.add("connectionId", JSONText.string(connectionId))
+        return object.text
+    }
+}
+
+extension RelayPayload: WirePayload {
+    public var wireJSON: String {
+        var object = OrderedObject()
+        object.add("connectionId", JSONText.string(connectionId))
+        object.add("targetDeviceId", JSONText.string(targetDeviceId))
+        object.add("counter", JSONText.int(counter))
+        object.add("ciphertext", JSONText.string(ciphertext))
+        return object.text
+    }
+}
+
+extension SecureHandshakePayload: WirePayload {
+    public var wireJSON: String {
+        var object = OrderedObject()
+        object.add("connectionId", JSONText.string(connectionId))
+        object.add("targetDeviceId", JSONText.string(targetDeviceId))
+        object.add("step", JSONText.int(step))
+        object.add("data", JSONText.string(data))
+        return object.text
+    }
+}
+
+extension ControlErrorPayload: WirePayload {
+    public var wireJSON: String {
+        var object = OrderedObject()
+        object.add("code", JSONText.string(code))
+        object.add("message", JSONText.string(message))
+        if let retryable { object.add("retryable", JSONText.bool(retryable)) }
+        object.addIfPresent("connectionId", connectionId)
+        return object.text
+    }
+}
+
+/// A pong echoes whatever ping carried, so its field order is whatever arrived.
+extension JSONValue: WirePayload {
+    public var wireJSON: String { JSONText.value(self) }
+}
+
 /// The envelope every control frame and every remote message shares:
 /// v, id, type, timestamp, payload — in that order, because that is the order the
 /// JSON on the wire has (link-test-vectors/frames.json pins it).
@@ -259,17 +398,18 @@ public struct ControlFrameLimits: Sendable, Equatable {
 /// JSON on the wire, byte-for-byte with what JSON.stringify produces: no spaces,
 /// no escaped slashes, keys in declaration order.
 public enum FrameCodec {
-    public static func encode<Payload: Codable & Sendable>(
+    public static func encode<Payload: WirePayload>(
         _ frame: ControlFrame<Payload>,
         limits: ControlFrameLimits = .init()
     ) throws -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes]
-        let data = try encoder.encode(frame)
-        try assertSize(data.count, type: frame.type, limits: limits)
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw TransportError(.invalidFrame, "A control frame did not encode as UTF-8.")
-        }
+        var envelope = OrderedObject()
+        envelope.add("v", JSONText.int(frame.v))
+        envelope.add("id", JSONText.string(frame.id))
+        envelope.add("type", JSONText.string(frame.type.rawValue))
+        envelope.add("timestamp", JSONText.int(frame.timestamp))
+        envelope.add("payload", frame.payload.wireJSON)
+        let text = envelope.text
+        try assertSize(text.utf8.count, type: frame.type, limits: limits)
         return text
     }
 
