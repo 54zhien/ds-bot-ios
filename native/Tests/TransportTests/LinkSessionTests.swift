@@ -101,7 +101,7 @@ final class LinkSessionTests: XCTestCase {
         await session.connect(factory.pairing)
         try await waitUntil { await session.currentStatus == .online }
         factory.drop()
-        try await waitUntil { log.values.contains(.offline) }
+        try await waitUntil { Array(log.values.suffix(3)) == [.offline, .connecting, .online] }
         XCTAssertEqual(log.values.suffix(3), [.offline, .connecting, .online])
     }
 
