@@ -13,6 +13,17 @@ final class ChatViewController: UIViewController {
     private var sessionID = UUID()
     private var savedOffer: PairingOffer?
     private var pendingOffer: PairingOffer?
+    private var rows: [ChatRow] = []
+    private var olderRows: [ChatRow] = []
+    private var latestRows: [ChatRow] = []
+    private var cursor: JSONValue?
+    private var chatSessionID: String?
+    private var botID: String?
+    private var polling: Task<Void, Never>?
+    private var loadingOlder = false
+    private var readingLatest = false
+    private var readAgain = false
+    private var linkStatus: LinkSession.Status = .disconnected
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -58,9 +69,12 @@ final class ChatViewController: UIViewController {
     private func configureList() {
         list.translatesAutoresizingMaskIntoConstraints = false
         list.dataSource = self
+        list.delegate = self
         list.separatorStyle = .none
         list.contentInset.bottom = 76
-        list.register(UITableViewCell.self, forCellReuseIdentifier: "row")
+        list.estimatedRowHeight = 88
+        list.rowHeight = UITableView.automaticDimension
+        list.register(ChatMessageCell.self, forCellReuseIdentifier: "row")
         view.addSubview(list)
         emptyState.translatesAutoresizingMaskIntoConstraints = false
         emptyState.textColor = .secondaryLabel
@@ -83,7 +97,8 @@ final class ChatViewController: UIViewController {
     private func updateEmptyState() {
         emptyState.text = savedOffer == nil
             ? "Pair with your computer to start chatting."
-            : "No messages yet"
+            : botID == nil ? "No Bot yet" : rows.isEmpty ? "No messages yet" : nil
+        emptyState.isHidden = rows.count > 0
     }
 
     private func connect(to offer: PairingOffer, pairingCode: String?) {
@@ -92,6 +107,17 @@ final class ChatViewController: UIViewController {
         session = nextSession
         let id = UUID()
         sessionID = id
+        linkStatus = .connecting
+        polling?.cancel()
+        polling = nil
+        botID = nil
+        chatSessionID = nil
+        olderRows = []
+        latestRows = []
+        rows = []
+        cursor = nil
+        list.reloadData()
+        updateEmptyState()
         statusLabel.text = "Connecting…"
         retryButton.isHidden = true
         let phone = PhoneIdentityStore.loadOrCreate()
@@ -116,6 +142,7 @@ final class ChatViewController: UIViewController {
 
     private func showStatus(_ status: LinkSession.Status, for id: UUID) {
         guard id == sessionID else { return }
+        linkStatus = status
         let pairingSheet = (presentedViewController as? UINavigationController)?
             .topViewController as? PairingViewController
         pairingSheet?.showStatus(status)
@@ -133,12 +160,120 @@ final class ChatViewController: UIViewController {
                 updateEmptyState()
                 presentedViewController?.dismiss(animated: true)
             }
+            startPolling(for: id)
         case .offline:
             statusLabel.text = "Offline · reconnecting"
             retryButton.isHidden = true
+            polling?.cancel()
+            polling = nil
         case .disconnected:
             statusLabel.text = savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"
             retryButton.isHidden = savedOffer == nil && pendingOffer == nil
+            polling?.cancel()
+            polling = nil
+        }
+    }
+
+    private func startPolling(for id: UUID) {
+        polling?.cancel()
+        polling = Task {
+            while !Task.isCancelled && id == sessionID {
+                await refreshLatest(for: id)
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
+    }
+
+    private func refreshLatest(for id: UUID) async {
+        guard id == sessionID, linkStatus == .online else { return }
+        if readingLatest {
+            readAgain = true
+            return
+        }
+        readingLatest = true
+        defer {
+            readingLatest = false
+            if readAgain {
+                readAgain = false
+                Task { await refreshLatest(for: id) }
+            }
+        }
+        do {
+            let state = try await BotAPI.call("state", on: session)
+            guard id == sessionID, linkStatus == .online else { return }
+            let selected = state["mainBotId"]?.stringValue
+            let bots: [JSONValue]
+            if case .array(let values)? = state["bots"] { bots = values } else { bots = [] }
+            let chosen = bots.first { $0["id"]?.stringValue == selected } ?? bots.first
+            guard let nextBotID = chosen?["id"]?.stringValue else {
+                botID = nil
+                rows = []
+                list.reloadData()
+                emptyState.text = "No Bot yet"
+                emptyState.isHidden = false
+                return
+            }
+            if botID != nextBotID {
+                botID = nextBotID
+                title = chosen?["name"]?.stringValue ?? "Chat"
+                chatSessionID = nil
+                olderRows = []
+                cursor = nil
+            }
+            let value = try await BotAPI.call("chat", payload: .object([
+                "botId": .string(nextBotID), "steps": .bool(false),
+            ]), on: session)
+            guard id == sessionID, linkStatus == .online, botID == nextBotID else { return }
+            let page = ChatPage(value)
+            let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
+            if chatSessionID != page.sessionID {
+                olderRows = []
+                cursor = page.cursor
+            } else if cursor == nil {
+                cursor = page.cursor
+            }
+            chatSessionID = page.sessionID
+            latestRows = page.items
+            rows = olderRows + latestRows
+            list.reloadData()
+            updateEmptyState()
+            if nearBottom && !rows.isEmpty {
+                list.layoutIfNeeded()
+                list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: false)
+            }
+        } catch {
+            guard id == sessionID else { return }
+            if rows.isEmpty {
+                emptyState.text = error.localizedDescription
+                emptyState.isHidden = false
+            }
+        }
+    }
+
+    private func loadOlder() {
+        guard linkStatus == .online, !loadingOlder, let botID, let cursor, cursor != .null else { return }
+        loadingOlder = true
+        let id = sessionID
+        let oldHeight = list.contentSize.height
+        let oldOffset = list.contentOffset.y
+        Task {
+            defer { loadingOlder = false }
+            do {
+                let value = try await BotAPI.call("chat", payload: .object([
+                    "botId": .string(botID), "cursor": cursor, "steps": .bool(false),
+                ]), on: session)
+                guard id == sessionID, linkStatus == .online, self.botID == botID else { return }
+                let page = ChatPage(value)
+                self.cursor = page.cursor
+                olderRows.insert(contentsOf: page.items, at: 0)
+                rows = olderRows + latestRows
+                list.reloadData()
+                list.layoutIfNeeded()
+                list.contentOffset.y = oldOffset + list.contentSize.height - oldHeight
+                updateEmptyState()
+            } catch {
+                // The next upward scroll can request the same page again.
+            }
         }
     }
 
@@ -184,9 +319,93 @@ final class ChatViewController: UIViewController {
 }
 
 extension ChatViewController: UITableViewDataSource {
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { 0 }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { rows.count }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        tableView.dequeueReusableCell(withIdentifier: "row", for: indexPath)
+        let cell = tableView.dequeueReusableCell(withIdentifier: "row", for: indexPath) as! ChatMessageCell
+        cell.configure(rows[indexPath.row])
+        return cell
+    }
+}
+
+extension ChatViewController: UITableViewDelegate {
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if (scrollView.isDragging || scrollView.isDecelerating) && scrollView.contentOffset.y < 100 {
+            loadOlder()
+        }
+    }
+}
+
+private final class ChatMessageCell: UITableViewCell {
+    private let bubble = UIView()
+    private let authorLabel = UILabel()
+    private let messageLabel = UILabel()
+    private let timeLabel = UILabel()
+    private var leading: NSLayoutConstraint!
+    private var trailing: NSLayoutConstraint!
+    private var centered: NSLayoutConstraint!
+    private static let clock: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        selectionStyle = .none
+        backgroundColor = .clear
+        bubble.translatesAutoresizingMaskIntoConstraints = false
+        bubble.layer.cornerRadius = 18
+        contentView.addSubview(bubble)
+        authorLabel.font = .preferredFont(forTextStyle: .caption1)
+        authorLabel.textColor = .secondaryLabel
+        messageLabel.font = .preferredFont(forTextStyle: .body)
+        messageLabel.numberOfLines = 0
+        timeLabel.font = .preferredFont(forTextStyle: .caption2)
+        timeLabel.textColor = .tertiaryLabel
+        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, timeLabel])
+        text.translatesAutoresizingMaskIntoConstraints = false
+        text.axis = .vertical
+        text.spacing = 4
+        bubble.addSubview(text)
+        leading = bubble.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
+        trailing = bubble.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
+        centered = bubble.centerXAnchor.constraint(equalTo: contentView.centerXAnchor)
+        NSLayoutConstraint.activate([
+            bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
+            bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
+            bubble.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 16),
+            bubble.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -16),
+            bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.86),
+            text.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
+            text.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
+            text.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+            text.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(_ row: ChatRow) {
+        leading.isActive = false
+        trailing.isActive = false
+        centered.isActive = false
+        if row.isNotice {
+            centered.isActive = true
+        } else if row.isUser {
+            trailing.isActive = true
+        } else {
+            leading.isActive = true
+        }
+        bubble.backgroundColor = row.isNotice ? .clear
+            : row.isUser ? tintColor.withAlphaComponent(0.12) : .secondarySystemBackground
+        authorLabel.isHidden = row.isNotice
+        authorLabel.text = row.author
+        messageLabel.text = row.text
+        messageLabel.textAlignment = row.isNotice ? .center : .left
+        messageLabel.textColor = row.isNotice ? .secondaryLabel : .label
+        timeLabel.text = row.time.map { Self.clock.string(from: $0) }
+        timeLabel.isHidden = row.time == nil || row.isNotice
+        accessibilityLabel = [row.author, row.text].joined(separator: ": ")
     }
 }
 
