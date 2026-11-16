@@ -144,7 +144,7 @@ jobs:
           echo "macOS test target: $target, generated config goes to $source_dir/InteropConfig.generated.swift"
           {
             echo "name=$target"
-            echo "config=$source_dir/InteropConfig.generated.swift"
+            echo "config=native/$source_dir/InteropConfig.generated.swift"
           } >> "$GITHUB_OUTPUT"
 
       - name: Select Xcode
