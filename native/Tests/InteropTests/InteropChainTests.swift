@@ -53,8 +53,16 @@ final class InteropChainTests: XCTestCase {
 
         let ready = try await secure.connect()
         XCTAssertFalse(ready.connectionId.isEmpty, "the Server must authorize a connection id")
-        let remoteHello = String(decoding: ready.remoteHello, as: UTF8.self)
-        XCTAssertTrue(remoteHello.contains(InteropConfig.hostDeviceId), "the host device id rides in its hello: \(remoteHello)")
+        // The host's hello says who it is by display name only (pairing.ts HandshakeHello
+        // has just name and pairingCode); identity is bound by the Noise static key.
+        let remoteHello = try JSONSerialization.jsonObject(with: ready.remoteHello) as? [String: Any]
+        XCTAssertEqual(remoteHello?["name"] as? String, "CI Desk", "the host hello carries the name scripts/interop-host.mjs gives it")
+        XCTAssertNil(remoteHello?["pairingCode"], "the host never echoes the pairing code")
+
+        // The paired identity data has to be self-consistent: the Relay derives the id
+        // from the key, and this is the same derivation.
+        let hostKeyBytes = try Base64URL.decode(InteropConfig.hostPublicKey)
+        XCTAssertEqual(InteropChainTests.deviceId(for: hostKeyBytes), InteropConfig.hostDeviceId, "hostDeviceId must be the derivation of hostPublicKey")
 
         let reply = try await rpc.call("bot.state", params: .object([:]))
         XCTAssertTrue(reply["ok"] == .bool(true), "the host answers ok: true")
