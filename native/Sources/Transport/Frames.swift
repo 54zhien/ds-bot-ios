@@ -104,6 +104,12 @@ public enum JSONValue: Codable, Sendable, Equatable {
         return nil
     }
 
+    public var stringArrayValue: [String]? {
+        guard case .array(let items) = self else { return nil }
+        let strings = items.compactMap(.stringValue)
+        return strings.count == items.count ? strings : nil
+    }
+
     public subscript(key: String) -> JSONValue? {
         if case .object(let fields) = self { return fields[key] }
         return nil
