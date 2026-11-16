@@ -20,6 +20,9 @@ final class ChatViewController: UIViewController {
     private var cursor: JSONValue?
     private var chatSessionID: String?
     private var botID: String?
+    private var roomID: String?
+    private var selectedTarget: ChatTarget?
+    private var teamState: JSONValue?
     private var polling: Task<Void, Never>?
     private var loadingOlder = false
     private var readingLatest = false
@@ -33,6 +36,15 @@ final class ChatViewController: UIViewController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: "Pair", style: .plain, target: self, action: #selector(showPairing)
         )
+        let teamButton = UIButton(type: .system)
+        teamButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        teamButton.accessibilityLabel = "Team"
+        teamButton.addTarget(self, action: #selector(showTeam), for: .touchUpInside)
+        let teamIcon = OriginalSidebarIcon(frame: CGRect(x: 9, y: 9, width: 26, height: 26))
+        teamIcon.isUserInteractionEnabled = false
+        teamIcon.backgroundColor = .clear
+        teamButton.addSubview(teamIcon)
+        navigationItem.leftBarButtonItem = UIBarButtonItem(customView: teamButton)
         configureStatusBar()
         configureList()
         configureComposer()
@@ -98,7 +110,7 @@ final class ChatViewController: UIViewController {
     private func updateEmptyState() {
         emptyState.text = savedOffer == nil
             ? "Pair with your computer to start chatting."
-            : botID == nil ? "No Bot yet" : rows.isEmpty ? "No messages yet" : nil
+            : botID == nil && roomID == nil ? "No Bot yet" : rows.isEmpty ? "No messages yet" : nil
         emptyState.isHidden = rows.count > 0
     }
 
@@ -114,6 +126,9 @@ final class ChatViewController: UIViewController {
         polling?.cancel()
         polling = nil
         botID = nil
+        roomID = nil
+        selectedTarget = nil
+        teamState = nil
         chatSessionID = nil
         olderRows = []
         latestRows = []
@@ -149,7 +164,8 @@ final class ChatViewController: UIViewController {
     private func handleFeed(_ event: String, data: JSONValue, for id: UUID) {
         guard id == sessionID, linkStatus == .online else { return }
         if event == "revision" || event == "live"
-            || (event == "message" && data["sessionId"]?.stringValue == chatSessionID) {
+            || (event == "message" && data["sessionId"]?.stringValue == chatSessionID)
+            || (event == "room" && data["roomId"]?.stringValue == roomID) {
             Task { await refreshLatest(for: id) }
         }
     }
@@ -219,42 +235,73 @@ final class ChatViewController: UIViewController {
         do {
             let state = try await BotAPI.call("state", on: session)
             guard id == sessionID, linkStatus == .online else { return }
+            teamState = state
             let selected = state["mainBotId"]?.stringValue
             let bots: [JSONValue]
             if case .array(let values)? = state["bots"] { bots = values } else { bots = [] }
-            let chosen = bots.first { $0["id"]?.stringValue == selected } ?? bots.first
-            guard let nextBotID = chosen?["id"]?.stringValue else {
+            let rooms: [JSONValue]
+            if case .array(let values)? = state["rooms"] { rooms = values } else { rooms = [] }
+            let chosen: JSONValue?
+            let target: ChatTarget?
+            if let selectedTarget,
+               let item = (selectedTarget.kind == .bot ? bots : rooms)
+                    .first(where: { $0["id"]?.stringValue == selectedTarget.id }) {
+                chosen = item
+                target = selectedTarget
+            } else if let item = bots.first(where: { $0["id"]?.stringValue == selected }) ?? bots.first,
+                      let botID = item["id"]?.stringValue {
+                chosen = item
+                target = ChatTarget(kind: .bot, id: botID, name: item["name"]?.stringValue ?? botID)
+            } else {
+                chosen = nil
+                target = nil
+            }
+            guard let target else {
                 botID = nil
+                roomID = nil
                 rows = []
                 list.reloadData()
                 emptyState.text = "No Bot yet"
                 emptyState.isHidden = false
                 return
             }
-            if botID != nextBotID {
-                botID = nextBotID
-                title = chosen?["name"]?.stringValue ?? "Chat"
+            if botID != (target.kind == .bot ? target.id : nil)
+                || roomID != (target.kind == .room ? target.id : nil) {
+                botID = target.kind == .bot ? target.id : nil
+                roomID = target.kind == .room ? target.id : nil
+                title = chosen?["name"]?.stringValue ?? target.name
                 chatSessionID = nil
                 olderRows = []
                 cursor = nil
             }
             composer.canSend = true
-            let work = state["work"]?["bots"]?[nextBotID]
-            let activity = state["activity"]?[nextBotID]
-            composer.running = (work != nil && work != .null) || (activity != nil && activity != .null)
-            let value = try await BotAPI.call("chat", payload: .object([
-                "botId": .string(nextBotID), "steps": .bool(false),
+            if target.kind == .bot {
+                let work = state["work"]?["bots"]?[target.id]
+                let activity = state["activity"]?[target.id]
+                composer.running = (work != nil && work != .null) || (activity != nil && activity != .null)
+            } else if case .array(let work)? = state["work"]?["rooms"]?[target.id] {
+                composer.running = !work.isEmpty
+            } else {
+                composer.running = false
+            }
+            let endpoint = target.kind == .bot ? "chat" : "room-chat"
+            let parameter = target.kind == .bot ? "botId" : "roomId"
+            let value = try await BotAPI.call(endpoint, payload: .object([
+                parameter: .string(target.id), "steps": .bool(false),
             ]), on: session)
-            guard id == sessionID, linkStatus == .online, botID == nextBotID else { return }
+            guard id == sessionID, linkStatus == .online,
+                  botID == (target.kind == .bot ? target.id : nil),
+                  roomID == (target.kind == .room ? target.id : nil) else { return }
             let page = ChatPage(value)
             let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
-            if chatSessionID != page.sessionID {
+            let nextSessionID = page.sessionID ?? target.id
+            if chatSessionID != nextSessionID {
                 olderRows = []
                 cursor = page.cursor
             } else if cursor == nil {
                 cursor = page.cursor
             }
-            chatSessionID = page.sessionID
+            chatSessionID = nextSessionID
             latestRows = page.items
             rows = olderRows + latestRows
             list.reloadData()
@@ -273,7 +320,11 @@ final class ChatViewController: UIViewController {
     }
 
     private func loadOlder() {
-        guard linkStatus == .online, !loadingOlder, let botID, let cursor, cursor != .null else { return }
+        guard linkStatus == .online, !loadingOlder, let cursor, cursor != .null else { return }
+        let targetID = botID ?? roomID
+        guard let targetID else { return }
+        let isRoom = roomID != nil
+        let parameter = isRoom ? "roomId" : "botId"
         loadingOlder = true
         let id = sessionID
         let oldHeight = list.contentSize.height
@@ -281,10 +332,12 @@ final class ChatViewController: UIViewController {
         Task {
             defer { loadingOlder = false }
             do {
-                let value = try await BotAPI.call("chat", payload: .object([
-                    "botId": .string(botID), "cursor": cursor, "steps": .bool(false),
+                let value = try await BotAPI.call(isRoom ? "room-chat" : "chat", payload: .object([
+                    parameter: .string(targetID),
+                    "cursor": cursor, "steps": .bool(false),
                 ]), on: session)
-                guard id == sessionID, linkStatus == .online, self.botID == botID else { return }
+                guard id == sessionID, linkStatus == .online,
+                      (isRoom ? roomID : botID) == targetID else { return }
                 let page = ChatPage(value)
                 self.cursor = page.cursor
                 olderRows.insert(contentsOf: page.items, at: 0)
@@ -313,6 +366,29 @@ final class ChatViewController: UIViewController {
             self.connect(to: offer, pairingCode: offer.code)
         }
         present(UINavigationController(rootViewController: sheet), animated: true)
+    }
+
+    @objc private func showTeam() {
+        guard let teamState else { return }
+        let team = TeamListViewController(state: teamState)
+        team.onSelect = { [weak self] target in self?.selectTarget(target) }
+        present(UINavigationController(rootViewController: team), animated: true)
+    }
+
+    private func selectTarget(_ target: ChatTarget) {
+        guard selectedTarget != target else { return }
+        selectedTarget = target
+        botID = nil
+        roomID = nil
+        chatSessionID = nil
+        olderRows = []
+        latestRows = []
+        rows = []
+        cursor = nil
+        title = target.name
+        list.reloadData()
+        updateEmptyState()
+        Task { await refreshLatest(for: sessionID) }
     }
 
     /// The resting capsule's height, so step 4 can grow it in place.
@@ -360,11 +436,13 @@ final class ChatViewController: UIViewController {
     }
 
     private func stopChat() {
-        guard linkStatus == .online, let botID else { return }
+        guard linkStatus == .online, let targetID = botID ?? roomID else { return }
+        let isRoom = roomID != nil
+        let parameter = isRoom ? "roomId" : "botId"
         Task {
             do {
-                _ = try await BotAPI.call("stop-chat", payload: .object([
-                    "botId": .string(botID),
+                _ = try await BotAPI.call(isRoom ? "stop-room-work" : "stop-chat", payload: .object([
+                    parameter: .string(targetID),
                 ]), on: session)
                 await refreshLatest(for: sessionID)
             } catch {
