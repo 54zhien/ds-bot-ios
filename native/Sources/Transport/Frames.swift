@@ -142,8 +142,8 @@ public enum JSONText {
     public static func int(_ value: Int) -> String { String(value) }
     public static func bool(_ value: Bool) -> String { value ? "true" : "false" }
 
-    public static func value(_ value: JSONValue) -> String {
-        switch value {
+    public static func render(_ json: JSONValue) -> String {
+        switch json {
         case .null: return "null"
         case .bool(let flag): return bool(flag)
         case .number(let number):
@@ -152,8 +152,8 @@ public enum JSONText {
             }
             return String(number)
         case .string(let text): return string(text)
-        case .array(let items): return "[" + items.map(value).joined(separator: ",") + "]"
-        case .object(let fields): return "{" + fields.map { string($0.key) + ":" + value($0.value) }.joined(separator: ",") + "}"
+        case .array(let items): return "[" + items.map { render($0) }.joined(separator: ",") + "]"
+        case .object(let fields): return "{" + fields.map { string($0.key) + ":" + render($0.value) }.joined(separator: ",") + "}"
         }
     }
 }
@@ -246,7 +246,7 @@ extension ControlErrorPayload: WirePayload {
 
 /// A pong echoes whatever ping carried, so its field order is whatever arrived.
 extension JSONValue: WirePayload {
-    public var wireJSON: String { JSONText.value(self) }
+    public var wireJSON: String { JSONText.render(self) }
 }
 
 /// The envelope every control frame and every remote message shares:
