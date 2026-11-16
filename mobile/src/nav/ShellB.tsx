@@ -112,13 +112,13 @@ function DrawerContent() {
           </View>
         </Pressable>
       </Modal>
-      {/* The gear sits under the fade, so the list melts into it the way the rows do. */}
+      {/* Controls sit above the fade; only the list melts into it. */}
+      <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" plain />
       <View style={[styles.foot, { left: gearInset, bottom: gearInset }]}>
         <GlassControl label={t('Settings')} onPress={() => open({ kind: 'settings' })}>
           <GearIcon size={26} color={p.ink2} />
         </GlassControl>
       </View>
-      <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" plain />
     </View>
   )
 }
