@@ -1,0 +1,592 @@
+name: iOS native
+
+# Two jobs behind one file, on purpose:
+#   compile - every push that touches native/ compiles (and runs tests when the scheme
+#             has test targets). No IPA, no big artifact: the only question is whether
+#             the Swift tree builds.
+#   ipa     - dispatch or an ios-native-v* tag builds the full unsigned package with the
+#             same gate as the React Native pipeline.
+# Neither job reads or writes anything ios.yml owns; ios.yml is untouched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: macOS image
+        type: choice
+        default: macos-26
+        options:
+          - macos-26
+          - macos-15
+      xcode_version:
+        description: Xcode to select, e.g. 26.6; empty picks the newest stable on the image
+        type: string
+        default: ''
+  push:
+    # Branch pushes are path-filtered to the Swift tree. Path filters are not evaluated
+    # for tag pushes, so a release tag still reaches the ipa job with no native/ change.
+    branches:
+      - '**'
+    tags:
+      - 'ios-native-v*'
+    paths:
+      - 'native/**'
+      - '.github/workflows/ios-native.yml'
+
+permissions:
+  contents: read
+
+env:
+  CI: '1'
+  LANG: en_US.UTF-8
+
+jobs:
+  compile:
+    name: Compile the Swift tree
+    # A branch push: anything that is neither a tag push nor a manual dispatch.
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 40
+    concurrency:
+      group: ios-native-compile-${{ github.ref }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # An empty tree that compiles green would read as "the native pipeline works".
+      - name: Check the native project exists
+        run: |
+          if [ ! -d native ]; then
+            echo "::error::native/ is missing on this commit. The Swift rewrite has not landed yet, so there is nothing to compile."
+            exit 1
+          fi
+          if [ ! -f native/project.yml ]; then
+            echo "::error::native/project.yml is missing. XcodeGen has no spec to generate the project from."
+            ls -la native
+            exit 1
+          fi
+          if [ -z "$(find native -type f ! -name project.yml -print -quit)" ]; then
+            echo "::error::native/ holds project.yml and nothing else. Refusing to compile an empty project."
+            exit 1
+          fi
+          echo "native/ present: $(find native -type f | wc -l | tr -d ' ') files"
+
+      - name: Select Xcode
+        env:
+          WANTED: ${{ inputs.xcode_version }}
+        run: |
+          selected=""
+          if [ -n "$WANTED" ]; then
+            selected="/Applications/Xcode_$WANTED.app"
+            if [ ! -d "$selected" ]; then
+              echo "::error::$selected is not on this image. Available:"
+              ls -d /Applications/Xcode*.app
+              exit 1
+            fi
+          else
+            selected="$(node -e '
+              const fs = require("node:fs")
+              const version = (name) => (name.match(/^Xcode_([0-9.]+?)(?:_[a-z0-9]+)?\.app$/) || [])[1] || ""
+              const newer = (a, b) => {
+                const left = a.split(".").map(Number)
+                const right = b.split(".").map(Number)
+                for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+                  const gap = (left[i] || 0) - (right[i] || 0)
+                  if (gap !== 0) return gap
+                }
+                return 0
+              }
+              const candidates = fs.readdirSync("/Applications")
+                .filter((name) => version(name) !== "")
+                .sort((a, b) => newer(version(a), version(b)))
+              process.stdout.write(candidates.length ? "/Applications/" + candidates[candidates.length - 1] : "")
+            ')"
+          fi
+          if [ -z "$selected" ]; then
+            echo "::error::no Xcode found on this image"
+            exit 1
+          fi
+          sudo xcode-select -s "$selected"
+          xcodebuild -version
+          major="$(xcodebuild -version | awk '/^Xcode /{split($2, p, "."); print p[1]}')"
+          if [ "${major:-0}" -lt 26 ]; then
+            echo "::error::Xcode $major has no iOS 26 SDK, which native/ needs"
+            exit 1
+          fi
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate the Xcode project
+        id: generate
+        run: |
+          cd native
+          xcodegen generate
+          project_file="$(ls -d *.xcodeproj 2>/dev/null | head -1)"
+          if [ -z "$project_file" ]; then
+            echo "::error::xcodegen produced no .xcodeproj in native/"
+            ls -la
+            exit 1
+          fi
+          echo "project=native/$project_file" >> "$GITHUB_OUTPUT"
+          echo "generated $project_file"
+
+      - name: Read the scheme
+        id: project
+        run: |
+          project_file="${{ steps.generate.outputs.project }}"
+          project_name="$(basename "$project_file" .xcodeproj)"
+          scheme="$(xcodebuild -list -json -project "$project_file" | python3 -c '
+          import json, sys
+          listed = json.load(sys.stdin)
+          container = listed.get("project") or listed.get("workspace") or {}
+          schemes = [name for name in (container.get("schemes") or []) if not name.startswith("Pods")]
+          wanted = sys.argv[1]
+          print(next((name for name in schemes if name == wanted), schemes[0] if schemes else ""))
+          ' "$project_name")"
+          if [ -z "$scheme" ]; then
+            echo "::error::the generated project lists no app scheme to compile"
+            xcodebuild -list -project "$project_file" || true
+            exit 1
+          fi
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "compiling scheme $scheme from $project_file"
+
+      # The simulator is read off the image, never hardcoded: image contents drift, and two
+      # runtimes can carry the same device name, which makes a name destination ambiguous.
+      # The UDID wins for that reason, with the name and then a generic destination behind it.
+      - name: Pick a simulator
+        id: sim
+        run: |
+          listing="$(xcrun simctl list devices available || true)"
+          line="$(printf '%s\n' "$listing" | grep -m1 'iPhone' || true)"
+          udid="$(printf '%s' "$line" | sed -nE 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/p')"
+          name="$(printf '%s' "$line" | sed -nE 's/^[[:space:]]*([^(]*)\(.*/\1/p' | sed -E 's/[[:space:]]+$//')"
+          if [ -n "$udid" ]; then
+            destination="platform=iOS Simulator,id=$udid"
+            echo "simulator from the image: $name ($udid)"
+          elif [ -n "$name" ]; then
+            destination="platform=iOS Simulator,name=$name"
+            echo "simulator from the image: $name (no UDID parsed)"
+          else
+            destination="generic/platform=iOS Simulator"
+            echo "::warning::no iPhone simulator in xcrun simctl list devices available; using a generic simulator destination"
+          fi
+          echo "destination=$destination" >> "$GITHUB_OUTPUT"
+          echo "destination: $destination"
+
+      - name: Compile
+        run: |
+          set -o pipefail
+          mkdir -p dist
+          scheme="${{ steps.project.outputs.scheme }}"
+          destination="${{ steps.sim.outputs.destination }}"
+          project_file="${{ steps.generate.outputs.project }}"
+          # test only when the scheme actually carries test targets; a plain app target
+          # answers "xcodebuild test" with "not configured for the test action", which
+          # would read as a compile failure.
+          if grep -qE 'com\.apple\.product-type\.bundle\.(unit-test|ui-testing)' "$project_file/project.pbxproj"; then
+            echo "scheme has test targets: xcodebuild test"
+            xcodebuild test \
+              -project "$project_file" \
+              -scheme "$scheme" \
+              -destination "$destination" \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              2>&1 | tee dist/compile.log
+          else
+            echo "scheme has no test targets: xcodebuild build"
+            xcodebuild build \
+              -project "$project_file" \
+              -scheme "$scheme" \
+              -destination "$destination" \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              2>&1 | tee dist/compile.log
+          fi
+
+      - name: Show the compile errors
+        if: failure()
+        run: |
+          grep -nE 'error:|TEST FAILED|BUILD FAILED' dist/compile.log | tail -40 || true
+          tail -120 dist/compile.log || true
+
+      # A text log is a few kilobytes; nothing else leaves this job.
+      - name: Upload the compile log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-native-compile-log
+          path: dist/compile.log
+          retention-days: 7
+          if-no-files-found: warn
+
+  ipa:
+    name: Unsigned native IPA
+    # Manual dispatch, or a tag push. A branch push never reaches this job.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/ios-native-v')
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    # A Swift-only target archives in a few minutes; this only stops a hang.
+    timeout-minutes: 60
+    concurrency:
+      group: ios-native-ipa-${{ github.ref }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mason's skeleton lands on its own schedule. A run that goes green over an empty
+      # directory would read as "the native pipeline works" when nothing was archived.
+      - name: Check the native project exists
+        run: |
+          if [ ! -d native ]; then
+            echo "::error::native/ is missing on this commit. The Swift rewrite has not landed yet, so there is nothing to archive."
+            exit 1
+          fi
+          if [ ! -f native/project.yml ]; then
+            echo "::error::native/project.yml is missing. XcodeGen has no spec to generate the project from."
+            ls -la native
+            exit 1
+          fi
+          if [ -z "$(find native -type f ! -name project.yml -print -quit)" ]; then
+            echo "::error::native/ holds project.yml and nothing else. Refusing to archive an empty project."
+            exit 1
+          fi
+          echo "native/ present: $(find native -type f | wc -l | tr -d ' ') files"
+
+      - name: Select Xcode
+        env:
+          WANTED: ${{ inputs.xcode_version }}
+        run: |
+          if [ -n "$WANTED" ]; then
+            selected="/Applications/Xcode_$WANTED.app"
+            if [ ! -d "$selected" ]; then
+              echo "::error::$selected is not on this image. Available:"
+              ls -d /Applications/Xcode*.app
+              exit 1
+            fi
+          else
+            selected="$(node -e '
+              const fs = require("node:fs")
+              const version = (name) => (name.match(/^Xcode_([0-9.]+?)(?:_[a-z0-9]+)?\.app$/) || [])[1] || ""
+              const newer = (a, b) => {
+                const left = a.split(".").map(Number)
+                const right = b.split(".").map(Number)
+                for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+                  const gap = (left[i] || 0) - (right[i] || 0)
+                  if (gap !== 0) return gap
+                }
+                return 0
+              }
+              const candidates = fs.readdirSync("/Applications")
+                .filter((name) => version(name) !== "")
+                .sort((a, b) => newer(version(a), version(b)))
+              process.stdout.write(candidates.length ? "/Applications/" + candidates[candidates.length - 1] : "")
+            ')"
+          fi
+          if [ -z "$selected" ]; then
+            echo "::error::no Xcode found on this image"
+            exit 1
+          fi
+          sudo xcode-select -s "$selected"
+          case "$selected" in
+            *beta*|*Beta*|*rc*|*RC*) echo "::warning::archiving with $selected, a preview toolchain" ;;
+          esac
+          xcodebuild -version
+          major="$(xcodebuild -version | awk '/^Xcode /{split($2, p, "."); print p[1]}')"
+          if [ "${major:-0}" -lt 26 ]; then
+            echo "::error::Xcode $major has no iOS 26 SDK, so Liquid Glass cannot compile"
+            exit 1
+          fi
+          echo "DSBOT_XCODE=$(xcodebuild -version | head -1)" >> "$GITHUB_ENV"
+
+      - name: Report the toolchain
+        run: |
+          ls -d /Applications/Xcode*.app
+          echo "iphoneos SDK $(xcrun --sdk iphoneos --show-sdk-version)"
+          sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          if grep -rqs UIGlassEffect "$sdk/System/Library/Frameworks/UIKit.framework"; then
+            echo "UIGlassEffect: present"
+          else
+            echo "UIGlassEffect: absent"
+          fi
+
+      - name: Install XcodeGen
+        run: |
+          if command -v xcodegen >/dev/null 2>&1; then
+            echo "xcodegen already on the image"
+          else
+            brew install xcodegen
+          fi
+          command -v xcodegen >/dev/null 2>&1 || { echo "::error::xcodegen is not on PATH after install"; exit 1; }
+          echo "DSBOT_XCODEGEN=$(xcodegen --version | head -1)" >> "$GITHUB_ENV"
+          xcodegen --version
+
+      - name: Generate the Xcode project
+        id: generate
+        run: |
+          cd native
+          xcodegen generate
+          project_file="$(ls -d *.xcodeproj 2>/dev/null | head -1)"
+          if [ -z "$project_file" ]; then
+            echo "::error::xcodegen produced no .xcodeproj in native/"
+            ls -la
+            exit 1
+          fi
+          echo "project=native/$project_file" >> "$GITHUB_OUTPUT"
+          echo "generated $project_file"
+
+      - name: Read the project and the scheme
+        id: project
+        run: |
+          project_file="${{ steps.generate.outputs.project }}"
+          project_name="$(basename "$project_file" .xcodeproj)"
+          if [ ! -d "$project_file" ]; then
+            echo "::error::$project_file is gone; the generate step and this step disagree"
+            exit 1
+          fi
+          scheme="$(xcodebuild -list -json -project "$project_file" | python3 -c '
+          import json, sys
+          listed = json.load(sys.stdin)
+          container = listed.get("project") or listed.get("workspace") or {}
+          schemes = [name for name in (container.get("schemes") or []) if not name.startswith("Pods")]
+          wanted = sys.argv[1]
+          print(next((name for name in schemes if name == wanted), schemes[0] if schemes else ""))
+          ' "$project_name")"
+          if [ -z "$scheme" ]; then
+            echo "::error::the generated project lists no app scheme to archive"
+            xcodebuild -list -project "$project_file" || true
+            exit 1
+          fi
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "building scheme $scheme from $project_file"
+
+      - name: Archive
+        run: |
+          # tee would swallow xcodebuild's exit status and let a failed build pass for a good one.
+          set -o pipefail
+          mkdir -p dist
+          xcodebuild archive \
+            -project "${{ steps.project.outputs.project }}" \
+            -scheme "${{ steps.project.outputs.scheme }}" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/DSBotNative.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            CODE_SIGN_ENTITLEMENTS='' \
+            DEVELOPMENT_TEAM='' \
+            PROVISIONING_PROFILE_SPECIFIER='' \
+            2>&1 | tee dist/xcodebuild-native.log
+          test -d "$RUNNER_TEMP/DSBotNative.xcarchive" || { echo "::error::xcodebuild wrote no archive"; exit 1; }
+
+      - name: Show the build errors
+        if: failure()
+        run: |
+          grep -nE 'error:|BUILD FAILED' dist/xcodebuild-native.log | tail -40 || true
+          tail -120 dist/xcodebuild-native.log || true
+
+      - name: Package the IPA
+        run: |
+          app="$(ls -d "$RUNNER_TEMP/DSBotNative.xcarchive"/Products/Applications/*.app | head -1)"
+          if [ -z "$app" ]; then
+            echo "::error::the archive holds no app in Products/Applications"
+            exit 1
+          fi
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist" 2>/dev/null || true)"
+          if [ -z "$version" ]; then
+            version="$(git describe --tags --always 2>/dev/null || echo 0.0.0)"
+            echo "::warning::Info.plist carries no CFBundleShortVersionString, naming the package after $version"
+          fi
+          mkdir -p "$RUNNER_TEMP/ipa-native/Payload" dist
+          cp -R "$app" "$RUNNER_TEMP/ipa-native/Payload/"
+          # -y keeps the framework symlinks; -X keeps __MACOSX and resource forks out, which
+          # would otherwise land inside the bundle and break the signature applied later.
+          (cd "$RUNNER_TEMP/ipa-native" && zip -qryX package.ipa Payload)
+          mv "$RUNNER_TEMP/ipa-native/package.ipa" "dist/DS-Bot-$version-native-unsigned.ipa"
+          {
+            echo "DSBOT_IPA=dist/DS-Bot-$version-native-unsigned.ipa"
+            echo "DSBOT_APP=$app"
+            echo "DSBOT_VERSION=$version"
+          } >> "$GITHUB_ENV"
+
+      # The same gate the React Native pipeline applies: unsigned, arm64, iOS 16.4+, and a
+      # bundle id that is the one native/project.yml declares.
+      - name: Check the IPA
+        run: |
+          app="$DSBOT_APP"
+          unzip -l "$DSBOT_IPA" | tee "$RUNNER_TEMP/native-list.txt"
+          grep -qE 'Payload/[^/]+\.app/Info\.plist' "$RUNNER_TEMP/native-list.txt" || {
+            echo "::error::the IPA has no Payload/<App>.app/Info.plist"
+            exit 1
+          }
+          if grep -q '__MACOSX' "$RUNNER_TEMP/native-list.txt"; then
+            echo "::error::the IPA carries __MACOSX entries"
+            exit 1
+          fi
+          macosx="$(grep -c '__MACOSX' "$RUNNER_TEMP/native-list.txt" || true)"
+          echo "entries: $(wc -l < "$RUNNER_TEMP/native-list.txt" | tr -d ' '), __MACOSX: ${macosx:-0}"
+
+          # Signing traces must be zero, and codesign must refuse the bundle outright.
+          sig="$(awk '/_CodeSignature|CodeResources|embedded\.mobileprovision/ {count++} END {print count+0}' "$RUNNER_TEMP/native-list.txt")"
+          if [ "$sig" != "0" ]; then
+            echo "::error::the IPA carries $sig signing entries"
+            exit 1
+          fi
+          if codesign -dv "$app" >/dev/null 2>&1; then
+            echo "::error::the app is signed; signing belongs to the user's tool"
+            exit 1
+          fi
+          echo "unsigned: confirmed"
+
+          built="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+          ids="$(python3 -c '
+          import re
+          text = open("native/project.yml", encoding="utf-8").read()
+          declared = prefix = ""
+          for line in text.splitlines():
+              found = re.match(r"\s*PRODUCT_BUNDLE_IDENTIFIER:\s*(.+)", line)
+              if found and not declared:
+                  declared = found.group(1).strip().strip("\"\x27")
+              found = re.match(r"\s*bundleIdPrefix:\s*(.+)", line)
+              if found and not prefix:
+                  prefix = found.group(1).strip().strip("\"\x27")
+          print(declared)
+          print(prefix)
+          ')"
+          declared="$(printf '%s' "$ids" | sed -n 1p)"
+          prefix="$(printf '%s' "$ids" | sed -n 2p)"
+          scheme="${{ steps.project.outputs.scheme }}"
+          if [ -n "$declared" ]; then
+            expected="$declared"
+          elif [ -n "$prefix" ]; then
+            expected="$prefix.$scheme"
+          else
+            expected=''
+          fi
+          if [ -z "$expected" ]; then
+            echo "::error::native/project.yml declares neither PRODUCT_BUNDLE_IDENTIFIER nor bundleIdPrefix, so the built id $built cannot be checked"
+            exit 1
+          fi
+          if [ "$built" != "$expected" ]; then
+            echo "::error::Info.plist has bundle id $built, project.yml leads to $expected"
+            exit 1
+          fi
+          echo "bundle id: $built"
+
+          minimum="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$app/Info.plist")"
+          if [ "$minimum" != "16.4" ]; then
+            echo "::error::MinimumOSVersion is $minimum, the native target must stay at 16.4 like the React Native build"
+            exit 1
+          fi
+          echo "MinimumOSVersion: $minimum"
+          echo "DSBOT_MINIMUM_IOS=$minimum" >> "$GITHUB_ENV"
+          echo "DSBOT_BUNDLE_ID=$built" >> "$GITHUB_ENV"
+          echo "DSBOT_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist" 2>/dev/null || echo '')" >> "$GITHUB_ENV"
+
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
+          architectures="$(lipo -archs "$app/$executable")"
+          echo "binary $executable: $architectures"
+          case "$architectures" in
+            *arm64*) ;;
+            *) echo "::error::the app binary is not arm64: $architectures"; exit 1 ;;
+          esac
+
+          # A framework whose binary is missing still archives and then fails to launch,
+          # which the user reads as a bad signature rather than a bad build. A Swift-only
+          # shell may legitimately ship none, so an absent directory is only reported.
+          if [ -d "$app/Frameworks" ]; then
+            for framework in "$app"/Frameworks/*.framework; do
+              fw_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$framework/Info.plist" 2>/dev/null || basename "$framework" .framework)"
+              if [ ! -f "$framework/$fw_name" ]; then
+                echo "::error::$(basename "$framework") is missing its binary $fw_name"
+                exit 1
+              fi
+            done
+            echo "frameworks: $(find "$app/Frameworks" -maxdepth 1 -name '*.framework' | wc -l | tr -d ' ')"
+          else
+            echo "frameworks: none (the native target links no dynamic frameworks yet)"
+          fi
+
+      - name: Write the build information
+        run: |
+          sha="$(shasum -a 256 "$DSBOT_IPA" | awk '{print $1}')"
+          echo "$sha  $(basename "$DSBOT_IPA")" > dist/DS-Bot-native-unsigned.sha256
+          python3 -c '
+          import json, os, sys
+          ipa, sha, minimum, build_number, scheme, out = sys.argv[1:7]
+          info = {
+              "built_at": os.popen("date -u +%Y-%m-%dT%H:%M:%SZ").read().strip(),
+              "flavor": "native",
+              "commit": os.environ.get("GITHUB_SHA"),
+              "ref": os.environ.get("GITHUB_REF"),
+              "run": os.path.join(os.environ.get("GITHUB_SERVER_URL", ""), os.environ.get("GITHUB_REPOSITORY", ""), "actions/runs", os.environ.get("GITHUB_RUN_ID", "")),
+              "version": os.environ.get("DSBOT_VERSION"),
+              "build_number": build_number,
+              "bundle_id": os.environ.get("DSBOT_BUNDLE_ID", ""),
+              "minimum_ios": minimum,
+              "scheme": scheme,
+              "generator": os.environ.get("DSBOT_XCODEGEN"),
+              "xcode": os.environ.get("DSBOT_XCODE"),
+              "signed": False,
+              "sha256": sha,
+              "ipa": ipa,
+          }
+          with open(out, "w") as handle:
+              json.dump(info, handle, indent=2)
+              handle.write("\n")
+          ' "$(basename "$DSBOT_IPA")" "$sha" "$DSBOT_MINIMUM_IOS" "$DSBOT_BUILD_NUMBER" "${{ steps.project.outputs.scheme }}" dist/build-info-native.json
+          {
+            echo "### Unsigned native IPA"
+            echo ''
+            echo "- $(basename "$DSBOT_IPA"), $(du -h "$DSBOT_IPA" | cut -f1)"
+            echo "- sha256 $sha"
+            echo "- scheme ${{ steps.project.outputs.scheme }}, iOS $DSBOT_MINIMUM_IOS+"
+            echo "- version $DSBOT_VERSION build $DSBOT_BUILD_NUMBER, commit ${GITHUB_SHA:0:7}"
+            echo "- $DSBOT_XCODE, $DSBOT_XCODEGEN"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the native IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-native-unsigned
+          path: |
+            dist/DS-Bot-*-native-unsigned.ipa
+            dist/DS-Bot-native-unsigned.sha256
+            dist/build-info-native.json
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 0
+
+      # Crash symbolication on a device the user installed needs these; they are useless
+      # once the matching build is gone, so they expire with it.
+      - name: Upload the dSYMs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-native-dSYMs
+          path: ${{ runner.temp }}/DSBotNative.xcarchive/dSYMs
+          retention-days: 30
+          if-no-files-found: warn
+          compression-level: 0
+
+      - name: Upload the build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-native-build-log
+          path: dist/xcodebuild-native.log
+          retention-days: 7
+          if-no-files-found: warn

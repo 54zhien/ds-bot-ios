@@ -289,8 +289,11 @@ class Peer {
     peer.ws.addEventListener('message', event => {
       const frame = JSON.parse(event.data)
       const waiter = peer.waiters.find(w => w.predicate(frame))
-      if (waiter !== undefined) { peer.waiters.splice(peer.waiters.indexOf(waiter), 1); waiter.resolve(frame) }
-      else peer.queue.push(frame)
+      if (waiter !== undefined) {
+        peer.waiters.splice(peer.waiters.indexOf(waiter), 1)
+        clearTimeout(waiter.timer)
+        waiter.resolve(frame)
+      } else peer.queue.push(frame)
     })
     await new Promise((resolve, reject) => {
       peer.ws.addEventListener('open', resolve, { once: true })
@@ -299,17 +302,29 @@ class Peer {
     return peer
   }
   send(type, payload) { this.ws.send(L.encodeControlFrame(L.createControlFrame(type, payload))) }
+  /** First matching frame. The promise carries cancel(): a waiter that loses a race must not eat a later frame. */
   next(predicate, label, timeoutMs = 4000) {
     const ready = this.queue.findIndex(predicate)
-    if (ready >= 0) return Promise.resolve(this.queue.splice(ready, 1)[0])
-    return new Promise((resolve, reject) => {
-      const waiter = { predicate, resolve }
+    if (ready >= 0) {
+      const promise = Promise.resolve(this.queue.splice(ready, 1)[0])
+      promise.cancel = () => {}
+      return promise
+    }
+    let waiter
+    const promise = new Promise((resolve, reject) => {
+      waiter = { predicate, resolve, timer: undefined }
       this.waiters.push(waiter)
-      setTimeout(() => {
+      waiter.timer = setTimeout(() => {
         const at = this.waiters.indexOf(waiter)
         if (at >= 0) { this.waiters.splice(at, 1); reject(new Error('timed out waiting for ' + label)) }
       }, timeoutMs)
     })
+    promise.cancel = () => {
+      clearTimeout(waiter.timer)
+      const at = this.waiters.indexOf(waiter)
+      if (at >= 0) this.waiters.splice(at, 1)
+    }
+    return promise
   }
   close() { try { this.ws.close() } catch {} }
 }
@@ -338,10 +353,23 @@ async function rejectionCase(server, name, counters) {
   const observed = []
   for (const counter of counters) {
     clientPeer.send('relay', { connectionId, targetDeviceId: hostDevice, counter, ciphertext })
-    const outcome = await Promise.race([
-      hostPeer.next(f => f.type === 'relay', 'relay at host', 2000).then(() => ({ forwarded: true })),
-      clientPeer.next(f => f.type === 'error', 'error frame', 2000).then(error => ({ error })),
-    ])
+    const outcome = await new Promise(resolve => {
+      const hostWait = hostPeer.next(frame => frame.type === 'relay', 'relay at host')
+      const clientWait = clientPeer.next(frame => frame.type === 'error', 'error frame')
+      let settled = false
+      const done = value => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        hostWait.cancel()
+        clientWait.cancel()
+        resolve(value)
+      }
+      const timer = setTimeout(() => done({ timeout: true }), 2000)
+      hostWait.then(() => done({ forwarded: true }), () => {})
+      clientWait.then(error => done({ error }), () => {})
+    })
+    if (outcome.timeout) throw new Error('the Server neither forwarded nor rejected counter ' + counter)
     observed.push({ counter, ...outcome })
     if (outcome.error !== undefined) break
   }

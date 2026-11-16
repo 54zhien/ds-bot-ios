@@ -1,0 +1,98 @@
+{
+  "$comment": "A real Relay Server, two real sockets, one bad counter. Every case is the second relay frame the phone sends on the same link.",
+  "source": {
+    "check": "server/gateway.ts:278-284",
+    "reply": "server/gateway.ts:153-159",
+    "catch": "server/gateway.ts:198-211",
+    "note": "the Server drops the link and sends the same error frame to both peers; the code is INVALID_MESSAGE for every case"
+  },
+  "expected": {
+    "code": "INVALID_MESSAGE",
+    "message": "INVALID_MESSAGE",
+    "retryable": true,
+    "connectionId": "<the connectionId from connect.incoming>"
+  },
+  "cases": [
+    {
+      "name": "duplicate counter (same value twice)",
+      "counters": [
+        5,
+        5
+      ],
+      "result": [
+        {
+          "counter": 5,
+          "forwardedToHost": true,
+          "error": null
+        },
+        {
+          "counter": 5,
+          "forwardedToHost": false,
+          "error": {
+            "type": "error",
+            "payload": {
+              "code": "INVALID_MESSAGE",
+              "message": "INVALID_MESSAGE",
+              "connectionId": "<the connectionId from connect.incoming>",
+              "retryable": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "counter goes backwards",
+      "counters": [
+        5,
+        0
+      ],
+      "result": [
+        {
+          "counter": 5,
+          "forwardedToHost": true,
+          "error": null
+        },
+        {
+          "counter": 0,
+          "forwardedToHost": false,
+          "error": {
+            "type": "error",
+            "payload": {
+              "code": "INVALID_MESSAGE",
+              "message": "INVALID_MESSAGE",
+              "connectionId": "<the connectionId from connect.incoming>",
+              "retryable": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "counter is not a safe integer",
+      "counters": [
+        5,
+        1e+21
+      ],
+      "result": [
+        {
+          "counter": 5,
+          "forwardedToHost": true,
+          "error": null
+        },
+        {
+          "counter": 1e+21,
+          "forwardedToHost": false,
+          "error": {
+            "type": "error",
+            "payload": {
+              "code": "INVALID_MESSAGE",
+              "message": "INVALID_MESSAGE",
+              "connectionId": "<the connectionId from connect.incoming>",
+              "retryable": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
