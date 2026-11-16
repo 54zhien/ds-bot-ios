@@ -49,4 +49,5 @@ export function GlassFade({ edge, height, radius = 0, color }: {
 
 let fadeSerial = 0
 
-const styles = StyleSheet.create({ wrap: { position: 'absolute', left: 0, right: 0, overflow: 'hidden' } })
+// Above page content (the goal bar sits at 1), below the floating bar (10).
+const styles = StyleSheet.create({ wrap: { position: 'absolute', left: 0, right: 0, zIndex: 9, overflow: 'hidden' } })
