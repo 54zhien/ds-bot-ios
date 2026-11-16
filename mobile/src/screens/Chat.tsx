@@ -325,7 +325,7 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
     if (shown.length > 0) setOutbox(chatKey, list => list.filter(o => !shown.includes(o)))
   }, [items, pending, chatKey])
   const rows = useMemo<Row[]>(() => {
-    const all = [...items, ...pending.map(o => o.item)]
+    const all = foldSteps([...items, ...pending.map(o => o.item)])
     const keys = keysOf(all)
     // Inverted list: index 0 sits at the bottom, so the newest row comes first.
     return all.map((item, index) => ({ item, key: keys[index], stamp: room !== undefined || item.local !== undefined ? undefined : stampOf(all, index) })).reverse()
@@ -420,6 +420,26 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
     </KeyboardAvoidingView>
     </PhotoViewerCtx.Provider>
   )
+}
+
+// One run reports a step row per tool, so a long turn reads as a column of
+// "used 1 tool". Adjacent step rows fold into one caption that sums them.
+const foldSteps = (list: ChatItem[]): ChatItem[] => {
+  const out: ChatItem[] = []
+  for (const item of list) {
+    const last = out[out.length - 1]
+    if (item.kind === 'steps' && last !== undefined && last.kind === 'steps') {
+      out[out.length - 1] = {
+        ...last,
+        tools: [...(last.tools ?? []), ...(item.tools ?? [])],
+        ms: (last.ms ?? 0) + (item.ms ?? 0),
+        live: last.live === true || item.live === true,
+      }
+      continue
+    }
+    out.push(item)
+  }
+  return out
 }
 
 // A chat with nothing in it yet: who it is with, large, where the messages will be.

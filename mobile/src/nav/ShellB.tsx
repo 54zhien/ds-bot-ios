@@ -11,7 +11,7 @@ import { t } from '../ui/i18n.ts'
 import { screenRadius, shadow, SHEET_HEAD, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { GlassCluster, GlassControl, GlassPill } from '../ui/glass.tsx'
 import { GlassFade } from '../ui/fade.tsx'
-import { materialSkin, rimSkin } from '../ui/material.tsx'
+import { rimSkin } from '../ui/material.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { GearIcon, PeopleIcon, PlusIcon, SearchIcon, SidebarIcon, SideIcon } from '../ui/icons.tsx'
 import { ChatView, prefetchChat } from '../screens/Chat.tsx'
@@ -31,8 +31,6 @@ const Stack = createNativeStackNavigator()
 const LAST_KEY = 'dsbot.lastChat'
 // 44 gear + 16 margin + 36 of fade above it.
 const GEAR_FADE = 44 + 16 + 36
-// The drawer panel sits right under the head, so the list needs its own edge fade.
-const PANEL_HEAD_FADE = 36
 
 // Drawer content = the desktop sidebar as a drawer: "Needs you" row on top when
 // anything is pending, the team list, and a footer with the You mark + gear.
@@ -86,21 +84,18 @@ function DrawerContent() {
             style={{ flex: 1, fontSize: 15, paddingVertical: 4, color: p.ink }} autoCapitalize="none" autoCorrect={false} />
         </GlassPill>
       ) : null}
-      {/* Everything under the head lives on one material panel, so the list scrolls
-          inside its rounded edge and the gear stays a page control below it. */}
-      <View style={[styles.drawerBody, materialSkin(dark, 26)]}>
-        {pending > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => open({ kind: 'needs' })}
-            style={({ pressed }) => [styles.needsRow, pressed && { backgroundColor: p.hover }]}>
+      {/* The list sits straight on the drawer colour; the rows carry their own inset. */}
+      {pending > 0 ? (
+        <Pressable accessibilityRole="button" onPress={() => open({ kind: 'needs' })}
+          style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+          <GlassPill height={44} style={{ marginHorizontal: 16, marginBottom: 8 }}>
             <Text style={[typeScale.rowName, { color: p.accent, flex: 1 }]}>{t('Needs you')}</Text>
             <View style={[styles.badge, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontSize: 12, fontWeight: '600' }}>{pending}</Text></View>
-          </Pressable>
-        ) : null}
-        <View style={{ flex: 1 }}>
-          <TeamList onOpen={open} query={searching ? query : ''} current={current} />
-          {/* Rows vanish at the panel's top edge; this softens that line. */}
-          <GlassFade height={PANEL_HEAD_FADE} edge="top" plain />
-        </View>
+          </GlassPill>
+        </Pressable>
+      ) : null}
+      <View style={{ flex: 1 }}>
+        <TeamList onOpen={open} query={searching ? query : ''} current={current} />
       </View>
       <Modal visible={newOpen} transparent animationType="fade" onRequestClose={() => setNewOpen(false)}>
         <Pressable style={styles.sheetScrim} onPress={() => setNewOpen(false)} accessibilityLabel={t('Close')}>
@@ -119,10 +114,9 @@ function DrawerContent() {
       </Modal>
       <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" plain />
       <View style={[styles.foot, { left: gearInset, bottom: gearInset }]}>
-        {/* Glass reads as nothing against the dark panel once its neighbours are gone, so the gear keeps the 1pt material rim. */}
-        <Pressable accessibilityRole="button" accessibilityLabel={t('Settings')} onPress={() => open({ kind: 'settings' })} style={[styles.gear, materialSkin(dark, 22)]}>
-          <GearIcon size={24} color={p.ink2} />
-        </Pressable>
+        <GlassControl label={t('Settings')} onPress={() => open({ kind: 'settings' })}>
+          <GearIcon size={26} color={p.ink2} />
+        </GlassControl>
       </View>
     </View>
   )
@@ -383,12 +377,9 @@ export default function ShellB() {
 }
 
 const styles = StyleSheet.create({
-  needsRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, marginBottom: 4, borderRadius: 10, paddingHorizontal: 8, height: 44 },
   badge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  drawerBody: { flex: 1, marginHorizontal: 16, overflow: 'hidden' },
   // Floating, so the list can run under it and fade out instead of ending at a band.
   foot: { position: 'absolute', flexDirection: 'row', alignItems: 'center' },
-  gear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   sheetHead: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
