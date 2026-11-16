@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import RawMaskedView from '@react-native-masked-view/masked-view'
+import { useState, type ComponentType, type ReactNode } from 'react'
 import { Pressable, StyleSheet, View, type PressableProps, type StyleProp, type ViewProps, type ViewStyle } from 'react-native'
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
+import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { GlassContainer, GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect'
 import { glass as metrics, radius as radii, shadow, useTheme } from './tokens.ts'
 
@@ -25,6 +26,9 @@ const PAD = ['padding', 'paddingHorizontal', 'paddingVertical', 'paddingTop', 'p
 // The glass paints its own fill, rim and shadow, so a converted card keeps only
 // its layout: its padding moves inside the surface, its solid look is dropped.
 const DROP = ['backgroundColor', 'borderWidth', 'borderColor', 'borderTopWidth', 'borderTopColor', 'borderBottomWidth', 'borderBottomColor', 'borderLeftWidth', 'borderLeftColor', 'borderRightWidth', 'borderRightColor', 'shadowColor', 'shadowOffset', 'shadowOpacity', 'shadowRadius', 'elevation'] as const
+
+// The package still types its view for React 17 JSX; the runtime is fine (see fade.tsx).
+const MaskedView = RawMaskedView as unknown as ComponentType<{ maskElement: ReactNode; style?: StyleProp<ViewStyle>; children?: ReactNode }>
 
 const rgba = (hex: string, alpha: number): string => {
   const raw = hex.replace('#', '')
@@ -128,19 +132,28 @@ export function GlassControl({ size = metrics.control, iconSize = metrics.iconXL
   children?: ReactNode
 }) {
   const { p } = useTheme()
-  // The badge sits on the glyph's top-right corner, ringed in the page colour so
-  // it reads as a punched dot rather than a sticker.
+  // The badge sits on the glyph's top-right corner. The glyph is masked out under
+  // it, so the dot sits in a hole that shows the page through, not on the icon.
   const anchor = (size - iconSize) / 2
+  const dotX = size - anchor - 4
+  const dotY = anchor + 4
+  const hole = 6
+  const glyph = dot
+    ? <MaskedView style={{ width: size, height: size }} maskElement={
+        <Svg width={size} height={size}>
+          <Rect width={size} height={size} fill="#fff" />
+          <Circle cx={dotX} cy={dotY} r={hole} fill="#000" />
+        </Svg>
+      }>
+        <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>{children}</View>
+      </MaskedView>
+    : children
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} hitSlop={4}
       style={({ pressed }) => [styles.control, { width: size, height: size }, (pressed || disabled) && { opacity: disabled ? 0.35 : 0.7 }]}>
       <Glass radius={size / 2} intensity={accent ? 'strong' : 'thin'} tint={accent ? p.accent : undefined} interactive style={styles.fill} contentStyle={styles.controlIn}>
-        {children}
-        {dot ? (
-          <View style={{ position: 'absolute', top: anchor - 2, left: size - anchor - 10, padding: 2, backgroundColor: 'transparent' }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: p.accent }} />
-          </View>
-        ) : null}
+        {glyph}
+        {dot ? <View style={{ position: 'absolute', top: dotY - 4, left: dotX - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: p.accent }} /> : null}
       </Glass>
     </Pressable>
   )
