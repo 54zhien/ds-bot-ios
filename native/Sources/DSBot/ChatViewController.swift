@@ -546,7 +546,14 @@ final class ChatViewController: UIViewController {
         guard let teamState else { return }
         let team = TeamListViewController(state: teamState)
         team.onSelect = { [weak self] target in self?.selectTarget(target) }
+        team.onSettings = { [weak self] in self?.showSettings() }
         present(UINavigationController(rootViewController: team), animated: true)
+    }
+
+    private func showSettings() {
+        let settings = NativeSettingsViewController(computerName: savedOffer?.name ?? "")
+        settings.onComputers = { [weak self] in self?.showPairing() }
+        present(UINavigationController(rootViewController: settings), animated: true)
     }
 
     private func selectTarget(_ target: ChatTarget) {

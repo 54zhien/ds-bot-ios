@@ -52,7 +52,12 @@ final class PendingActionsViewController: UITableViewController {
         cell.textLabel?.text = item.title
         cell.detailTextLabel?.text = item.detail
         cell.detailTextLabel?.numberOfLines = 2
-        cell.accessoryType = .disclosureIndicator
+        cell.accessoryType = .none
+        cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+        if case .approval(let value) = item, value["answerable"] != .bool(true) {
+            cell.detailTextLabel?.text = "Answer on the computer"
+            cell.accessoryView = nil
+        }
         return cell
     }
 
@@ -148,11 +153,13 @@ private final class QuestionAnswerViewController: UITableViewController {
             cell.detailTextLabel?.numberOfLines = 0
             cell.selectionStyle = .none
             cell.accessoryType = .none
+            cell.accessoryView = nil
         } else {
             let option = options[indexPath.row]
             cell.textLabel?.text = option
             cell.detailTextLabel?.text = nil
             cell.accessoryType = selected.contains(option) ? .checkmark : .none
+            cell.accessoryView = nil
         }
         return cell
     }
@@ -177,7 +184,7 @@ private final class QuestionAnswerViewController: UITableViewController {
             do {
                 _ = try await BotAPI.call("answer-question", payload: .object([
                     "sessionId": .string(sessionID), "questionId": .string(id),
-                    "answer": .object(["selected": .array(selected.sorted().map(JSONValue.string)),
+                    "answer": .object(["selected": .array(options.filter { selected.contains($0) }.map(JSONValue.string)),
                                        "custom": .string(answer)]),
                 ]), on: session)
                 onChanged?()

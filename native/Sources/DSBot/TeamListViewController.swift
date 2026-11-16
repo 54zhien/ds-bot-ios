@@ -26,10 +26,61 @@ final class OriginalSidebarIcon: UIView {
     }
 }
 
+/// GearIcon path from mobile/src/ui/icons.tsx.
+final class OriginalGearIcon: UIView {
+    override func draw(_ rect: CGRect) {
+        let context = UIGraphicsGetCurrentContext()
+        context?.saveGState()
+        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
+        tintColor.setStroke()
+        let ring = UIBezierPath(ovalIn: CGRect(x: 7.4, y: 7.4, width: 5.2, height: 5.2))
+        ring.lineWidth = 1.8
+        ring.stroke()
+        let outline = UIBezierPath()
+        let points = [
+            CGPoint(x: 7.85, y: 4.4), CGPoint(x: 8.14, y: 2.53), CGPoint(x: 11.86, y: 2.53),
+            CGPoint(x: 12.15, y: 4.4), CGPoint(x: 13.78, y: 5.34), CGPoint(x: 15.54, y: 4.65),
+            CGPoint(x: 17.4, y: 7.88), CGPoint(x: 15.93, y: 9.06), CGPoint(x: 15.93, y: 10.94),
+            CGPoint(x: 17.4, y: 12.12), CGPoint(x: 15.54, y: 15.35), CGPoint(x: 13.78, y: 14.66),
+            CGPoint(x: 12.15, y: 15.6), CGPoint(x: 11.86, y: 17.47), CGPoint(x: 8.14, y: 17.47),
+            CGPoint(x: 7.85, y: 15.6), CGPoint(x: 6.22, y: 14.66), CGPoint(x: 4.46, y: 15.35),
+            CGPoint(x: 2.6, y: 12.12), CGPoint(x: 4.07, y: 10.94), CGPoint(x: 4.07, y: 9.06),
+            CGPoint(x: 2.6, y: 7.88), CGPoint(x: 4.46, y: 4.65), CGPoint(x: 6.22, y: 5.34),
+        ]
+        outline.move(to: points[0])
+        for point in points.dropFirst() { outline.addLine(to: point) }
+        outline.close()
+        outline.lineWidth = 1.8
+        outline.lineJoinStyle = .round
+        outline.stroke()
+        context?.restoreGState()
+    }
+}
+
+/// ChevronRightIcon path from mobile/src/ui/icons.tsx.
+final class OriginalChevronRightIcon: UIView {
+    override func draw(_ rect: CGRect) {
+        let context = UIGraphicsGetCurrentContext()
+        context?.saveGState()
+        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
+        tintColor.setStroke()
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: 7.5, y: 4.5))
+        path.addLine(to: CGPoint(x: 13, y: 10))
+        path.addLine(to: CGPoint(x: 7.5, y: 15.5))
+        path.lineWidth = 1.7
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.stroke()
+        context?.restoreGState()
+    }
+}
+
 /// The mobile team's navigation data, in the same main/bot/room order as
 /// mobile/src/screens/TeamList.tsx.
 final class TeamListViewController: UITableViewController, UISearchResultsUpdating {
     var onSelect: ((ChatTarget) -> Void)?
+    var onSettings: (() -> Void)?
     private let state: JSONValue
     private struct Entry {
         let target: ChatTarget
@@ -50,9 +101,17 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "DS Bot"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .done, target: self, action: #selector(close)
-        )
+        let settings = UIButton(type: .system)
+        settings.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        settings.accessibilityLabel = "Settings"
+        settings.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        let icon = OriginalGearIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
+        icon.isUserInteractionEnabled = false
+        settings.addSubview(icon)
+        navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close)),
+            UIBarButtonItem(customView: settings),
+        ]
         let search = UISearchController(searchResultsController: nil)
         search.searchResultsUpdater = self
         search.obscuresBackgroundDuringPresentation = false
@@ -62,6 +121,10 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     }
 
     @objc private func close() { dismiss(animated: true) }
+    @objc private func openSettings() {
+        let action = onSettings
+        dismiss(animated: true) { action?() }
+    }
 
     func updateSearchResults(for searchController: UISearchController) {
         query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -121,7 +184,8 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         cell.textLabel?.text = entry.target.name + (entry.pinned ? " · Pinned" : "")
         cell.detailTextLabel?.text = entry.preview.isEmpty
             ? (entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview
-        cell.accessoryType = .disclosureIndicator
+        cell.accessoryType = .none
+        cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         let seen = UserDefaults.standard.integer(forKey: "dsbot.seen.\(entry.target.id)")
         cell.textLabel?.font = .systemFont(ofSize: 17, weight: entry.lastAt > seen ? .semibold : .regular)
         return cell

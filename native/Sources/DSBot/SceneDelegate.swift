@@ -14,6 +14,9 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         navigation.navigationBar.prefersLargeTitles = false
 
         let window = UIWindow(windowScene: windowScene)
+        window.overrideUserInterfaceStyle = NativeSettingsViewController.style(
+            for: UserDefaults.standard.string(forKey: "dsbot.theme") ?? "System"
+        )
         window.rootViewController = navigation
         window.makeKeyAndVisible()
         self.window = window
