@@ -171,14 +171,18 @@ jobs:
           name="$(printf '%s' "$line" | sed -nE 's/^[[:space:]]*([^(]*)\(.*/\1/p' | sed -E 's/[[:space:]]+$//')"
           if [ -n "$udid" ]; then
             destination="platform=iOS Simulator,id=$udid"
+            real=1
             echo "simulator from the image: $name ($udid)"
           elif [ -n "$name" ]; then
             destination="platform=iOS Simulator,name=$name"
+            real=1
             echo "simulator from the image: $name (no UDID parsed)"
           else
             destination="generic/platform=iOS Simulator"
-            echo "::warning::no iPhone simulator in xcrun simctl list devices available; using a generic simulator destination"
+            real=0
+            echo "::warning::no iPhone simulator in xcrun simctl list devices available; using a generic simulator destination, so tests cannot run"
           fi
+          echo "simulator=$real" >> "$GITHUB_OUTPUT"
           echo "destination=$destination" >> "$GITHUB_OUTPUT"
           echo "destination: $destination"
 
@@ -188,12 +192,13 @@ jobs:
           mkdir -p dist
           scheme="${{ steps.project.outputs.scheme }}"
           destination="${{ steps.sim.outputs.destination }}"
+          simulator="${{ steps.sim.outputs.simulator }}"
           project_file="${{ steps.generate.outputs.project }}"
-          # test only when the scheme actually carries test targets; a plain app target
-          # answers "xcodebuild test" with "not configured for the test action", which
-          # would read as a compile failure.
-          if grep -qE 'com\.apple\.product-type\.bundle\.(unit-test|ui-testing)' "$project_file/project.pbxproj"; then
-            echo "scheme has test targets: xcodebuild test"
+          # test needs both a real simulator and test targets: a generic destination cannot
+          # run tests, and a plain app target answers "xcodebuild test" with "not configured
+          # for the test action". Either one missing means the build is the honest check.
+          if [ "$simulator" = "1" ] && grep -qE 'com\.apple\.product-type\.bundle\.(unit-test|ui-testing)' "$project_file/project.pbxproj"; then
+            echo "scheme has test targets and a simulator: xcodebuild test"
             xcodebuild test \
               -project "$project_file" \
               -scheme "$scheme" \
@@ -203,7 +208,7 @@ jobs:
               CODE_SIGNING_REQUIRED=NO \
               2>&1 | tee dist/compile.log
           else
-            echo "scheme has no test targets: xcodebuild build"
+            echo "no simulator or no test targets: xcodebuild build"
             xcodebuild build \
               -project "$project_file" \
               -scheme "$scheme" \

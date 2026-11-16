@@ -220,7 +220,7 @@ function encodeMessage(session, plaintext, startCounter) {
       index: out.length,
       plaintextBytes: fragment.byteLength,
       plaintextIsFragment: fragment.byteLength !== plaintext.byteLength,
-      ciphertextHex: hex(ciphertext),
+      ...(ciphertext.byteLength <= 8192 ? { ciphertextHex: hex(ciphertext) } : {}),
       ciphertextBytes: ciphertext.byteLength,
       transportNonce: String(nonce),
       counter,
@@ -241,6 +241,8 @@ const largeFrames = encodeMessage(session, large, smallFrames.length)
 function fragmentHeaders(plaintext, frames) {
   const codec = new L.SecureMessageCodec()
   const fragments = codec.encode(plaintext)
+  // A message at or below the chunk size is sent as-is: no DSBF header to describe.
+  if (fragments.length === 1 && fragments[0].byteLength === plaintext.byteLength) return []
   return fragments.map((fragment, index) => ({
     index,
     bytes: fragment.byteLength,
@@ -268,8 +270,9 @@ writeFileSync(new URL('./fragments.json', import.meta.url), JSON.stringify({
     sha256: sha256hex(small),
     fragments: fragmentHeaders(small, smallFrames),
     frames: smallFrames,
-    note: '4096 bytes is below the 48 KiB chunk, so there is no DSBF header: the plaintext is the frame. '
-      + 'A 4 KiB message therefore cannot show fragmentation — that is why the 100 KiB case exists.',
+    note: '4096 bytes is below the 48 KiB chunk, so there is no DSBF header and fragments is empty: the plaintext is the frame. '
+      + 'A 4 KiB message therefore cannot show fragmentation — that is why the 100 KiB case exists. '
+      + 'ciphertextHex is omitted for frames above 8 KiB; the ciphertext is payload.ciphertext (base64url) in wireFrameJson.',
   },
   large: {
     bytes: large.byteLength,
