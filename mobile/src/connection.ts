@@ -3,8 +3,6 @@ import { RpcClient } from '../../link/src/index.ts'
 import { openTransport } from './net/supervised.ts'
 import type { PhoneIdentity, SavedComputer } from './store.ts'
 
-type BotResult<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } }
-
 export interface Bot {
   id: string
   name: string
@@ -134,21 +132,7 @@ export async function openLink(computer: SavedComputer, identity: PhoneIdentity,
   }, pairingCode)
 }
 
-/** Calls one DS Bot endpoint on the computer, the same one its window calls. */
-export async function callBot<T>(client: RpcClient, endpoint: string, payload: unknown = {}, signal?: AbortSignal): Promise<T> {
-  const result = await client.rpc<BotResult<T>>('bot', { endpoint, payload }, { signal })
-  if (!result.ok) throw Object.assign(new Error(result.error.message), { code: result.error.code })
-  return result.value
-}
-
-/**
- * Same call, but the request carries `state` (the payload the `state` endpoint
- * would take). A write that moved the team answers with the new state in the
- * same reply, so the phone needs no second round trip.
- */
-export async function callBotState<T>(client: RpcClient, endpoint: string, payload: unknown, state: unknown, signal?: AbortSignal): Promise<{ value: T; state?: TeamState }> {
-  const result = await client.rpc<BotResult<T> & { state?: TeamState }>('bot', { endpoint, payload, state }, { signal })
-  if (!result.ok) throw Object.assign(new Error(result.error.message), { code: result.error.code })
-  return { value: result.value, state: result.state }
-}
+// The RPC wrappers live in net/ so a node --test process can load them without
+// react-native; this module re-exports them for the screens that already import here.
+export { callBot, callBotState } from './net/rpc.ts'
 

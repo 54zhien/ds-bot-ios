@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
 import type { RpcClient } from '../../../link/src/index.ts'
 import { callBot, callBotState, openLink, type TeamState } from '../connection.ts'
+import { connectSupervised, type SupervisedLink } from '../net/supervised.ts'
 import { ensureUnlock } from './gate.ts'
 import { OPTIMISTIC, optimistic, withWrites, type Write } from './optimistic.ts'
 import { t } from '../ui/i18n.ts'
@@ -9,7 +10,10 @@ import type { PhoneIdentity, SavedComputer } from '../store.ts'
 
 // Feed events keep the app live; the poll only stays as a foreground fallback.
 const POLL_MS = 15_000
-const RETRY_MS = 2_000
+// The supervisor waits 1 s, doubles, and stops growing at 60 s. The attempt that
+// waits at that ceiling is the first that makes no progress: retrying has stopped
+// buying anything, so the link is gone rather than reconnecting.
+const DISCONNECTED_AT = Math.ceil(Math.log2(60_000 / 1_000)) + 1
 
 // Profile photos travel by reference and are fetched once per content hash
 // (`avatars: 'ref'` on `state`, then the `avatar` endpoint per new ref).
@@ -135,7 +139,6 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
 
   useEffect(() => {
     let stopped = false
-    let activeClient: RpcClient | undefined
     let timer: ReturnType<typeof setTimeout> | undefined
     revision.current = -1
     writes.current = []
@@ -145,8 +148,9 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
     setLinked(false)
     setError(null)
     setHello(null)
-    // One pending timer: every feed event polls, and each poll would otherwise start another loop.
-    const later = (run: () => void, ms: number) => { clearTimeout(timer); if (!stopped) timer = setTimeout(run, ms) }
+    // One pending poll: every feed event reads, and each read would otherwise start another loop.
+    // Reconnect waits are not scheduled here; the supervisor owns those.
+    const schedulePoll = () => { clearTimeout(timer); if (!stopped) timer = setTimeout(() => void poll(), POLL_MS) }
     // One read at a time: a burst of feed events while a Bot works becomes one
     // read now and at most one more after it, not a pile of reads over a slow link.
     let reading = false
@@ -161,7 +165,7 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
         if (stopped || clientRef.current !== client) return
         apply(next)
         setError(null)
-        later(() => void poll(), POLL_MS)
+        schedulePoll()
       } catch (failure) {
         if (!stopped && clientRef.current === client) setError(errorText(failure))
       } finally {
@@ -170,11 +174,21 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
       }
     }
     pollRef.current = () => void poll()
-    const connect = async () => {
-      try {
-        const client = await openLink(computer, identity)
-        if (stopped) { void client.close(); return }
-        activeClient = client
+    // Every wait belongs to the supervisor; this only counts consecutive failures so
+    // the "not connected" switch follows its backoff instead of a second timer.
+    let failures = 0
+    let link: SupervisedLink | undefined
+    link = connectSupervised({
+      open: () => openLink(computer, identity),
+      onStatus: status => {
+        if (stopped) return
+        if (status === 'online') { failures = 0; setLinked(true); setOnline(true); setError(null); return }
+        // connecting and offline both mean there is no usable link right now.
+        setLinked(false)
+        setOnline(false)
+      },
+      onOpen: async client => {
+        if (stopped) return false
         clientRef.current = client
         setLinked(true)
         // The handshake: its api is null when the computer's DS Bot is too old for
@@ -182,13 +196,11 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
         // trip through the relay.
         void poll()
         const helloResult = await callBot<Hello>(client, 'hello', {}).catch(() => null)
-        if (stopped) { void client.close(); return }
+        if (stopped) return false
         if (helloResult === null || helloResult.api === null) {
           setError(t('Update DS Bot on the computer to use this phone.'))
           setLinked(false)
-          void client.close()
-          later(() => void connect(), RETRY_MS)
-          return
+          return false
         }
         setHello(helloResult)
         setOnline(true)
@@ -205,21 +217,21 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
         }).catch(() => {})
         client.onClose(() => {
           if (stopped || clientRef.current !== client) return
-          activeClient = undefined
           clientRef.current = undefined
           setOnline(false)
           setLinked(false)
-          clearTimeout(timer)
-          later(() => void connect(), RETRY_MS)
         })
-      } catch (failure) {
+        return true
+      },
+      onError: failure => {
         if (stopped) return
-        setError(errorText(failure))
-        if (rejected(failure)) setTeam(null)
-        else later(() => void connect(), RETRY_MS)
-      }
-    }
-    void connect()
+        // A refused phone will not start working by retrying; hand it back to the user.
+        if (rejected(failure)) { setTeam(null); setError(errorText(failure)); void link?.stop(); return }
+        failures += 1
+        setError(failures >= DISCONNECTED_AT ? t('Not connected') : errorText(failure))
+      },
+    })
+    link.start()
     const foreground = AppState.addEventListener('change', status => {
       // Waking is the common half-open case: probe first so a dead socket
       // declares itself instead of letting the poll hang.
@@ -230,8 +242,9 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
       stopped = true
       clearTimeout(timer)
       foreground.remove()
-      void activeClient?.close()
-      if (clientRef.current === activeClient) clientRef.current = undefined
+      // The supervisor aborts the attempt and closes the client it opened.
+      void link.stop()
+      clientRef.current = undefined
     }
   }, [computer, identity, apply])
 

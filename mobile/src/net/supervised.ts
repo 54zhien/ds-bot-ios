@@ -30,6 +30,8 @@ export async function openTransport(target: LinkTarget, pairingCode?: string): P
   return client
 }
 
+export type { SupervisorStatus } from '../../../link/src/index.ts'
+
 export interface SupervisedLink {
   start(): void
   stop(): Promise<void>
@@ -38,17 +40,21 @@ export interface SupervisedLink {
 }
 
 /** One attempt = one open plus the caller's handshake; every wait belongs to the supervisor. */
-export function connectSupervised({ target, pairingCode, onStatus, onOpen, onError }: {
-  target: LinkTarget
+export function connectSupervised({ target, pairingCode, open, onStatus, onOpen, onError }: {
+  target?: LinkTarget
   pairingCode?: string
+  /** Opens the link itself, for callers that already hold the phone's fields. */
+  open?: () => Promise<RpcClient>
   onStatus?: (status: SupervisorStatus) => void
   onOpen: (client: RpcClient) => boolean | Promise<boolean>
   onError?: (error: Error) => void
 }): SupervisedLink {
+  const openLink = open ?? (target === undefined ? undefined : () => openTransport(target, pairingCode))
+  if (openLink === undefined) throw new Error('connectSupervised needs a target or an open function.')
   let current: RpcClient | undefined
   const supervisor = new LinkSupervisor({
     attempt: async ({ signal, closed }) => {
-      const client = await openTransport(target, pairingCode)
+      const client = await openLink()
       if (signal.aborted) { await client.close(); throw new Error('The link attempt was stopped.') }
       current = client
       client.onClose(() => { if (current === client) current = undefined; closed() })
