@@ -37,6 +37,8 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
   const [error, setError] = useState<string | null>(null)
   const [hello, setHello] = useState<Hello | null>(null)
   const clientRef = useRef<RpcClient | undefined>(undefined)
+  // The supervisor lives in the effect; the banner's Retry reaches it through here.
+  const reconnectRef = useRef<() => void>(() => {})
   const revision = useRef<number>(-1)
   const writes = useRef<Write[]>([])
   const liveKey = useRef<string | undefined>(undefined)
@@ -232,6 +234,7 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
       },
     })
     link.start()
+    reconnectRef.current = () => link?.reconnect()
     const foreground = AppState.addEventListener('change', status => {
       // Waking is the common half-open case: probe first so a dead socket
       // declares itself instead of letting the poll hang.
@@ -248,10 +251,17 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
     }
   }, [computer, identity, apply])
 
+  // Stable so the banner's button keeps its identity across renders. A manual retry
+  // also clears the verdict, so the bar goes back to "reconnecting" until it fails again.
+  const reconnect = useCallback(() => { setError(null); reconnectRef.current() }, [])
+
   return {
     team: switched ? null : team,
     online: switched ? false : online,
     linked: switched ? false : linked,
+    // The second banner state: retrying has stopped making progress.
+    disconnected: switched ? false : error === t('Not connected'),
+    reconnect,
     error: switched ? null : error,
     call,
     clientRef,

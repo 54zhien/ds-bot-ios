@@ -140,10 +140,11 @@ function Pill({ title, bot, room, bots }: { title: string; bot?: Parameters<type
 
 function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title: string; bot?: Parameters<typeof Avatar>[0]['bot']; room?: Room; bots?: Bot[]; onMenu: () => void; onPill?: () => void; onSide?: () => void }) {
   const { p } = useTheme()
-  const { team, online } = useTeam()
+  const { team, online, disconnected = false, reconnect = () => {} } = useTeam()
   const pending = pendingCountOf(team) > 0
   const insets = useSafeAreaInsets()
   // The link dropped after the team loaded: the screen keeps what it shows and says so.
+  // Once retrying stops making progress the same bar turns into "not connected" + Retry.
   const reconnecting = team !== null && !online
   return (
     // Floats over the list so messages pass under the glass instead of stopping at a line.
@@ -165,10 +166,19 @@ function Header({ title, bot, room, bots = [], onMenu, onPill, onSide }: { title
       ) : <View style={{ width: 44, height: 44 }} />}
     </GlassCluster>
     {reconnecting ? (
-      <View pointerEvents="none" style={{ alignItems: 'center', paddingBottom: 6 }} accessibilityRole="alert">
+      <View pointerEvents={disconnected ? 'box-none' : 'none'} style={{ alignItems: 'center', paddingBottom: 6 }} accessibilityRole="alert">
         <GlassPill height={30} style={{ paddingHorizontal: 0 }}>
-          <ActivityIndicator size="small" color={p.ink3} />
-          <Text style={[typeScale.caption, { color: p.ink3 }]}>{t('Reconnecting…')}</Text>
+          {disconnected
+            ? <Text style={[typeScale.caption, { color: p.ink3 }]}>{t('Not connected')}</Text>
+            : <>
+                <ActivityIndicator size="small" color={p.ink3} />
+                <Text style={[typeScale.caption, { color: p.ink3 }]}>{t('Reconnecting…')}</Text>
+              </>}
+          {disconnected ? (
+            <Pressable accessibilityRole="button" onPress={reconnect} hitSlop={8} style={{ minHeight: 30, justifyContent: 'center' }}>
+              <Text style={[typeScale.caption, { color: p.accent, fontWeight: '600' }]}>{t('Retry')}</Text>
+            </Pressable>
+          ) : null}
         </GlassPill>
       </View>
     ) : null}
