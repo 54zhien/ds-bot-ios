@@ -81,6 +81,8 @@ final class OriginalChevronRightIcon: UIView {
 final class TeamListViewController: UITableViewController, UISearchResultsUpdating {
     var onSelect: ((ChatTarget) -> Void)?
     var onSettings: (() -> Void)?
+    var onCreateBot: (() -> Void)?
+    var onEditBot: ((String) -> Void)?
     private let state: JSONValue
     private struct Entry {
         let target: ChatTarget
@@ -108,9 +110,17 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         let icon = OriginalGearIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
         icon.isUserInteractionEnabled = false
         settings.addSubview(icon)
+        let create = UIButton(type: .system)
+        create.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        create.accessibilityLabel = "Create Bot"
+        create.addTarget(self, action: #selector(createBot), for: .touchUpInside)
+        let plus = OriginalPlusIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
+        plus.isUserInteractionEnabled = false
+        create.addSubview(plus)
         navigationItem.rightBarButtonItems = [
             UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close)),
             UIBarButtonItem(customView: settings),
+            UIBarButtonItem(customView: create),
         ]
         let search = UISearchController(searchResultsController: nil)
         search.searchResultsUpdater = self
@@ -123,6 +133,10 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     @objc private func close() { dismiss(animated: true) }
     @objc private func openSettings() {
         let action = onSettings
+        dismiss(animated: true) { action?() }
+    }
+    @objc private func createBot() {
+        let action = onCreateBot
         dismiss(animated: true) { action?() }
     }
 
@@ -195,5 +209,19 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1_000), forKey: "dsbot.seen.\(entry.target.id)")
         onSelect?(entry.target)
         dismiss(animated: true)
+    }
+
+    override func tableView(
+        _ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
+    ) -> UISwipeActionsConfiguration? {
+        let target = sections[indexPath.section].1[indexPath.row].target
+        guard target.kind == .bot else { return nil }
+        let edit = UIContextualAction(style: .normal, title: "Edit") { [weak self] _, _, done in
+            guard let self else { done(false); return }
+            let action = onEditBot
+            dismiss(animated: true) { action?(target.id) }
+            done(true)
+        }
+        return UISwipeActionsConfiguration(actions: [edit])
     }
 }

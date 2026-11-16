@@ -547,7 +547,25 @@ final class ChatViewController: UIViewController {
         let team = TeamListViewController(state: teamState)
         team.onSelect = { [weak self] target in self?.selectTarget(target) }
         team.onSettings = { [weak self] in self?.showSettings() }
+        team.onCreateBot = { [weak self] in self?.showBotEditor(id: nil) }
+        team.onEditBot = { [weak self] id in self?.showBotEditor(id: id) }
         present(UINavigationController(rootViewController: team), animated: true)
+    }
+
+    private func showBotEditor(id: String?) {
+        guard linkStatus == .online, let teamState else { return }
+        let bot: JSONValue?
+        if let id, case .array(let bots)? = teamState["bots"] {
+            bot = bots.first(where: { $0["id"]?.stringValue == id })
+        } else { bot = nil }
+        if id != nil && bot == nil { return }
+        let editor = BotEditorViewController(bot: bot, state: teamState, session: session)
+        editor.onSaved = { [weak self] target in
+            guard let self else { return }
+            if let target { self.selectTarget(target) }
+            Task { await self.refreshLatest(for: self.sessionID) }
+        }
+        present(UINavigationController(rootViewController: editor), animated: true)
     }
 
     private func showSettings() {

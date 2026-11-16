@@ -260,7 +260,7 @@ private final class OriginalActionIcon: UIView {
 }
 
 /// PlusIcon path from mobile/src/ui/icons.tsx.
-private final class OriginalPlusIcon: UIView {
+final class OriginalPlusIcon: UIView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()
