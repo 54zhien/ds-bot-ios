@@ -60,6 +60,26 @@ final class RpcClientTests: XCTestCase {
         }
     }
 
+    func testHostEventReachesTheRegisteredHandler() async throws {
+        let client = RpcClient(send: { _ in })
+        let log = EventLog()
+        await client.setEventHandler { event, data in
+            Task { await log.append(event: event, data: data) }
+        }
+        let frame = Data(
+            #"{"v":1,"id":"e-1","type":"event","timestamp":1,"payload":{"event":"message","data":{"sessionId":"s-1","item":{"kind":"bot","text":"Ready"}}}}"#.utf8
+        )
+        await client.receive(frame)
+        for _ in 0..<200 {
+            if await log.count > 0 { break }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let received = await log.first
+        XCTAssertEqual(received?.0, "message")
+        XCTAssertEqual(received?.1["sessionId"]?.stringValue, "s-1")
+        XCTAssertEqual(received?.1["item"]?["text"]?.stringValue, "Ready")
+    }
+
     // MARK: - Helpers
 
     private func waitForSent(_ channel: FakeChannel, count: Int) async throws {
@@ -79,6 +99,13 @@ final class RpcClientTests: XCTestCase {
         let text = "{\"v\":1,\"id\":\"m-2\",\"type\":\"rpc.error\",\"timestamp\":1,\"payload\":{\"requestId\":\"\(requestId)\",\"code\":\"\(code)\",\"message\":\"\(message)\"}}"
         return Data(text.utf8)
     }
+}
+
+private actor EventLog {
+    private var entries: [(String, JSONValue)] = []
+    var count: Int { entries.count }
+    var first: (String, JSONValue)? { entries.first }
+    func append(event: String, data: JSONValue) { entries.append((event, data)) }
 }
 
 private struct SentRequest {

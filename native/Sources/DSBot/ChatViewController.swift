@@ -139,7 +139,18 @@ final class ChatViewController: UIViewController {
             await nextSession.setStatusHandler { [weak self] status in
                 Task { @MainActor [weak self] in self?.showStatus(status, for: id) }
             }
+            await nextSession.setEventHandler { [weak self] event, data in
+                Task { @MainActor [weak self] in self?.handleFeed(event, data: data, for: id) }
+            }
             await nextSession.connect(pairing)
+        }
+    }
+
+    private func handleFeed(_ event: String, data: JSONValue, for id: UUID) {
+        guard id == sessionID, linkStatus == .online else { return }
+        if event == "revision" || event == "live"
+            || (event == "message" && data["sessionId"]?.stringValue == chatSessionID) {
+            Task { await refreshLatest(for: id) }
         }
     }
 

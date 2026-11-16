@@ -16,10 +16,15 @@ public actor RpcClient {
     private var waiting: [String: CheckedContinuation<JSONValue, Error>] = [:]
     private var deadlines: [String: Task<Void, Never>] = [:]
     private var closed = false
+    private var onEvent: (@Sendable (String, JSONValue) -> Void)?
 
     public init(options: Options = Options(), send: @escaping @Sendable (Data) async throws -> Void) {
         self.options = options
         self.sendData = send
+    }
+
+    public func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) {
+        onEvent = handler
     }
 
     /// Sends one request and waits for its reply or its deadline.
@@ -55,6 +60,11 @@ public actor RpcClient {
               let type = fields["type"] as? String,
               let payload = fields["payload"] as? [String: Any]
         else { return }
+        if type == MessageType.event.rawValue {
+            guard let event = payload["event"] as? String else { return }
+            onEvent?(event, RpcClient.jsonValue(payload["data"]))
+            return
+        }
         guard let requestId = payload["requestId"] as? String else { return }
         switch type {
         case MessageType.rpcResponse.rawValue:

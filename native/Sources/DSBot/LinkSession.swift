@@ -91,6 +91,7 @@ public actor LinkSession {
     public protocol Channel: Sendable {
         func call(_ method: String, params: JSONValue) async throws -> JSONValue
         func send(_ data: Data) async throws
+        func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) async
         func close() async
     }
 
@@ -105,6 +106,7 @@ public actor LinkSession {
     private var channel: Channel?
     private var dropWaiter: CheckedContinuation<Void, Never>?
     private var onStatus: (@Sendable (Status) -> Void)?
+    private var onEvent: (@Sendable (String, JSONValue) -> Void)?
 
     public init(
         options: Options = Options(),
@@ -123,6 +125,11 @@ public actor LinkSession {
     public func setStatusHandler(_ handler: @escaping @Sendable (Status) -> Void) {
         onStatus = handler
         handler(status)
+    }
+
+    public func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) async {
+        onEvent = handler
+        await channel?.setEventHandler(handler)
     }
 
     public func connect(_ pairing: Pairing) {
@@ -161,6 +168,7 @@ public actor LinkSession {
                 let opened = try await makeChannel(pairing) { [weak self] in
                     Task { await self?.dropped() }
                 }
+                if let onEvent { await opened.setEventHandler(onEvent) }
                 channel = opened
                 setStatus(.online)
                 // A pairing code is valid for the first handshake only. A later
@@ -258,8 +266,16 @@ private struct LiveChannel: LinkSession.Channel {
         try await secure.send(data)
     }
 
+    func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) async {
+        await rpc.setEventHandler(handler)
+    }
+
     func close() async {
         await rpc.close()
         await secure.close()
     }
+}
+
+public extension LinkSession.Channel {
+    func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) async {}
 }
