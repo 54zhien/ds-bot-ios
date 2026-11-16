@@ -48,6 +48,22 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot.native.tests
+  # End-to-end interop: the transport compiles for macOS too, so the matching
+  # workflow can run it on a runner without a simulator.
+  InteropTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources/Transport
+      - path: Tests/InteropTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot.native.interop
+        SWIFT_VERSION: "6.0"
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
 schemes:
   DSBot:
     build:
@@ -59,3 +75,10 @@ schemes:
         - DSBotTests
     run:
       config: Debug
+  Interop:
+    build:
+      targets:
+        InteropTests: [test]
+    test:
+      targets:
+        - InteropTests
