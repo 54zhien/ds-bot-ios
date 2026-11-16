@@ -2,6 +2,7 @@ import UIKit
 
 final class NativeSettingsViewController: UITableViewController {
     var onComputers: (() -> Void)?
+    var onUsage: (() -> Void)?
     private let computerName: String
     private let themes = ["System", "Light", "Dark"]
 
@@ -24,7 +25,7 @@ final class NativeSettingsViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 2 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? 2 : 1
+        section == 0 ? 3 : 1
     }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         section == 0 ? "Phone" : "DS Bot"
@@ -42,6 +43,9 @@ final class NativeSettingsViewController: UITableViewController {
             cell.textLabel?.text = "Appearance"
             let selected = UserDefaults.standard.string(forKey: "dsbot.theme") ?? "System"
             cell.detailTextLabel?.text = selected
+        case (0, 2):
+            cell.textLabel?.text = "Usage"
+            cell.detailTextLabel?.text = nil
         default:
             cell.textLabel?.text = "About DS Bot"
             cell.detailTextLabel?.text = nil
@@ -67,6 +71,9 @@ final class NativeSettingsViewController: UITableViewController {
             sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
             sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
             present(sheet, animated: true)
+        case (0, 2):
+            let action = onUsage
+            dismiss(animated: true) { action?() }
         default:
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
             let about = UIAlertController(title: "DS Bot", message: "iPhone app · version \(version)",

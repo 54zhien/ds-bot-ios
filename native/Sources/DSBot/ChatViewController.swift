@@ -673,7 +673,13 @@ final class ChatViewController: UIViewController {
     private func showSettings() {
         let settings = NativeSettingsViewController(computerName: savedOffer?.name ?? "")
         settings.onComputers = { [weak self] in self?.showPairing() }
+        settings.onUsage = { [weak self] in self?.showUsage() }
         present(UINavigationController(rootViewController: settings), animated: true)
+    }
+
+    private func showUsage() {
+        let usage = UsageViewController(session: session)
+        present(UINavigationController(rootViewController: usage), animated: true)
     }
 
     private func selectTarget(_ target: ChatTarget) {
