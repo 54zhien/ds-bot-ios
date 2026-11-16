@@ -84,7 +84,7 @@ const dataUri = (value: unknown) => `data:${(value as { mime?: string })?.mime ?
 // One displayItems row (parts.js). Bubbles: radius 18, padding 7×12, Bot on the
 // theme's bubble color, the user on user/userInk. `prefs.width` caps the Bot
 // bubble at min(width%, 100% - 40); flat layout draws Bot text full width.
-export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessionId, open, onToggle, onLongPress, onOpenFile, onRetry, stamp, author, admin }: { item: ChatItem; p: Palette; flat: boolean; maxWidth: number | string; inRoom: boolean; sessionId?: string; open?: boolean; onToggle?: () => void; stamp?: string; author?: Bot; admin?: boolean; onLongPress?: (text: string) => void; onOpenFile?: (file: { name: string; attachmentId?: string }) => void; onRetry?: (localId: string, discard?: boolean) => void }) {
+export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessionId, open, onToggle, onOpenFile, onRetry, stamp, author, admin }: { item: ChatItem; p: Palette; flat: boolean; maxWidth: number | string; inRoom: boolean; sessionId?: string; open?: boolean; onToggle?: () => void; stamp?: string; author?: Bot; admin?: boolean; onOpenFile?: (file: { name: string; attachmentId?: string }) => void; onRetry?: (localId: string, discard?: boolean) => void }) {
   const { dark } = useTheme()
   const wholeFile = item.file?.attachmentId !== undefined ? item.file : item.whole?.file?.attachmentId !== undefined ? item.whole.file : undefined
   const chips = (item.files ?? []).map(file => (
@@ -108,7 +108,6 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
   const source = item.answers !== undefined
     ? item.answers.map(answer => [...(answer.selected ?? []), ...(answer.custom ? [answer.custom] : [])].join(', ')).join('\n')
     : bodyJoined
-  const longPress = () => { void Haptics.selectionAsync(); onLongPress?.(source) }
   if (item.kind === 'steps') return <Steps item={item} p={p} open={open === true} onToggle={onToggle ?? (() => {})} />
   if (item.kind === 'divider') {
     const label = typeof item.time === 'number' ? clockLabel(item.time) : ''
@@ -186,19 +185,19 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
       return { title: entry.title, detail }
     })
     if (viewReplies.length > 0) return (
-      <Pressable onLongPress={longPress} style={[styles.settledCard, { backgroundColor: p.card, borderColor: p.line }]}>
+      <View style={[styles.settledCard, { backgroundColor: p.card, borderColor: p.line }]}>
         {viewReplies.map((reply, i) => (
           <View key={i} style={{ gap: 4 }}>
             {reply.title ? <Text style={[type.small, { color: p.ink2, fontWeight: '500' }]}>{reply.title}</Text> : null}
-            <Text style={[type.small, { color: p.ink }]}>{reply.detail !== '' ? reply.detail : source}</Text>
+            <Text selectable style={[type.small, { color: p.ink }]}>{reply.detail !== '' ? reply.detail : source}</Text>
           </View>
         ))}
-      </Pressable>
+      </View>
     )
     // An answered ask_user card folds to its result across the chat column, matching the
     // desktop's SettledQuestion: full width so multi-line picks never collapse or clip.
     if ((item.questions ?? []).length > 0) return (
-      <Pressable onLongPress={longPress} style={[styles.settledCard, { backgroundColor: p.card, borderColor: p.line }]}>
+      <View style={[styles.settledCard, { backgroundColor: p.card, borderColor: p.line }]}>
         {(item.questions ?? []).map((question, i) => {
           const answer = (item.answers ?? []).find(a => question.id !== undefined && a.id === question.id) ?? item.answers?.[i]
           const picks = settledQuestionPicks(question, answer)
@@ -210,18 +209,18 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
                   <View style={[styles.pickBadge, { backgroundColor: p.accent }]}>
                     <Text style={{ color: p.accentInk, fontSize: 12, fontWeight: '600' }}>{pick.letter}</Text>
                   </View>
-                  <Text style={[type.small, { color: p.ink, flex: 1, minWidth: 0, lineHeight: 20 }]}>{pick.label}</Text>
+                  <Text selectable style={[type.small, { color: p.ink, flex: 1, minWidth: 0, lineHeight: 20 }]}>{pick.label}</Text>
                 </View>
               ))}
             </View>
           )
         })}
-      </Pressable>
+      </View>
     )
     return (
-      <Pressable onLongPress={longPress} style={[styles.bubble, styles.userBubble, { backgroundColor: p.user, maxWidth }]}>
-        <Text style={[type.bubble, { color: p.userInk }]}>{source}</Text>
-      </Pressable>
+      <View style={[styles.bubble, styles.userBubble, { backgroundColor: p.user, maxWidth }]}>
+        <Text selectable style={[type.bubble, { color: p.userInk }]}>{source}</Text>
+      </View>
     )
   }
   if (item.kind === 'user') {
@@ -231,7 +230,7 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
     // Photos with no text show as photos, without a bubble around them.
     const photosOnly = (item.text ?? '') === '' && chips.length === 0 && ((item.imageRefs?.length ?? 0) > 0 || (item.localImages?.length ?? 0) > 0)
     const bubble = (
-      <Pressable onLongPress={longPress} onPress={item.local === 'failed' && item.localId !== undefined ? () => onRetry?.(item.localId!) : undefined}
+      <Pressable onPress={item.local === 'failed' && item.localId !== undefined ? () => onRetry?.(item.localId!) : undefined}
         style={[styles.bubble, styles.userBubble, { backgroundColor: p.user, maxWidth, width: wide ? maxWidth : undefined, opacity: item.local === 'sending' ? 0.7 : 1 },
           photosOnly ? { backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 } : null]}>
         {item.text ? <Markdown text={item.text} p={p} textColor={p.userInk} bg={p.user} /> : null}
@@ -272,7 +271,7 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
     return (
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
         <View style={{ width: 22, paddingTop: 22 }}>{author ? <Avatar bot={author} dark={dark} size={22} ring={p.main} /> : null}</View>
-        <Pressable onLongPress={longPress} style={{ flexShrink: 1, minWidth: 0, maxWidth, width: wide ? maxWidth : undefined }}>
+        <View style={{ flexShrink: 1, minWidth: 0, maxWidth, width: wide ? maxWidth : undefined }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3, marginLeft: 2 }}>
             <Text style={[type.caption, { color: author !== undefined ? inkColor(author.color, dark) : p.ink2, fontWeight: '500', flexShrink: 1 }]} numberOfLines={1}>{item.name ?? author?.name ?? ''}</Text>
             {admin ? <Text style={[styles.via, { backgroundColor: p.hover, color: p.ink3 }]}>{t('Admin')}</Text> : null}
@@ -296,7 +295,7 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
               {fullMessageLink}
             </View>
           ) : null}
-        </Pressable>
+        </View>
       </View>
     )
   }
@@ -304,18 +303,18 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
   const wide = bodyTexts.some(hasBlockContent) || hasImages
   if (flat) {
     return (
-      <Pressable onLongPress={longPress} style={{ alignSelf: 'stretch', marginVertical: 4 }}>
+      <View style={{ alignSelf: 'stretch', marginVertical: 4 }}>
         {name}
         {bodyTexts.length > 0 ? <Markdown text={bodyJoined} p={p} textColor={p.ink} bg={p.main} /> : null}
         {hasImages ? <ImageGrid refs={item.imageRefs!} sessionId={sessionId!} p={p} /> : null}
         {chips}
         {fullMessageLink}
         {stamp ? <Text style={[type.caption, { color: p.ink3, marginTop: 4 }]}>{stamp}</Text> : null}
-      </Pressable>
+      </View>
     )
   }
   return (
-    <Pressable onLongPress={longPress} style={{ alignSelf: 'flex-start', maxWidth, width: wide ? maxWidth : undefined }}>
+    <View style={{ alignSelf: 'flex-start', maxWidth, width: wide ? maxWidth : undefined }}>
       {name}
       <View style={[styles.bubble, { backgroundColor: p.bubble, maxWidth: '100%' }]}>
         {bodyTexts.length > 0 ? <Markdown text={bodyJoined} p={p} textColor={p.ink} bg={p.bubble} /> : null}
@@ -324,7 +323,7 @@ export const Item = memo(function Item({ item, p, flat, maxWidth, inRoom, sessio
         {fullMessageLink}
       </View>
       {stamp ? <Text style={[type.caption, { color: p.ink3, marginTop: 2, marginLeft: 4 }]}>{stamp}</Text> : null}
-    </Pressable>
+    </View>
   )
 })
 
@@ -470,28 +469,6 @@ function useOriginal(sessionId: string, ref: ImageRef | undefined): string | und
     return () => { live = false }
   }, [key])
   return uri
-}
-
-// The bottom sheet a long-press opens: copy the source text or read it in a
-// selectable page. ChatView mounts one of each for the whole conversation.
-export function Actions({ visible, text, p, onClose, onSelect }: { visible: boolean; text: string; p: Palette; onClose: () => void; onSelect: () => void }) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose}>
-        <View style={[styles.sheet, { backgroundColor: p.card, borderColor: p.line }]}>
-          <Pressable accessibilityRole="button" onPress={async () => { await Clipboard.setStringAsync(text); onClose() }} style={({ pressed }) => [styles.sheetRow, pressed && { backgroundColor: p.hover }]}>
-            <Text style={[typeScale.settingsRow, { color: p.ink }]}>{t('Copy')}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={onSelect} style={({ pressed }) => [styles.sheetRow, pressed && { backgroundColor: p.hover }]}>
-            <Text style={[typeScale.settingsRow, { color: p.ink }]}>{t('Select text')}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.sheetRow, pressed && { backgroundColor: p.hover }]}>
-            <Text style={[typeScale.settingsRow, { color: p.ink3 }]}>{t('Cancel')}</Text>
-          </Pressable>
-        </View>
-      </Pressable>
-    </Modal>
-  )
 }
 
 // One folded caption row per turn: a tap lists what the tools did.

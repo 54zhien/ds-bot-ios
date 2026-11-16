@@ -15,7 +15,7 @@ import { ArrowDownIcon } from '../ui/icons.tsx'
 import { workPhrase } from '../ui/phrases.ts'
 import { ActionRow, Dock } from './chat/dock.tsx'
 import { Composer, type Photo } from './chat/composer.tsx'
-import { Actions, Item, keysOf, PhotoViewer, PhotoViewerCtx, type ChatItem, type ImageRef } from './chat/items.tsx'
+import { Item, keysOf, PhotoViewer, PhotoViewerCtx, type ChatItem, type ImageRef } from './chat/items.tsx'
 
 // Feed events refresh the chat as things happen; the poll only catches what a
 // dropped event missed, so it runs rarely.
@@ -213,10 +213,10 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
     })
     return () => show.remove()
   }, [])
-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  const [menuText, setMenuText] = useState<string | null>(null)
+  // File text opens in a selectable page; the chat itself keeps native selection.
   const [readerText, setReaderText] = useState<string | null>(null)
   const [readerTitle, setReaderTitle] = useState<string | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [photos, setPhotos] = useState<{ sessionId: string; refs: ImageRef[]; index: number } | null>(null)
   const openFile = useCallback((file: { name: string; attachmentId?: string }) => {
@@ -341,7 +341,7 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
     const skey = item.kind === 'steps' ? row.key : row.key
     return <Item stamp={row.stamp} author={inRoom && item.botId !== undefined ? botsById.get(item.botId) : undefined} admin={inRoom && item.botId !== undefined && item.botId === admin}
       item={item} p={p} flat={flat} maxWidth={item.kind === 'bot' || item.kind === 'post' ? botMax : userMax} inRoom={inRoom} sessionId={sessionId}
-      onLongPress={setMenuText} onOpenFile={openFile} onRetry={retry} open={openSteps[skey]} onToggle={toggleOf(skey)} />
+      onOpenFile={openFile} onRetry={retry} open={openSteps[skey]} onToggle={toggleOf(skey)} />
   }, [inRoom, botsById, admin, p, flat, botMax, userMax, sessionId, openFile, retry, openSteps])
 
   const empty = page !== null && rows.length === 0
@@ -400,9 +400,6 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
       {fileError ? <Text style={[type.small, { color: p.danger, textAlign: 'center', marginBottom: 4 }]} accessibilityRole="alert">{fileError}</Text> : null}
       {page !== null && loadError !== null ? <Text style={[type.small, { color: p.danger, textAlign: 'center', marginBottom: 4, marginHorizontal: 16 }]} accessibilityRole="alert">{loadError}</Text> : null}
       <Composer name={bot?.name ?? room?.name ?? ''} running={running} canStop={canStop} canAttach={hello?.capabilities?.includes('send-images') === true} onSend={send} onStop={stop} onInset={setComposerInsetX} keyboardUp={keyboardUp} p={p} />
-      <Actions visible={menuText !== null} text={menuText ?? ''} p={p}
-        onClose={() => setMenuText(null)}
-        onSelect={() => { setReaderTitle(null); setReaderText(menuText); setMenuText(null) }} />
       <Modal visible={readerText !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setReaderText(null)}>
         <View style={[styles.reader, { backgroundColor: p.main }]}>
           <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 24, paddingBottom: 100 }}>

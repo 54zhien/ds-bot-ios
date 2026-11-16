@@ -10,6 +10,7 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { screenRadius, shadow, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { GlassCluster, GlassControl, GlassPill } from '../ui/glass.tsx'
+import { Fade } from '../ui/fade.tsx'
 import { materialSkin, rimSkin } from '../ui/material.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { GearIcon, PeopleIcon, PlusIcon, SearchIcon, SidebarIcon, SideIcon } from '../ui/icons.tsx'
@@ -28,6 +29,8 @@ import { Sheet, SheetHeader } from './sheet.tsx'
 
 const Stack = createNativeStackNavigator()
 const LAST_KEY = 'dsbot.lastChat'
+// 44 gear + 16 margin + 36 of fade above it.
+const GEAR_FADE = 44 + 16 + 36
 
 // Drawer content = the desktop sidebar as a drawer: "Needs you" row on top when
 // anything is pending, the team list, and a footer with the You mark + gear.
@@ -110,7 +113,8 @@ function DrawerContent() {
           </View>
         </Pressable>
       </Modal>
-      <View style={[styles.foot, { paddingBottom: gearInset, paddingLeft: gearInset }]}>
+      <Fade color={p.sidebar} height={GEAR_FADE} edge="bottom" />
+      <View style={[styles.foot, { left: gearInset, bottom: gearInset }]}>
         {/* Glass reads as nothing against the dark panel once its neighbours are gone, so the gear keeps the 1pt material rim. */}
         <Pressable accessibilityRole="button" accessibilityLabel={t('Settings')} onPress={() => open({ kind: 'settings' })} style={[styles.gear, materialSkin(dark, 22)]}>
           <GearIcon size={24} color={p.ink2} />
@@ -358,8 +362,9 @@ export default function ShellB() {
 const styles = StyleSheet.create({
   needsRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, marginBottom: 4, borderRadius: 10, paddingHorizontal: 8, height: 44 },
   badge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  drawerBody: { flex: 1, marginHorizontal: 16, marginBottom: 8, overflow: 'hidden' },
-  foot: { flexDirection: 'row', alignItems: 'center' },
+  drawerBody: { flex: 1, marginHorizontal: 16, overflow: 'hidden' },
+  // Floating, so the list can run under it and fade out instead of ending at a band.
+  foot: { position: 'absolute', flexDirection: 'row', alignItems: 'center' },
   gear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },

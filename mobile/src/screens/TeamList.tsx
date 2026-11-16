@@ -68,6 +68,7 @@ export function TeamList({ onOpen, query = '', current }: { onOpen: (target: Cha
     <View style={styles.root}>
       {error ? <Text style={[typeScale.small, { color: p.danger, paddingHorizontal: 20, paddingBottom: 4 }]} accessibilityRole="alert">{error}</Text> : null}
       <SectionList
+        contentContainerStyle={{ paddingBottom: 96 }}
         sections={[{ data: entries }]}
         keyExtractor={entry => `${entry.kind}-${entry.item.id}`}
         stickySectionHeadersEnabled={false}
