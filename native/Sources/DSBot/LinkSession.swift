@@ -151,7 +151,8 @@ public actor LinkSession {
 
     // MARK: - Supervisor
 
-    private func runLoop(_ pairing: Pairing) async {
+    private func runLoop(_ initialPairing: Pairing) async {
+        var pairing = initialPairing
         var backoff = Backoff(options: options.retry)
         var failingMs = 0
         while wanted {
@@ -162,6 +163,9 @@ public actor LinkSession {
                 }
                 channel = opened
                 setStatus(.online)
+                // A pairing code is valid for the first handshake only. A later
+                // reconnect authenticates with the phone's stored identity.
+                pairing.pairingCode = nil
                 backoff.reset()
                 failingMs = 0
                 await waitForDrop()
