@@ -29,7 +29,29 @@ final class PairingStoreTests: XCTestCase {
             name: "Desk"
         )
         store.save(offer)
-        XCTAssertEqual(store.load(), offer)
+        XCTAssertEqual(store.load()?.hostDeviceId, offer.hostDeviceId)
+        XCTAssertEqual(store.load()?.serverURL, offer.serverURL)
+        XCTAssertEqual(store.load()?.code, "", "a used pairing code must not survive a restart")
+    }
+
+    func testTwoComputersCanBeSwitchedAndOneForgotten() {
+        let store = PairingStore(defaults: defaults)
+        let first = PairingOffer(
+            serverURL: URL(string: "wss://first.example/v1/link")!,
+            hostDeviceId: "d-first", hostKey: "first-key", code: "once", name: "First"
+        )
+        let second = PairingOffer(
+            serverURL: URL(string: "wss://second.example/v1/link")!,
+            hostDeviceId: "d-second", hostKey: "second-key", code: "once", name: "Second"
+        )
+        store.save(first)
+        store.save(second)
+        XCTAssertEqual(store.all().map(\.hostDeviceId), ["d-first", "d-second"])
+        XCTAssertEqual(store.load()?.hostDeviceId, "d-second")
+        store.activate("d-first")
+        XCTAssertEqual(store.load()?.hostDeviceId, "d-first")
+        store.remove("d-first")
+        XCTAssertEqual(store.load()?.hostDeviceId, "d-second")
     }
 
     func testClearingLeavesNothingToReconnectTo() {

@@ -49,6 +49,7 @@ final class ChatViewController: UIViewController {
         configureList()
         configureComposer()
         savedOffer = pairingStore.load()
+        navigationItem.rightBarButtonItem?.title = savedOffer == nil ? "Pair" : "Computers"
         updateEmptyState()
         if let savedOffer { connect(to: savedOffer, pairingCode: nil) }
     }
@@ -187,6 +188,7 @@ final class ChatViewController: UIViewController {
                 pairingStore.save(pendingOffer)
                 savedOffer = pendingOffer
                 self.pendingOffer = nil
+                navigationItem.rightBarButtonItem?.title = "Computers"
                 updateEmptyState()
                 presentedViewController?.dismiss(animated: true)
             }
@@ -359,6 +361,51 @@ final class ChatViewController: UIViewController {
     }
 
     @objc private func showPairing() {
+        if savedOffer != nil {
+            let computers = ComputersViewController(store: pairingStore)
+            computers.onAdd = { [weak self] in self?.presentPairingSheet() }
+            computers.onSwitch = { [weak self] offer in
+                guard let self else { return }
+                savedOffer = offer
+                connect(to: offer, pairingCode: nil)
+            }
+            computers.onForget = { [weak self] forgottenID in
+                guard let self, savedOffer?.hostDeviceId == forgottenID else { return }
+                savedOffer = pairingStore.load()
+                if let savedOffer {
+                    connect(to: savedOffer, pairingCode: nil)
+                } else {
+                    let old = session
+                    session = LinkSession()
+                    sessionID = UUID()
+                    polling?.cancel()
+                    polling = nil
+                    linkStatus = .disconnected
+                    composer.canSend = false
+                    composer.running = false
+                    botID = nil
+                    roomID = nil
+                    selectedTarget = nil
+                    teamState = nil
+                    chatSessionID = nil
+                    cursor = nil
+                    olderRows = []
+                    latestRows = []
+                    rows = []
+                    list.reloadData()
+                    updateEmptyState()
+                    statusLabel.text = "Not paired"
+                    navigationItem.rightBarButtonItem?.title = "Pair"
+                    Task { await old.disconnect() }
+                }
+            }
+            present(UINavigationController(rootViewController: computers), animated: true)
+            return
+        }
+        presentPairingSheet()
+    }
+
+    private func presentPairingSheet() {
         let sheet = PairingViewController()
         sheet.onPair = { [weak self] offer in
             guard let self else { return }
