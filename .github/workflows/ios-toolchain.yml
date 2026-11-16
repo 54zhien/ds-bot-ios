@@ -54,10 +54,10 @@ jobs:
           version="$(xcrun --sdk iphoneos --show-sdk-version)"
           echo "iphoneos SDK $version at $sdk"
           if grep -rqs "UIGlassEffect" "$sdk/System/Library/Frameworks/UIKit.framework"; then
-            echo "present" >> "$GITHUB_OUTPUT"
+            echo "glass=present" >> "$GITHUB_OUTPUT"
             echo "UIGlassEffect: present"
           else
-            echo "absent" >> "$GITHUB_OUTPUT"
+            echo "glass=absent" >> "$GITHUB_OUTPUT"
             echo "UIGlassEffect: absent"
           fi
 
