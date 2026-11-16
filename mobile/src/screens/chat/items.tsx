@@ -1,10 +1,9 @@
 import { createContext, memo, useContext, useEffect, useState } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import * as Clipboard from 'expo-clipboard'
-import * as Haptics from 'expo-haptics'
 import { t, clockLabel, messageClock } from '../../ui/i18n.ts'
 import { CheckIcon } from '../../ui/icons.tsx'
+import { GlassButton } from '../../ui/glass.tsx'
 import { Avatar } from '../../ui/marks.tsx'
 import type { Bot } from '../../connection.ts'
 import { imPlatform } from '../../../../ds-bot/src/shared/im-platforms.js'
@@ -407,9 +406,9 @@ export function PhotoViewer({ open, onClose }: { open: { sessionId: string; refs
         ) : null}
         <View style={[styles.viewerBar, { top: insets.top + 6 }]} pointerEvents="box-none">
           {refs.length > 1 ? <Text style={[typeScale.small, { color: 'rgba(255,255,255,0.8)' }]}>{`${at + 1} / ${refs.length}`}</Text> : <View />}
-          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} style={styles.viewerClose}>
+          <GlassButton accessibilityRole="button" onPress={onClose} style={styles.viewerClose}>
             <Text style={[typeScale.settingsRow, { color: '#fff' }]}>{t('Done')}</Text>
-          </Pressable>
+          </GlassButton>
         </View>
       </View>
     </Modal>
@@ -507,7 +506,7 @@ const styles = StyleSheet.create({
   tileBody: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 8, gap: 4 },
   viewer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
   viewerBar: { position: 'absolute', left: 16, right: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  viewerClose: { padding: 10 },
+  viewerClose: { minHeight: 44, paddingHorizontal: 18, paddingVertical: 8 },
   reader: { flex: 1, paddingTop: 60 },
   via: { fontSize: 11, lineHeight: 16, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden', flexShrink: 0 },
   readerClose: { position: 'absolute', bottom: 30, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },

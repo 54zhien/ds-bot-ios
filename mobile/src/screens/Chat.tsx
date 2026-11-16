@@ -8,7 +8,9 @@ import { createChatCache } from '../team/chat-cache.ts'
 import { useTeam } from '../team/context.tsx'
 import { markSeen } from '../team/seen.ts'
 import { messageClock, t } from '../ui/i18n.ts'
-import { headerHeight, shadow, useTheme } from '../ui/tokens.ts'
+import { headerHeight, useTheme } from '../ui/tokens.ts'
+import { GlassButton, GlassControl } from '../ui/glass.tsx'
+import { materialSkin } from '../ui/material.tsx'
 import { GlassFade } from '../ui/fade.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
 import { ArrowDownIcon } from '../ui/icons.tsx'
@@ -384,10 +386,11 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
               />}
         {empty && !gone ? <EmptyChat bot={bot} room={room} bots={team?.bots ?? []} p={p} dark={dark} /> : null}
         {awayFromLatest ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={t('Latest messages')} onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}
-            style={[styles.toLatest, { backgroundColor: p.card, borderColor: p.line2 }, shadow(2)]}>
-            <ArrowDownIcon size={18} color={p.ink2} />
-          </Pressable>
+          <View style={styles.toLatest}>
+            <GlassControl label={t('Latest messages')} onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}>
+              <ArrowDownIcon size={24} color={p.ink2} />
+            </GlassControl>
+          </View>
         ) : null}
       </View>
       <GlassFade height={headerHeight(insets.top) + 36} edge="top" />
@@ -406,9 +409,9 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
             {readerTitle !== null ? <Text style={[type.caption, { color: p.ink3, marginBottom: 10 }]}>{readerTitle}</Text> : null}
             <Text selectable style={[type.bubble, { color: p.ink, fontFamily: readerTitle === null || readerTitle.match(/\.(md|markdown|txt)$/i) ? undefined : 'monospace' }]}>{readerText ?? ''}</Text>
           </ScrollView>
-          <Pressable accessibilityRole="button" onPress={() => setReaderText(null)} style={[styles.readerClose, { backgroundColor: p.card, borderColor: p.line, bottom: insets.bottom + 16 }]}>
+          <GlassButton accessibilityRole="button" onPress={() => setReaderText(null)} style={[styles.readerClose, { bottom: insets.bottom + 16 }]}>
             <Text style={[type.settingsRow, { color: p.accent }]}>{t('Done')}</Text>
-          </Pressable>
+          </GlassButton>
         </View>
       </Modal>
       <PhotoViewer open={photos} onClose={() => setPhotos(null)} />
@@ -484,6 +487,7 @@ function GoalBar({ goal, p }: { goal: Goal; p: ReturnType<typeof useTheme>['p'] 
 // Computer use (computer.js): a Bot's ask to use an app, answered Deny / This time /
 // Always, and a bar with Stop while it holds the computer.
 function ComputerCards({ bot, p }: { bot: Bot; p: ReturnType<typeof useTheme>['p'] }) {
+  const { dark } = useTheme()
   const { team, call } = useTeam()
   const [error, setError] = useState<string | null>(null)
   const live = (team as { computerLive?: { bots?: Record<string, { state?: string; app?: string }>; asks?: Record<string, { id: string; botId: string; appName?: string }> } } | null)?.computerLive
@@ -498,16 +502,16 @@ function ComputerCards({ bot, p }: { bot: Bot; p: ReturnType<typeof useTheme>['p
         <View key={ask.id} style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line }]}>
           <Text style={[type.settingsRow, { color: p.ink }]}>{t('Allow {name} to use {app}?', { name: bot.name, app: ask.appName ?? '' })}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-            <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'deny' })} style={[styles.fix, { backgroundColor: p.hover }]}><Text style={{ color: p.ink }}>{t('Deny')}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'deny' })} style={[styles.fix, { backgroundColor: p.hover }, materialSkin(dark, 20)]}><Text style={{ color: p.ink }}>{t('Deny')}</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'once' })} style={[styles.fix, { backgroundColor: p.hover }]}><Text style={{ color: p.ink }}>{t('This time')}</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'always' })} style={[styles.fix, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Always')}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => act('computer-app-answer', { id: ask.id, answer: 'always' })} style={[styles.fix, { backgroundColor: p.accent }, materialSkin(dark, 20)]}><Text style={{ color: p.accentInk, fontWeight: '600' }}>{t('Always')}</Text></Pressable>
           </View>
         </View>
       ))}
       {acting ? (
         <View style={[styles.blocked, { backgroundColor: p.card, borderColor: p.line, flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }]}>
           <Text style={[type.small, { color: p.ink, flex: 1 }]} numberOfLines={1}>{control?.app ? `${t('Computer use')} · ${control.app}` : t('Computer use')}</Text>
-          <Pressable accessibilityRole="button" onPress={() => act('computer-stop', { botId: bot.id })} style={[styles.fix, { backgroundColor: p.hover, minHeight: 36 }]}><Text style={{ color: p.danger }}>{t('Stop')}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => act('computer-stop', { botId: bot.id })} style={[styles.fix, { backgroundColor: p.hover, minHeight: 36 }, materialSkin(dark, 18)]}><Text style={{ color: p.danger }}>{t('Stop')}</Text></Pressable>
         </View>
       ) : null}
       {error ? <Text style={[type.small, { color: p.danger, marginHorizontal: 16, marginBottom: 6 }]}>{error}</Text> : null}
@@ -577,9 +581,9 @@ const styles = StyleSheet.create({
   listContent: { paddingVertical: 8, paddingHorizontal: 16 },
   reader: { flex: 1 },
   empty: { position: 'absolute', left: 24, right: 24, top: '28%', alignItems: 'center' },
-  toLatest: { position: 'absolute', right: 14, bottom: 10, width: 38, height: 38, borderRadius: 19, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  toLatest: { position: 'absolute', right: 16, bottom: 12 },
   goal: { marginHorizontal: 12, marginBottom: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 10 },
   blocked: { marginHorizontal: 12, marginBottom: 8, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 14 },
   fix: { minHeight: 44, borderRadius: 20, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  readerClose: { position: 'absolute', bottom: 30, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },
+  readerClose: { position: 'absolute', alignSelf: 'center', minHeight: 44, paddingHorizontal: 24, paddingVertical: 10 },
 })
