@@ -157,6 +157,7 @@ jobs:
             exit 1
           fi
           echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "project=$project_file" >> "$GITHUB_OUTPUT"
           echo "compiling scheme $scheme from $project_file"
 
       # The simulator is read off the image, never hardcoded: image contents drift, and two
@@ -375,6 +376,7 @@ jobs:
             exit 1
           fi
           echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "project=$project_file" >> "$GITHUB_OUTPUT"
           echo "building scheme $scheme from $project_file"
 
       - name: Archive
@@ -383,7 +385,7 @@ jobs:
           set -o pipefail
           mkdir -p dist
           xcodebuild archive \
-            -project "${{ steps.project.outputs.project }}" \
+            -project "${{ steps.generate.outputs.project }}" \
             -scheme "${{ steps.project.outputs.scheme }}" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
