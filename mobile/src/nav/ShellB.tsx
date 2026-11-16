@@ -132,7 +132,7 @@ function Pill({ title, bot, room, bots }: { title: string; bot?: Parameters<type
   const { p, dark } = useTheme()
   return (
     <GlassPill height={44} style={{ maxWidth: '100%' }}>
-      {bot ? <Avatar bot={bot} dark={dark} size={28} ring={p.main} /> : room ? <RoomAvatar room={room} bots={bots} dark={dark} size={28} ring={p.main} /> : null}
+      {bot ? <Avatar bot={bot} dark={dark} size={28} ring={p.main} /> : room ? <RoomAvatar room={room} bots={bots} dark={dark} size={28} ring="transparent" /> : null}
       <Text style={{ color: p.ink, fontSize: 15, lineHeight: 20, fontWeight: '500', flexShrink: 1 }} numberOfLines={1}>{title}</Text>
     </GlassPill>
   )

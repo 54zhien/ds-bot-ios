@@ -350,8 +350,10 @@ export function ChatView({ bot, room, header, onMissing }: { bot?: Bot; room?: R
   return (
     <PhotoViewerCtx.Provider value={setPhotos}>
     <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={[styles.screen, { backgroundColor: p.main }]}>
+      {/* zIndex 1 mounts this after the list (0), so the scroll edge effect still resolves to the
+          list's scroll view, and stays below the floating header (10). */}
       {room !== undefined && (room as { goal?: Goal }).goal
-        ? <View style={{ paddingTop: headerHeight(insets.top) }}><GoalBar goal={(room as { goal?: Goal }).goal!} p={p} /></View>
+        ? <View style={{ paddingTop: headerHeight(insets.top), zIndex: 1 }}><GoalBar goal={(room as { goal?: Goal }).goal!} p={p} /></View>
         : null}
       <View style={styles.list} onLayout={event => setChatWidth(event.nativeEvent.layout.width - 32)}>
         {gone

@@ -6,6 +6,7 @@ import { INKS } from '../../../ds-bot/src/client/inks.js'
 import type { Bot, Room } from '../connection.ts'
 import { MainStarIcon } from './icons.tsx'
 import { useTheme } from './tokens.ts'
+import { materialSkin, rimSkin } from './material.tsx'
 
 // The Bot's own mascot, drawn by the same generator as the desktop mark
 // (ds-bot/src/client/characters.js). CSS ink variables resolve to the mode's color.
@@ -158,9 +159,9 @@ export function RoomAvatar({ room, bots, dark, size = 44, ring }: { room: Room; 
       overlays.push(
         <View key="more" style={[styles.seat, {
           left: x + s * 0.04, top: y + s * 0.04, width: s * 0.92, height: s * 0.92, borderRadius: s / 2,
-          backgroundColor: p.active, alignItems: 'center', justifyContent: 'center',
-        }]}>
-          <Text style={{ fontSize: Math.max(8, Math.round(s * 0.36)), lineHeight: s * 0.92, fontWeight: '500', color: p.ink3 }}>{`+${overflow}`}</Text>
+          alignItems: 'center', justifyContent: 'center',
+        }, materialSkin(dark, s / 2)]}>
+          <Text style={{ fontSize: Math.max(8, Math.round(s * 0.36)), lineHeight: s * 0.92, fontWeight: '500', color: p.ink2 }}>{`+${overflow}`}</Text>
         </View>,
       )
       return
@@ -168,7 +169,7 @@ export function RoomAvatar({ room, bots, dark, size = 44, ring }: { room: Room; 
     const bot = people[index]
     if (bot === null) {
       // The user's own seat: a quiet disc, not a character (mark.js:149).
-      overlays.push(<View key="you" style={[styles.seat, { left: x + s * 0.04, top: y + s * 0.04, width: s * 0.92, height: s * 0.92, borderRadius: s / 2, backgroundColor: p.lineWeak }]} />)
+      overlays.push(<View key="you" style={[styles.seat, { left: x + s * 0.04, top: y + s * 0.04, width: s * 0.92, height: s * 0.92, borderRadius: s / 2, backgroundColor: 'transparent' }, rimSkin(dark)]} />)
       return
     }
     const look = lookOf(bot)
