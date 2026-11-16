@@ -124,14 +124,11 @@ private final class ChannelBox: @unchecked Sendable {
     }
 
     var attempts: Int {
-        lock.lock(); defer { lock.unlock() }
-        return attemptsStorage
+        lock.withLock { attemptsStorage }
     }
 
     func drop() {
-        lock.lock()
-        let handler = dropHandler
-        lock.unlock()
+        let handler = lock.withLock { dropHandler }
         handler?()
     }
 
@@ -155,14 +152,17 @@ private final class ChannelBox: @unchecked Sendable {
         _ pairing: LinkSession.Pairing,
         _ dropped: @escaping @Sendable () -> Void
     ) async throws -> LinkSession.Channel {
-        lock.lock()
-        attemptsStorage += 1
-        let attempt = attemptsStorage
-        let failing = attempt <= failuresBeforeSuccess
-        if !failing { dropHandler = dropped }
-        lock.unlock()
+        // Swift 6 refuses a bare lock()/unlock() pair across an await, so every read and
+        // write of the shared state happens inside this one scoped lock.
+        let (attempt, failing) = lock.withLock { () -> (Int, Bool) in
+            attemptsStorage += 1
+            let current = attemptsStorage
+            let failing = current <= failuresBeforeSuccess
+            if !failing { dropHandler = dropped }
+            return (current, failing)
+        }
         if failing {
-            throw TransportError(.invalidFrame, "attempt failed")
+            throw TransportError(.invalidFrame, "attempt (attempt) failed")
         }
         return StubChannel()
     }
