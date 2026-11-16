@@ -1,3 +1,18 @@
+# 部署要点摘要（中文）
+
+- **买什么**：2 核 2G、5 Mbps 起，选你和手机都近的机房；国内机房最省事，跨境那一跳 200ms 起步是白送的。
+- **证书**：一个域名 + Let's Encrypt，443 上跑 TLS；不要自签——手机不信任自签链，握手直接失败。
+- **反代**：必须转发 WebSocket 升级（`proxy_http_version 1.1`、`Upgrade`、`Connection`），关掉 `proxy_buffering`，`proxy_read_timeout` 至少 60 秒（心跳是 25 秒，短于它必被掐）。
+- **TRUST_PROXY**：反代后面必须 `DSBOT_LINK_TRUST_PROXY=1`。不开的话所有手机都算成反代那一个 IP，256 个 socket 和每小时 20 个新设备的限额被全站共用，一个人就能占满。
+- **只放行 80/443 的网**：我们本来就是 443 上的 TLS，看起来就是普通 HTTPS，不需要额外端口；80 不要开，也别为了「通」把 relay 暴露成明文。
+- **落盘**：`DSBOT_LINK_DATA` 指向一个文件，否则重启后设备表清空，所有手机都要重新配对。
+- **自检**：`curl https://<域名>/healthz` 要回 `ok`；WebSocket 升级用 §1 那条 curl，必须回 `101`。
+- **启动**：`HOST=127.0.0.1 PORT=8787 DSBOT_LINK_DATA=/var/lib/dsbot-link/devices.json DSBOT_LINK_TRUST_PROXY=1 node server/main.ts`，8787 只绑回环。
+- **私网例外**：同一 tailnet/内网里可以 `ws://IP:8787` 免证书，但 hello 里的 token 是明文，只能在可信网络用。
+- **主备**：准备第二个地址；主挂了在电脑「设置 → Phone」改地址，再让每台手机重扫二维码，没有自动故障转移（见 §7）。
+
+---
+
 # Deploying the DS Bot link
 
 How to run the Relay Server (`link/server/`) for phones and computers behind
@@ -215,6 +230,52 @@ DSBOT_LINK_TRUST_PROXY=1 \
 node server/main.ts
 ```
 
+## 7. Primary and backup relays
+
+The relay address is part of the pairing, not of the protocol: it travels in the
+pairing URI (`src/pairing.ts:55-65`) and the phone stores it with the computer
+(`mobile/src/store.ts:73`). One address per pairing — there is no endpoint list
+and no automatic failover.
+
+**The backup needs its own name and certificate.** A relay is reached by the
+hostname written in the pairing code, so a `wss://` backup needs its own
+CA-issued certificate and hostname — the same CA (Let's Encrypt), not the same
+certificate. The two relays share nothing: each keeps its own device table
+(`server/store.ts:28-42`), so a phone appearing on the backup is a new record
+there (`server/store.ts:57-73`) and counts against that address's
+`maxNewDevicesPerHour` (`server/gateway.ts:116-125`). A backup reachable only
+inside a tailnet can use `ws://IP:8787` and needs no certificate, at the cost of
+the token travelling in clear (`src/frames.ts:45-53`).
+
+**What happens to the old connection when the address changes.** Nothing is
+migrated. A transport is built for one address (`src/relay-transport.ts:69-73`)
+and has no setter; the next attempt builds a new one from the pairing record
+(`mobile/src/net/supervised.ts:19`). The old socket is closed by whatever owns
+the attempt (`src/relay-transport.ts:243-248`), which reports exactly one close
+through `endSocket` (`89-101`). Calls in flight at that moment fail with
+`TRANSPORT_CLOSED` (`src/rpc-client.ts:124-127`) and are never resent
+(`src/rpc-client.ts:32-35`, `91-97`).
+
+**Without automatic failover, this is the manual sequence:**
+
+1. On the computer: Settings → Phone → server address
+   (`ds-bot/src/host/phone.js:137`). The running link stops itself as soon as
+   the address differs from the one it was started with
+   (`ds-bot/src/host/phone.js:87`) and reconnects on the next `phoneView()`
+   (`:114`), which `phone-set` returns (`:166`) — no restart needed.
+2. On each phone: forget the computer and scan the new QR code.
+   The address only changes at pairing (`mobile/src/store.ts:73`) and the app
+   has no field to edit it — the row only shows it and offers Forget
+   (`mobile/src/screens/manage.tsx:1036`, `:1044`). The phone's identity does
+   not change, so the computer's registry keeps it and re-authorising just
+   refreshes the record (`src/pairing.ts:132-145`).
+3. Until step 2 the phone keeps retrying the dead address: seven consecutive
+   failures take about 63 s, then the bar shows "not connected" with Retry.
+   Retry only cuts the current wait short — it cannot change the address.
+
+The cost of a switch is one QR scan per phone and one interrupted call per
+phone; plan it for a quiet moment.
+
 ## What this does not cover
 
 - Client-side HTTP proxies that are not transparent: the clients open a raw
@@ -222,5 +283,5 @@ node server/main.ts
   platform routes it through a system proxy is **unverified**.
 - TLS trust rules on iOS and Android; the statements above come from platform
   behaviour, not from a test here.
-- More than one relay address per pairing: the address travels in the pairing
-  code (`src/pairing.ts:55-65`), so changing it means pairing the phone again.
+- Automatic failover between relays: §7 describes what the client does when the
+  address changes, and nothing migrates a live link.
