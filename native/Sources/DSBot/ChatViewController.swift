@@ -7,6 +7,8 @@ final class ChatViewController: UIViewController {
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
     private let composer = NativeComposerView()
+    private var computerItem: UIBarButtonItem!
+    private var sideItem: UIBarButtonItem!
     private var composerHeight: NSLayoutConstraint!
     private let pendingButton = UIButton(type: .system)
     private var pendingHeight: NSLayoutConstraint!
@@ -35,6 +37,7 @@ final class ChatViewController: UIViewController {
     private var acknowledgedRows: [String: Set<String>] = [:]
     private var imageCache: [String: UIImage] = [:]
     private var imageReads = Set<String>()
+    private var expandedSteps = Set<String>()
     private var cursor: JSONValue?
     private var chatSessionID: String?
     private var botID: String?
@@ -82,6 +85,11 @@ final class ChatViewController: UIViewController {
         "\(savedOffer?.hostDeviceId ?? ""):\(chatSessionID ?? ""):\(attachmentID)"
     }
 
+    private func updateSideButton() {
+        navigationItem.rightBarButtonItems = botID != nil && chatSessionID != nil
+            ? [sideItem, computerItem] : [computerItem]
+    }
+
     private func loadPreview(_ attachmentID: String, sessionID: String) {
         let key = imageKey(attachmentID)
         guard imageCache[key] == nil, imageReads.insert(key).inserted else { return }
@@ -94,14 +102,21 @@ final class ChatViewController: UIViewController {
             ]), on: session),
                   let encoded = result["data"]?.stringValue,
                   let bytes = Data(base64Encoded: encoded), let image = UIImage(data: bytes),
-                  connectionID == self.sessionID else { return }
+                  connectionID == self.sessionID, self.chatSessionID == sessionID else { return }
             imageCache[key] = image
             for path in list.indexPathsForVisibleRows ?? [] where rows[path.row].imageRefs.contains(attachmentID) {
                 if let cell = list.cellForRow(at: path) as? ChatMessageCell {
-                    cell.configure(rows[path.row], image: image)
+                    cell.configure(rows[path.row], images: previewImages(for: rows[path.row]),
+                                   stepsExpanded: expandedSteps.contains(rows[path.row].sourceKey))
                 }
             }
         }
+    }
+
+    private func previewImages(for row: ChatRow) -> [String: UIImage] {
+        Dictionary(uniqueKeysWithValues: row.imageRefs.compactMap { reference in
+            imageCache[imageKey(reference)].map { (reference, $0) }
+        })
     }
 
     private func openPhoto(_ attachmentID: String) {
@@ -120,13 +135,36 @@ final class ChatViewController: UIViewController {
         }
     }
 
+    private func openFile(_ file: ChatFile) {
+        guard linkStatus == .online else { return }
+        Task {
+            do {
+                let result = try await BotAPI.call("file-text", payload: .object([
+                    "file": file.value,
+                ]), on: session)
+                let content = result.stringValue ?? result["text"]?.stringValue ?? ""
+                let reader = TextReaderViewController(title: file.title, content: content)
+                present(UINavigationController(rootViewController: reader), animated: true)
+            } catch { showActionError(error.localizedDescription) }
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Chat"
         view.backgroundColor = .systemBackground
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
+        computerItem = UIBarButtonItem(
             title: "Pair", style: .plain, target: self, action: #selector(showPairing)
         )
+        let sideButton = UIButton(type: .system)
+        sideButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        sideButton.accessibilityLabel = "Side chat"
+        sideButton.addTarget(self, action: #selector(showSideChat), for: .touchUpInside)
+        let sideIcon = OriginalSideIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
+        sideIcon.isUserInteractionEnabled = false
+        sideButton.addSubview(sideIcon)
+        sideItem = UIBarButtonItem(customView: sideButton)
+        updateSideButton()
         let teamButton = UIButton(type: .system)
         teamButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         teamButton.accessibilityLabel = "Team"
@@ -140,7 +178,7 @@ final class ChatViewController: UIViewController {
         configureList()
         configureComposer()
         savedOffer = pairingStore.load()
-        navigationItem.rightBarButtonItem?.title = savedOffer == nil ? "Pair" : "Computers"
+        computerItem.title = savedOffer == nil ? "Pair" : "Computers"
         updateEmptyState()
         if let savedOffer { connect(to: savedOffer, pairingCode: nil) }
     }
@@ -219,6 +257,7 @@ final class ChatViewController: UIViewController {
         polling = nil
         botID = nil
         roomID = nil
+        updateSideButton()
         selectedTarget = nil
         teamState = nil
         pendingItems = []
@@ -227,6 +266,7 @@ final class ChatViewController: UIViewController {
         olderRows = []
         latestRows = []
         rows = []
+        expandedSteps = []
         cursor = nil
         list.reloadData()
         updateEmptyState()
@@ -318,7 +358,7 @@ final class ChatViewController: UIViewController {
                 pairingStore.save(pendingOffer)
                 savedOffer = pendingOffer
                 self.pendingOffer = nil
-                navigationItem.rightBarButtonItem?.title = "Computers"
+                computerItem.title = "Computers"
                 updateEmptyState()
                 presentedViewController?.dismiss(animated: true)
             }
@@ -386,6 +426,8 @@ final class ChatViewController: UIViewController {
             guard let target else {
                 botID = nil
                 roomID = nil
+                chatSessionID = nil
+                updateSideButton()
                 pendingItems = []
                 updatePendingButton()
                 rows = []
@@ -403,6 +445,7 @@ final class ChatViewController: UIViewController {
                 title = chosen?["name"]?.stringValue ?? target.name
                 chatSessionID = nil
                 olderRows = []
+                expandedSteps = []
                 cursor = nil
             }
             composer.canSend = true
@@ -418,7 +461,7 @@ final class ChatViewController: UIViewController {
             let endpoint = target.kind == .bot ? "chat" : "room-chat"
             let parameter = target.kind == .bot ? "botId" : "roomId"
             let value = try await BotAPI.call(endpoint, payload: .object([
-                parameter: .string(target.id), "steps": .bool(false),
+                parameter: .string(target.id), "steps": .bool(true),
             ]), on: session)
             guard id == sessionID, linkStatus == .online,
                   botID == (target.kind == .bot ? target.id : nil),
@@ -433,6 +476,7 @@ final class ChatViewController: UIViewController {
                 cursor = page.cursor
             }
             chatSessionID = nextSessionID
+            updateSideButton()
             updatePending(state, sessionID: nextSessionID)
             latestRows = page.items
             rebuildRows()
@@ -464,7 +508,7 @@ final class ChatViewController: UIViewController {
             do {
                 let value = try await BotAPI.call(isRoom ? "room-chat" : "chat", payload: .object([
                     parameter: .string(targetID),
-                    "cursor": cursor, "steps": .bool(false),
+                    "cursor": cursor, "steps": .bool(true),
                 ]), on: session)
                 guard id == sessionID, linkStatus == .online,
                       (isRoom ? roomID : botID) == targetID else { return }
@@ -511,6 +555,8 @@ final class ChatViewController: UIViewController {
                     composer.running = false
                     botID = nil
                     roomID = nil
+                    chatSessionID = nil
+                    updateSideButton()
                     selectedTarget = nil
                     teamState = nil
                     pendingItems = []
@@ -523,7 +569,7 @@ final class ChatViewController: UIViewController {
                     list.reloadData()
                     updateEmptyState()
                     statusLabel.text = "Not paired"
-                    navigationItem.rightBarButtonItem?.title = "Pair"
+                    computerItem.title = "Pair"
                     Task { await old.disconnect() }
                 }
             }
@@ -553,6 +599,18 @@ final class ChatViewController: UIViewController {
         team.onEditBot = { [weak self] id in self?.showBotEditor(id: id) }
         team.onEditGroup = { [weak self] id in self?.showGroupEditor(id: id) }
         present(UINavigationController(rootViewController: team), animated: true)
+    }
+
+    @objc private func showSideChat() {
+        guard linkStatus == .online, let botID, let chatSessionID else { return }
+        let name: String
+        if case .array(let bots)? = teamState?["bots"],
+           let bot = bots.first(where: { $0["id"]?.stringValue == botID }) {
+            name = bot["name"]?.stringValue ?? "Bot"
+        } else { name = "Bot" }
+        let side = SideChatViewController(botID: botID, botName: name,
+                                          sessionID: chatSessionID, session: session)
+        present(UINavigationController(rootViewController: side), animated: true)
     }
 
     private func showBotEditor(id: String?) {
@@ -599,9 +657,11 @@ final class ChatViewController: UIViewController {
         botID = nil
         roomID = nil
         chatSessionID = nil
+        updateSideButton()
         olderRows = []
         latestRows = []
         rows = []
+        expandedSteps = []
         cursor = nil
         title = target.name
         pendingItems = []
@@ -783,10 +843,14 @@ extension ChatViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "row", for: indexPath) as! ChatMessageCell
         let row = rows[indexPath.row]
-        let image = row.imageRefs.first.flatMap { imageCache[imageKey($0)] }
-        cell.configure(row, image: image)
-        if image == nil, let attachmentID = row.imageRefs.first, let chatSessionID {
-            loadPreview(attachmentID, sessionID: chatSessionID)
+        cell.configure(row, images: previewImages(for: row),
+                       stepsExpanded: expandedSteps.contains(row.sourceKey))
+        cell.onOpenFile = { [weak self] file in self?.openFile(file) }
+        cell.onOpenPhoto = { [weak self] reference in self?.openPhoto(reference) }
+        if let chatSessionID {
+            for reference in row.imageRefs where imageCache[imageKey(reference)] == nil {
+                loadPreview(reference, sessionID: chatSessionID)
+            }
         }
         return cell
     }
@@ -796,6 +860,12 @@ extension ChatViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         guard rows.indices.contains(indexPath.row) else { return }
+        if rows[indexPath.row].kind == "steps" {
+            let key = rows[indexPath.row].sourceKey
+            if !expandedSteps.insert(key).inserted { expandedSteps.remove(key) }
+            tableView.reloadRows(at: [indexPath], with: .none)
+            return
+        }
         if let attachmentID = rows[indexPath.row].imageRefs.first {
             openPhoto(attachmentID)
             return
@@ -859,11 +929,50 @@ private final class PhotoViewController: UIViewController {
     @objc private func close() { dismiss(animated: true) }
 }
 
+private final class TextReaderViewController: UIViewController {
+    private let content: String
+    private let reader = UITextView()
+
+    init(title: String, content: String) {
+        self.content = content
+        super.init(nibName: nil, bundle: nil)
+        self.title = title
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .done, target: self, action: #selector(close)
+        )
+        reader.translatesAutoresizingMaskIntoConstraints = false
+        reader.isEditable = false
+        reader.isSelectable = true
+        reader.font = .preferredFont(forTextStyle: .body)
+        reader.text = content
+        view.addSubview(reader)
+        NSLayoutConstraint.activate([
+            reader.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            reader.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            reader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            reader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+        ])
+    }
+
+    @objc private func close() { dismiss(animated: true) }
+}
+
 private final class ChatMessageCell: UITableViewCell {
+    var onOpenFile: ((ChatFile) -> Void)?
+    var onOpenPhoto: ((String) -> Void)?
     private let bubble = UIView()
     private let authorLabel = UILabel()
     private let messageLabel = UILabel()
-    private let photoView = UIImageView()
+    private let photoScroll = UIScrollView()
+    private let photoStack = UIStackView()
+    private let fileStack = UIStackView()
     private let timeLabel = UILabel()
     private var leading: NSLayoutConstraint!
     private var trailing: NSLayoutConstraint!
@@ -885,18 +994,25 @@ private final class ChatMessageCell: UITableViewCell {
         authorLabel.textColor = .secondaryLabel
         messageLabel.font = .preferredFont(forTextStyle: .body)
         messageLabel.numberOfLines = 0
-        photoView.contentMode = .scaleAspectFill
-        photoView.clipsToBounds = true
-        photoView.layer.cornerRadius = 12
-        let photoHeight = photoView.heightAnchor.constraint(equalToConstant: 150)
-        photoHeight.priority = .defaultHigh
-        photoHeight.isActive = true
-        let photoWidth = photoView.widthAnchor.constraint(greaterThanOrEqualToConstant: 150)
-        photoWidth.priority = .defaultHigh
-        photoWidth.isActive = true
+        photoScroll.showsHorizontalScrollIndicator = false
+        photoStack.translatesAutoresizingMaskIntoConstraints = false
+        photoStack.axis = .horizontal
+        photoStack.spacing = 6
+        photoScroll.addSubview(photoStack)
+        NSLayoutConstraint.activate([
+            photoScroll.heightAnchor.constraint(equalToConstant: 150),
+            photoScroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 150),
+            photoStack.topAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.topAnchor),
+            photoStack.bottomAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.bottomAnchor),
+            photoStack.leadingAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.leadingAnchor),
+            photoStack.trailingAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.trailingAnchor),
+            photoStack.heightAnchor.constraint(equalTo: photoScroll.frameLayoutGuide.heightAnchor),
+        ])
+        fileStack.axis = .vertical
+        fileStack.spacing = 6
         timeLabel.font = .preferredFont(forTextStyle: .caption2)
         timeLabel.textColor = .tertiaryLabel
-        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, photoView, timeLabel])
+        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, photoScroll, fileStack, timeLabel])
         text.translatesAutoresizingMaskIntoConstraints = false
         text.axis = .vertical
         text.spacing = 4
@@ -919,30 +1035,57 @@ private final class ChatMessageCell: UITableViewCell {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(_ row: ChatRow, image: UIImage? = nil) {
+    func configure(_ row: ChatRow, images: [String: UIImage] = [:], stepsExpanded: Bool = false) {
         leading.isActive = false
         trailing.isActive = false
         centered.isActive = false
-        if row.isNotice {
+        if row.isNotice || row.kind == "steps" {
             centered.isActive = true
         } else if row.isUser {
             trailing.isActive = true
         } else {
             leading.isActive = true
         }
-        bubble.backgroundColor = row.isNotice ? .clear
+        bubble.backgroundColor = row.isNotice || row.kind == "steps" ? .clear
             : row.isUser ? tintColor.withAlphaComponent(0.12) : .secondarySystemBackground
-        authorLabel.isHidden = row.isNotice
+        authorLabel.isHidden = row.isNotice || row.kind == "steps"
         authorLabel.text = row.author
-        messageLabel.text = row.text
-        photoView.image = image
-        photoView.isHidden = image == nil
-        messageLabel.textAlignment = row.isNotice ? .center : .left
-        messageLabel.textColor = row.isNotice ? .secondaryLabel : .label
+        messageLabel.text = row.stepSummary.map {
+            $0 + (stepsExpanded && !row.stepDetails.isEmpty ? "\n" + row.stepDetails.joined(separator: "\n") : "")
+        } ?? row.text
+        for view in photoStack.arrangedSubviews { photoStack.removeArrangedSubview(view); view.removeFromSuperview() }
+        for reference in row.imageRefs {
+            let button = UIButton(type: .custom)
+            button.clipsToBounds = true
+            button.layer.cornerRadius = 12
+            button.backgroundColor = .tertiarySystemBackground
+            button.imageView?.contentMode = .scaleAspectFill
+            button.setImage(images[reference], for: .normal)
+            button.accessibilityLabel = "Open photo"
+            button.widthAnchor.constraint(equalToConstant: 150).isActive = true
+            button.addAction(UIAction { [weak self] _ in self?.onOpenPhoto?(reference) }, for: .touchUpInside)
+            photoStack.addArrangedSubview(button)
+        }
+        photoScroll.isHidden = row.imageRefs.isEmpty
+        for view in fileStack.arrangedSubviews { fileStack.removeArrangedSubview(view); view.removeFromSuperview() }
+        for file in row.files {
+            let button = UIButton(type: .system)
+            button.setTitle(file.title, for: .normal)
+            button.contentHorizontalAlignment = .leading
+            button.titleLabel?.lineBreakMode = .byTruncatingMiddle
+            button.backgroundColor = .tertiarySystemBackground
+            button.layer.cornerRadius = 10
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            button.addAction(UIAction { [weak self] _ in self?.onOpenFile?(file) }, for: .touchUpInside)
+            fileStack.addArrangedSubview(button)
+        }
+        fileStack.isHidden = row.files.isEmpty
+        messageLabel.textAlignment = row.isNotice || row.kind == "steps" ? .center : .left
+        messageLabel.textColor = row.isNotice || row.kind == "steps" ? .secondaryLabel : .label
         timeLabel.text = row.localID == nil ? row.time.map { Self.clock.string(from: $0) }
             : row.failed ? "Not sent · \(row.failureReason ?? "Tap to retry")" : "Sending…"
         timeLabel.numberOfLines = row.failed ? 2 : 1
-        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice
+        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps"
         accessibilityLabel = [row.author, row.text, row.failureReason ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     }
 }

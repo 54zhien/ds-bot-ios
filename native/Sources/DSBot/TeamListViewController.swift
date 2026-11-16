@@ -76,6 +76,41 @@ final class OriginalChevronRightIcon: UIView {
     }
 }
 
+/// SideIcon path from mobile/src/ui/icons.tsx.
+final class OriginalSideIcon: UIView {
+    override func draw(_ rect: CGRect) {
+        let context = UIGraphicsGetCurrentContext()
+        context?.saveGState()
+        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
+        tintColor.setStroke()
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: 17, y: 11.5))
+        path.addCurve(to: CGPoint(x: 10.5, y: 18), controlPoint1: CGPoint(x: 17, y: 15.1),
+                      controlPoint2: CGPoint(x: 14.1, y: 18))
+        path.addLine(to: CGPoint(x: 4, y: 18))
+        path.addLine(to: CGPoint(x: 6, y: 15.4))
+        path.addCurve(to: CGPoint(x: 3.5, y: 10), controlPoint1: CGPoint(x: 4.4, y: 14.2),
+                      controlPoint2: CGPoint(x: 3.5, y: 12.4))
+        path.addCurve(to: CGPoint(x: 10, y: 3.5), controlPoint1: CGPoint(x: 3.5, y: 6.4),
+                      controlPoint2: CGPoint(x: 6.4, y: 3.5))
+        path.addCurve(to: CGPoint(x: 17, y: 11.5), controlPoint1: CGPoint(x: 14.2, y: 3.5),
+                      controlPoint2: CGPoint(x: 17, y: 7))
+        path.lineWidth = 1.8
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.stroke()
+        let x = UIBezierPath()
+        x.move(to: CGPoint(x: 8.8, y: 8.8))
+        x.addLine(to: CGPoint(x: 11.2, y: 11.2))
+        x.move(to: CGPoint(x: 11.2, y: 8.8))
+        x.addLine(to: CGPoint(x: 8.8, y: 11.2))
+        x.lineWidth = 1.8
+        x.lineCapStyle = .round
+        x.stroke()
+        context?.restoreGState()
+    }
+}
+
 /// The mobile team's navigation data, in the same main/bot/room order as
 /// mobile/src/screens/TeamList.tsx.
 final class TeamListViewController: UITableViewController, UISearchResultsUpdating {

@@ -5,15 +5,15 @@
 | 范围 | RN 基准 | 原生现状 | 下一项 |
 |---|---|---|---|
 | 配对与连接 | `screens/Pair.tsx`, `team/link.ts`, `store.ts`：扫码、粘贴、多电脑、重连、feed、通知补读 | 扫码、粘贴、多电脑记录/切换/删除、重连、feed、hello 版本检查、notice 补读请求、拒绝配对停重试与错误提示已写；未真机验 | 真机扫码/重连及后台恢复 |
-| 团队导航 | `nav/ShellB.tsx`, `nav/Drawer.tsx`, `screens/TeamList.tsx`：主 Bot tile、Bot/群列表、搜索、未读、创建入口 | 主 Bot/Bot/群列表、搜索、目标切换、最近时间和置顶排序、预览、已读时间已写；卡片布局及创建入口未齐 | 抽屉布局、主 Bot tile、创建入口 |
+| 团队导航 | `nav/ShellB.tsx`, `nav/Drawer.tsx`, `screens/TeamList.tsx`：主 Bot tile、Bot/群列表、搜索、未读、创建入口 | 主 Bot/Bot/群列表、搜索、目标切换、最近时间和置顶排序、预览、已读时间、Bot/群创建入口已写；卡片布局未齐 | 抽屉布局、主 Bot tile |
 | Bot 聊天 | `screens/Chat.tsx`：最新页、旧页、feed、流式、发送、停止、滚动保持、待发消息 | 文本最新页/旧页、feed 补读、发送/停止、待发消息及失败重试已写；无流式 | 完成消息闭环与同屏核对 |
-| 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 文本、首张图片预览与原图打开已写；其余仍是简化占位 | 多图、Markdown、步骤、文件、视图与历史卡片 |
+| 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 文本、步骤摘要与展开、多张图片预览与原图、文件文本读取已写；其余仍是简化占位 | Markdown、视图与历史卡片 |
 | 输入框 | `screens/chat/composer.tsx`：图片、发送/停止、展开卡片、键盘、原版图标 | 文本、照片选择/压缩/暂存/发送、发送/停止、材质、展开已写；未真机验 | 图片回显、键盘/尺寸对照 |
-| 群聊 | `screens/Chat.tsx` 的 room 分支、`TeamList.tsx` | `room-chat` 文本读取、分页、发送/停止已写，待 CI | 群成员、消息形态及互动 |
+| 群聊 | `screens/Chat.tsx` 的 room 分支、`TeamList.tsx` | `room-chat` 文本读取、分页、发送/停止、成员/管理入口已写，Swift CI 通过；未真机验 | 消息形态及互动 |
 | 待处理 | `screens/NeedsYou.tsx`, `screens/chat/dock.tsx`：问题、审批、密钥、卡片、浏览器交接 | 当前对话的问题/审批入口、列表和提交动作已写；密钥、卡片、浏览器交接未齐 | 其余卡片与 RN 的原位 dock 布局 |
 | Bot 管理 | `screens/manage.tsx`：详情、编辑、新建、模型、记忆、计划、目录、用量、浏览器 | 新建、基本编辑、模型选择、主 Bot、复制和删除已写；详情、记忆、计划、目录、用量、浏览器未齐 | 详情页及剩余功能 |
 | 群管理 | `screens/manage.tsx`：群详情、设置、新建 | 新建、成员/管理员、名称/通知/发言模式编辑及删除已写；详情页未齐 | 群详情与同屏核对 |
-| 侧边对话 | `screens/side.tsx` | 无 | 列表、新建、提问 |
+| 侧边对话 | `screens/side.tsx` | 列表、新建、提问、刷新、取消与关闭的原生入口已写；未真机验 | 回答 Markdown、视觉与真机验证 |
 | 设置 | `screens/Settings.tsx`, `settings-pages.tsx`：电脑、外观、语言、横幅、模型、连接器、能力、用量、密钥、位置、更新、关于 | 设置入口、电脑、外观与关于已写；团队设置页未齐 | 语言、横幅及逐页团队设置 |
 | 通知 | RN 当前包的本地通知/横幅行为，`team/link.ts` 的 notices | 无 | 核对实际 RN 能力后移植 |
 
@@ -30,6 +30,8 @@
 - `0548ea8` hello 检查及配对拒绝停重试，Swift CI 通过（run `43823242997`）。
 - `e4b1a1c` 当前对话的问题和审批提交，Swift CI 通过（run `43823844295`）。
 - `5138eeb` 手机设置入口与原版导航图标，Swift CI 通过（run `43824486098`）；同 SHA 未签名 IPA 打包通过（run `43824500742`）。
+- `c940796` Bot 新建与编辑，Swift CI 通过（run `43825142659`）；同 SHA 未签名 IPA 打包通过（run `43833519023`）。
+- `f6c0e90` 群管理、发送参数调整与错误文本，Swift CI 通过（run `43843569843`）；同 SHA 未签名 IPA 打包通过（run `43844645495`）。
 - 原生真机连接、收发、键盘、分页、后台恢复：尚无证据。
 
 本表每完成一项都应更新到具体提交和验证 run，不以“页面存在”代替 RN 功能对照。

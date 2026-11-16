@@ -233,7 +233,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     }
 }
 
-private final class OriginalActionIcon: UIView {
+final class OriginalActionIcon: UIView {
     var showsStop = false { didSet { setNeedsDisplay() } }
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()

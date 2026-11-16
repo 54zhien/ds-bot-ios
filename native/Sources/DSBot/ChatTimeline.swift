@@ -35,6 +35,11 @@ struct ChatPage {
     }
 }
 
+struct ChatFile {
+    let title: String
+    let value: JSONValue
+}
+
 struct ChatRow {
     let kind: String
     let name: String
@@ -42,6 +47,9 @@ struct ChatRow {
     let messageText: String
     let imageCount: Int
     let imageRefs: [String]
+    let files: [ChatFile]
+    let stepSummary: String?
+    let stepDetails: [String]
     let time: Date?
     let sourceKey: String
     let localID: UUID?
@@ -62,6 +70,34 @@ struct ChatRow {
         if case .array(let refs)? = value["imageRefs"] {
             imageRefs = refs.compactMap { $0["attachmentId"]?.stringValue }
         } else { imageRefs = [] }
+        var attached: [ChatFile] = []
+        if case .array(let references)? = value["files"] {
+            attached = references.compactMap { reference in
+                guard let name = reference["name"]?.stringValue else { return nil }
+                return ChatFile(title: name, value: reference)
+            }
+        }
+        let direct = value["file"]
+        let whole = direct?["attachmentId"]?.stringValue != nil ? direct : value["whole"]?["file"]
+        if let whole, whole["attachmentId"]?.stringValue != nil {
+            attached.append(ChatFile(title: "Read full message", value: whole))
+        }
+        files = attached
+        if kind == "steps" {
+            let tools: [JSONValue]
+            if case .array(let entries)? = value["tools"] { tools = entries } else { tools = [] }
+            let count = tools.count
+            let seconds = (value["ms"]?.intValue ?? 0) / 1_000
+            stepSummary = "Used \(count) \(count == 1 ? "tool" : "tools")"
+                + (seconds > 0 ? " · thought for \(seconds)s" : "")
+            stepDetails = tools.map { tool in
+                let label = tool["label"]?.stringValue ?? tool["name"]?.stringValue ?? "Tool"
+                return label + (tool["ok"] == .bool(false) ? " — failed" : "")
+            }
+        } else {
+            stepSummary = nil
+            stepDetails = []
+        }
         let refCount = imageRefs.count
         let count = refCount > 0 ? refCount : value["images"]?.intValue ?? 0
         imageCount = count
@@ -88,7 +124,8 @@ struct ChatRow {
         }
         let sequence = value["seq"]?.intValue.map { String($0) } ?? ""
         let timestamp = value["time"]?.intValue.map { String($0) } ?? ""
-        sourceKey = "\(sequence)|\(timestamp)|\(kind)|\(text)"
+        let turn = value["turn"]?.intValue.map { String($0) } ?? ""
+        sourceKey = "\(sequence)|\(timestamp)|\(turn)|\(kind)|\(text)"
         localID = nil
         failed = false
         failureReason = nil
@@ -100,6 +137,9 @@ struct ChatRow {
         messageText = text
         self.imageCount = imageCount
         imageRefs = []
+        files = []
+        stepSummary = nil
+        stepDetails = []
         self.text = imageCount == 0 ? text : text.isEmpty ? "Photos: \(imageCount)" : "\(text)\nPhotos: \(imageCount)"
         time = Date()
         sourceKey = "local-\(localID.uuidString)"
