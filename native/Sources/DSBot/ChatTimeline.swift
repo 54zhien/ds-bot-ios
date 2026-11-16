@@ -11,7 +11,9 @@ enum BotAPI {
         ]))
         guard reply["ok"] == .bool(true), let value = reply["value"] else {
             let message = reply["error"]?["message"]?.stringValue ?? "The computer could not load this chat."
-            throw NSError(domain: "DSBot", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+            let code = reply["error"]?["code"]?.stringValue
+            let reason = code.map { "\($0): \(message)" } ?? message
+            throw NSError(domain: "DSBot", code: 1, userInfo: [NSLocalizedDescriptionKey: reason])
         }
         return value
     }
@@ -44,6 +46,7 @@ struct ChatRow {
     let sourceKey: String
     let localID: UUID?
     let failed: Bool
+    let failureReason: String?
 
     init(_ value: JSONValue) {
         kind = value["kind"]?.stringValue ?? "event"
@@ -88,9 +91,10 @@ struct ChatRow {
         sourceKey = "\(sequence)|\(timestamp)|\(kind)|\(text)"
         localID = nil
         failed = false
+        failureReason = nil
     }
 
-    init(localID: UUID, text: String, imageCount: Int, failed: Bool) {
+    init(localID: UUID, text: String, imageCount: Int, failureReason: String?) {
         kind = "user"
         name = ""
         messageText = text
@@ -100,7 +104,8 @@ struct ChatRow {
         time = Date()
         sourceKey = "local-\(localID.uuidString)"
         self.localID = localID
-        self.failed = failed
+        failed = failureReason != nil
+        self.failureReason = failureReason
     }
 
     var isUser: Bool { kind == "user" }

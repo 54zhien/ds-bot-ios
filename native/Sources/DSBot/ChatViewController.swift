@@ -28,7 +28,7 @@ final class ChatViewController: UIViewController {
         let images: [String]
         let sessionID: String
         let known: Set<String>
-        var failed = false
+        var failureReason: String?
         var delivered = false
     }
     private var outbox: [String: [Outgoing]] = [:]
@@ -68,7 +68,8 @@ final class ChatViewController: UIViewController {
             }
             acknowledgedRows[key] = matched
             rows = visible + (outbox[key] ?? []).map {
-                ChatRow(localID: $0.id, text: $0.text, imageCount: $0.images.count, failed: $0.failed)
+                ChatRow(localID: $0.id, text: $0.text, imageCount: $0.images.count,
+                        failureReason: $0.failureReason)
             }
         } else {
             rows = olderRows + latestRows
@@ -720,13 +721,13 @@ final class ChatViewController: UIViewController {
                 guard id == self.sessionID else { return }
                 if let index = outbox[key]?.firstIndex(where: { $0.id == entry.id }) {
                     outbox[key]?[index].delivered = true
-                    outbox[key]?[index].failed = false
+                    outbox[key]?[index].failureReason = nil
                 }
                 await refreshLatest(for: id)
             } catch {
                 guard id == self.sessionID else { return }
                 if let index = outbox[key]?.firstIndex(where: { $0.id == entry.id }) {
-                    outbox[key]?[index].failed = true
+                    outbox[key]?[index].failureReason = error.localizedDescription
                 }
                 if chatKey == key { rebuildRows() }
             }
@@ -802,10 +803,11 @@ extension ChatViewController: UITableViewDelegate {
         guard let localID = rows[indexPath.row].localID,
               rows[indexPath.row].failed, let key = chatKey,
               let entry = outbox[key]?.first(where: { $0.id == localID }) else { return }
-        let sheet = UIAlertController(title: "Message not sent", message: entry.text, preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: "Message not sent", message: entry.failureReason,
+                                      preferredStyle: .actionSheet)
         sheet.addAction(UIAlertAction(title: "Retry", style: .default) { [weak self] _ in
             guard let self, let index = self.outbox[key]?.firstIndex(where: { $0.id == localID }) else { return }
-            self.outbox[key]?[index].failed = false
+            self.outbox[key]?[index].failureReason = nil
             self.rebuildRows()
             self.deliver(entry, key: key)
         })
@@ -938,9 +940,10 @@ private final class ChatMessageCell: UITableViewCell {
         messageLabel.textAlignment = row.isNotice ? .center : .left
         messageLabel.textColor = row.isNotice ? .secondaryLabel : .label
         timeLabel.text = row.localID == nil ? row.time.map { Self.clock.string(from: $0) }
-            : row.failed ? "Not sent · tap to retry" : "Sending…"
+            : row.failed ? "Not sent · \(row.failureReason ?? "Tap to retry")" : "Sending…"
+        timeLabel.numberOfLines = row.failed ? 2 : 1
         timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice
-        accessibilityLabel = [row.author, row.text, row.failed ? "Not sent" : ""].filter { !$0.isEmpty }.joined(separator: ": ")
+        accessibilityLabel = [row.author, row.text, row.failureReason ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     }
 }
 
