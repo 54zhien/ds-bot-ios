@@ -10,7 +10,6 @@ import { useTeam } from '../team/context.tsx'
 import { t } from '../ui/i18n.ts'
 import { screenRadius, shadow, SHEET_HEAD, type as typeScale, useTheme } from '../ui/tokens.ts'
 import { GlassCluster, GlassControl, GlassPill } from '../ui/glass.tsx'
-import { BlurSurface } from '../ui/blur.tsx'
 import { GlassFade } from '../ui/fade.tsx'
 import { rimSkin } from '../ui/material.tsx'
 import { Avatar, RoomAvatar } from '../ui/marks.tsx'
@@ -71,32 +70,28 @@ function DrawerContent() {
       {/* The desktop sidebar's head: the product name, search and New. */}
       <View style={[styles.drawerHead, { paddingTop: insets.top + 6 }]}>
         <Text style={{ color: p.ink, fontSize: 17, fontWeight: '600', flex: 1 }}>DS Bot</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={t('Search')} onPress={() => setSearching(on => !on)} hitSlop={4}
-          style={({ pressed }) => [{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7 }]}>
-          <BlurSurface radius={22} style={StyleSheet.absoluteFill} />
+        <GlassControl label={t('Search')} onPress={() => setSearching(on => !on)}>
           <SearchIcon size={26} color={p.ink2} />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={t('New')} onPress={() => setNewOpen(true)} hitSlop={4}
-          style={({ pressed }) => [{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7 }]}>
-          <BlurSurface radius={22} style={StyleSheet.absoluteFill} />
+        </GlassControl>
+        <GlassControl label={t('New')} onPress={() => setNewOpen(true)}>
           <PlusIcon size={26} color={p.ink2} />
-        </Pressable>
+        </GlassControl>
       </View>
       {searching ? (
-        <BlurSurface radius={22} style={{ height: 44, marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 }}>
+        <GlassPill height={44} style={{ marginHorizontal: 16, marginBottom: 8 }}>
           <SearchIcon size={20} color={p.ink3} />
           <TextInput value={query} onChangeText={setQuery} placeholder={t('Search the team')} placeholderTextColor={p.ink3} autoFocus
             style={{ flex: 1, fontSize: 15, paddingVertical: 4, color: p.ink }} autoCapitalize="none" autoCorrect={false} />
-        </BlurSurface>
+        </GlassPill>
       ) : null}
       {/* The list sits straight on the drawer colour; the rows carry their own inset. */}
       {pending > 0 ? (
         <Pressable accessibilityRole="button" onPress={() => open({ kind: 'needs' })}
           style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
-          <BlurSurface radius={22} style={{ height: 44, marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
+          <GlassPill height={44} style={{ marginHorizontal: 16, marginBottom: 8 }}>
             <Text style={[typeScale.rowName, { color: p.accent, flex: 1 }]}>{t('Needs you')}</Text>
             <View style={[styles.badge, { backgroundColor: p.accent }]}><Text style={{ color: p.accentInk, fontSize: 12, fontWeight: '600' }}>{pending}</Text></View>
-          </BlurSurface>
+          </GlassPill>
         </Pressable>
       ) : null}
       <View style={{ flex: 1 }}>
@@ -119,11 +114,9 @@ function DrawerContent() {
       </Modal>
       {/* The gear sits under the fade, so the list melts into it the way the rows do. */}
       <View style={[styles.foot, { left: gearInset, bottom: gearInset }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={t('Settings')} onPress={() => open({ kind: 'settings' })}
-          style={({ pressed }) => [{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7 }]}>
-          <BlurSurface radius={22} style={StyleSheet.absoluteFill} />
-          <GearIcon size={28} color={p.ink2} />
-        </Pressable>
+        <GlassControl label={t('Settings')} onPress={() => open({ kind: 'settings' })}>
+          <GearIcon size={26} color={p.ink2} />
+        </GlassControl>
       </View>
       <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" plain />
     </View>

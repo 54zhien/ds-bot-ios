@@ -61,6 +61,7 @@ export function Drawer({ width, edgeWidth = 24, edgeEnabled = true, content, chi
   // The drag only moves x. Calling back into React here would unmount the edge
   // strip that owns this gesture and freeze the panel mid-swipe.
   const edgePan = Gesture.Pan()
+    .enabled(!shown && edgeEnabled)
     .activeOffsetX(8)
     .failOffsetY([-12, 12])
     .onBegin(() => { runOnJS(Keyboard.dismiss)() })
@@ -79,11 +80,11 @@ export function Drawer({ width, edgeWidth = 24, edgeEnabled = true, content, chi
     <DrawerCtx.Provider value={{ open, close }}>
       <View style={{ flex: 1 }}>
         {children}
-        {!shown && edgeEnabled ? (
-          <GestureDetector gesture={edgePan}>
-            <View style={[styles.edge, { width: edgeWidth }]} />
-          </GestureDetector>
-        ) : null}
+        {/* Kept mounted: unmounting the strip that owns an active pan tears the
+            handler down mid-gesture. The pan is disabled instead. */}
+        <GestureDetector gesture={edgePan}>
+          <View style={[styles.edge, { width: edgeWidth }]} pointerEvents={shown || !edgeEnabled ? 'none' : 'auto'} />
+        </GestureDetector>
         <View pointerEvents={shown ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
           <Animated.View style={[styles.scrim, scrimStyle]}>
             <Pressable style={{ flex: 1 }} onPress={close} accessibilityLabel={t('Close team list')} />
