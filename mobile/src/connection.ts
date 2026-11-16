@@ -1,5 +1,6 @@
 import { Platform } from 'react-native'
-import { RelayTransport, RpcClient, SecureTransport } from '../../link/src/index.ts'
+import { RpcClient } from '../../link/src/index.ts'
+import { openTransport } from './net/supervised.ts'
 import type { PhoneIdentity, SavedComputer } from './store.ts'
 
 type BotResult<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } }
@@ -122,18 +123,15 @@ export interface ShownView { id?: string; title?: string; view?: unknown }
 
 /** Opens the encrypted link to the computer. The pairing code goes only with the first connection. */
 export async function openLink(computer: SavedComputer, identity: PhoneIdentity, pairingCode?: string): Promise<RpcClient> {
-  const relay = new RelayTransport(computer.server, {
+  return openTransport({
+    server: computer.server,
     deviceId: identity.deviceId,
     identityKey: identity.publicKey,
     accessToken: identity.accessToken,
-    targetDeviceId: computer.hostDeviceId,
-  })
-  const secure = new SecureTransport(relay, identity, { deviceId: computer.hostDeviceId, identityKey: computer.hostKey }, {
-    hello: { name: phoneName(), ...(pairingCode === undefined ? {} : { pairingCode }) },
-  })
-  const client = new RpcClient(secure)
-  await client.connect()
-  return client
+    hostDeviceId: computer.hostDeviceId,
+    hostKey: computer.hostKey,
+    name: phoneName(),
+  }, pairingCode)
 }
 
 /** Calls one DS Bot endpoint on the computer, the same one its window calls. */
@@ -153,3 +151,4 @@ export async function callBotState<T>(client: RpcClient, endpoint: string, paylo
   if (!result.ok) throw Object.assign(new Error(result.error.message), { code: result.error.code })
   return { value: result.value, state: result.state }
 }
+
