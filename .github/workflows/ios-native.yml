@@ -460,9 +460,9 @@ jobs:
 
           built="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
           # awk, not python -c: one line, and nothing nested to keep in step with the block
-          # scalar. Quotes are stripped so a quoted YAML value still compares equal.
-          declared="$(awk '/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER:/{gsub(/["']/,"",$2); print $2; exit}' native/project.yml)"
-          prefix="$(awk '/^[[:space:]]*bundleIdPrefix:/{gsub(/["']/,"",$2); print $2; exit}' native/project.yml)"
+          # scalar. tr keeps only identifier characters, so quoted YAML still compares.
+          declared="$(awk '/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER:/{print $2; exit}' native/project.yml | tr -cd 'A-Za-z0-9._-')"
+          prefix="$(awk '/^[[:space:]]*bundleIdPrefix:/{print $2; exit}' native/project.yml | tr -cd 'A-Za-z0-9._-')"
           scheme="${{ steps.project.outputs.scheme }}"
           if [ -n "$declared" ]; then
             expected="$declared"
@@ -481,7 +481,7 @@ jobs:
           fi
           # Built vs project.yml is self-consistency: both sides agree while both are wrong.
           # Pin the suffix and make sure the native app can never take the React Native identity.
-          rn_id="$(awk -F'"' '/"bundleIdentifier"/{print $4; exit}' mobile/app.json)"
+          rn_id="$(awk '/bundleIdentifier/{print $2; exit}' mobile/app.json | tr -cd 'A-Za-z0-9._-')"
           [ -n "$rn_id" ] || rn_id='io.github.fei2411.dsbot'
           case "$built" in
             *".native") ;;
