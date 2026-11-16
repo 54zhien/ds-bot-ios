@@ -77,6 +77,33 @@ final class FramesTests: XCTestCase {
         XCTAssertEqual(Base64URL.encode(bytes), ciphertext)
     }
 
+    func testHelloAckWritesItsFieldsInTheServerOrder() throws {
+        let frame = ControlFrame(
+            type: .helloAck,
+            payload: HelloAckPayload(
+                protocolVersion: 1,
+                serverVersion: "1.0.0",
+                connectionSessionId: "s-1",
+                heartbeatIntervalMs: 15_000,
+                maxControlFrameBytes: 65_536,
+                maxRelayFrameBytes: 1_048_576,
+                capabilities: ["transport.relay"]
+            ),
+            id: "ack-1",
+            timestamp: 1
+        )
+        let encoded = try FrameCodec.encode(frame)
+        let expectedPayload = "\"payload\":{\"protocol\":1,\"serverVersion\":\"1.0.0\",\"connectionSessionId\":\"s-1\",\"heartbeatIntervalMs\":15000,\"maxControlFrameBytes\":65536,\"maxRelayFrameBytes\":1048576,\"capabilities\":[\"transport.relay\"]}"
+        XCTAssertTrue(encoded.contains(expectedPayload), encoded)
+        XCTAssertTrue(encoded.hasPrefix("{\"v\":1,\"id\":\"ack-1\",\"type\":\"hello.ack\",\"timestamp\":1,"), encoded)
+    }
+
+    func testHelloAckOmitsFieldsTheServerLeftOut() throws {
+        let frame = ControlFrame(type: .helloAck, payload: HelloAckPayload(protocolVersion: 1), id: "ack-2", timestamp: 1)
+        let encoded = try FrameCodec.encode(frame)
+        XCTAssertTrue(encoded.hasSuffix("\"payload\":{\"protocol\":1}}"), encoded)
+    }
+
     // MARK: - Limits
 
     func testFrameLargerThanTheNegotiatedLimitIsRejected() {

@@ -250,6 +250,25 @@ extension ControlErrorPayload: WirePayload {
     }
 }
 
+/// hello.ack is the Server's shape: `protocol` carries the version, and the rest of
+/// the fields are optional on the wire (frames.ts writes them all, but a Server may
+/// leave one out).
+extension HelloAckPayload: WirePayload {
+    public var wireJSON: String {
+        var object = OrderedObject()
+        object.add("protocol", JSONText.int(protocolVersion))
+        object.addIfPresent("serverVersion", serverVersion)
+        object.addIfPresent("connectionSessionId", connectionSessionId)
+        if let heartbeatIntervalMs { object.add("heartbeatIntervalMs", JSONText.int(heartbeatIntervalMs)) }
+        if let maxControlFrameBytes { object.add("maxControlFrameBytes", JSONText.int(maxControlFrameBytes)) }
+        if let maxRelayFrameBytes { object.add("maxRelayFrameBytes", JSONText.int(maxRelayFrameBytes)) }
+        if let capabilities {
+            object.add("capabilities", "[" + capabilities.map(JSONText.string).joined(separator: ",") + "]")
+        }
+        return object.text
+    }
+}
+
 /// A pong echoes whatever ping carried, so its field order is whatever arrived.
 extension JSONValue: WirePayload {
     public var wireJSON: String { JSONText.render(self) }
@@ -334,6 +353,24 @@ public struct HelloAckPayload: Codable, Sendable, Equatable {
         case maxControlFrameBytes
         case maxRelayFrameBytes
         case capabilities
+    }
+
+    public init(
+        protocolVersion: Int,
+        serverVersion: String? = nil,
+        connectionSessionId: String? = nil,
+        heartbeatIntervalMs: Int? = nil,
+        maxControlFrameBytes: Int? = nil,
+        maxRelayFrameBytes: Int? = nil,
+        capabilities: [String]? = nil
+    ) {
+        self.protocolVersion = protocolVersion
+        self.serverVersion = serverVersion
+        self.connectionSessionId = connectionSessionId
+        self.heartbeatIntervalMs = heartbeatIntervalMs
+        self.maxControlFrameBytes = maxControlFrameBytes
+        self.maxRelayFrameBytes = maxRelayFrameBytes
+        self.capabilities = capabilities
     }
 }
 
