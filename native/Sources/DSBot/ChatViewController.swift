@@ -317,7 +317,9 @@ final class ChatViewController: UIViewController {
         composer.onSend = { [weak self] text in self?.sendMessage(text) }
         composer.onStop = { [weak self] in self?.stopChat() }
         view.addSubview(composer)
-        view.keyboardLayoutGuide.usesBottomSafeArea = true
+        if #available(iOS 17.0, *) {
+            view.keyboardLayoutGuide.usesBottomSafeArea = true
+        }
         NSLayoutConstraint.activate([
             composer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             composer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
