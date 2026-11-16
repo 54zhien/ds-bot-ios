@@ -146,7 +146,7 @@ public actor LinkSession {
         guard let channel else {
             throw TransportError(.invalidFrame, "The link is not connected.")
         }
-        return try await channel.call(method, params)
+        return try await channel.call(method, params: params)
     }
 
     // MARK: - Supervisor
