@@ -40,8 +40,8 @@ const BAR = 52
 const EDITING_BOTTOM = 12
 const CARD_CORNER = 26
 const MEDIA = 80
-// A neutral frost: no hue of its own on the page.
-const SURFACE_BLUR = 40
+// A neutral frost: no tinted layer of its own, so the page colour stays put.
+const SURFACE_BLUR = 12
 
 export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend, onStop, onInset, p }: {
   name: string; running: boolean; canStop: boolean; canAttach: boolean; keyboardUp: boolean
@@ -90,7 +90,6 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
   // The rail and the media row are reserved first; the field gets what is left and
   // scrolls inside it, so the controls can never be pushed out of the card.
   const textMax = Math.max(LINE, cardHeight - TEXT_TOP - media - BAR)
-  const corner = expanded ? CARD_CORNER : RESTING / 2
   const screenR = screenRadius(insets.bottom, Platform.OS)
   const android = Platform.OS === 'android'
   const inset = composerInset({ screenR, screenWidth, expanded, android })
@@ -104,16 +103,26 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
   const openInset = composerInset({ screenR, screenWidth, expanded: true, android })
   const restBottom = android ? Math.max(insets.bottom, 10) : concentricInset(screenR, RESTING)
   const openBottom = android ? restBottom : EDITING_BOTTOM
+  // zen's .containerConcentric: the card's corner is concentric with the display's,
+  // not a fixed number, so it reads as a sheet rather than a rounded box.
+  const openCorner = Math.max(CARD_CORNER, screenR - openInset)
+  const corner = expanded ? openCorner : RESTING / 2
   const shellStyle = useAnimatedStyle(() => ({
     height: interpolate(progress.value, [0, 1], [RESTING, cardHeight]),
     marginHorizontal: interpolate(progress.value, [0, 1], [restInset, openInset]),
     // The keyboard owns the distance while it is up; nothing is animated over it.
     marginBottom: keyboardUp && !android ? EDITING_BOTTOM : interpolate(progress.value, [0, 1], [restBottom, openBottom]),
-    borderRadius: interpolate(progress.value, [0, 1], [RESTING / 2, CARD_CORNER]),
+    borderRadius: interpolate(progress.value, [0, 1], [RESTING / 2, openCorner]),
     // The corner is the shell's: the surface paints square and is clipped here.
     overflow: 'hidden' as const,
   }))
-  const rimStyle = useAnimatedStyle(() => ({ borderRadius: interpolate(progress.value, [0, 1], [RESTING / 2, CARD_CORNER]) }))
+  const rimStyle = useAnimatedStyle(() => ({ borderRadius: interpolate(progress.value, [0, 1], [RESTING / 2, openCorner]) }))
+  // The blur is clipped twice: the shell, and this wrapper, in case the native view
+  // paints past a clipped parent.
+  const surfaceStyle = useAnimatedStyle(() => ({
+    borderRadius: interpolate(progress.value, [0, 1], [RESTING / 2, openCorner]),
+    overflow: 'hidden' as const,
+  }))
   const barStyle = useAnimatedStyle(() => ({
     height: interpolate(progress.value, [0, 1], [0, BAR]),
     opacity: progress.value,
@@ -128,7 +137,11 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
       <Animated.View style={shellStyle}>
         {android
           ? <Glass radius={corner} intensity="thin" flat style={StyleSheet.absoluteFill} />
-          : <BlurView intensity={SURFACE_BLUR} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} pointerEvents="none" />}
+          : (
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, surfaceStyle]}>
+              <BlurView intensity={SURFACE_BLUR} tint="default" style={StyleSheet.absoluteFill} />
+            </Animated.View>
+          )}
         {android ? null : <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, rimSkin(dark), rimStyle]} />}
         <View style={styles.card}>
           {photos.length > 0 || preparing ? (
@@ -184,10 +197,14 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexGrow: 1, flexShrink: 1, minHeight: 0, paddingHorizontal: 9 },
   rowOpen: { alignItems: 'stretch', paddingHorizontal: 0 },
   hit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  // Resting: the field centres the 22pt line box in the 62pt capsule.
   field: { flex: 1, minWidth: 0, justifyContent: 'center' },
-  fieldOpen: { flexGrow: 1, flexShrink: 1, minHeight: 0, paddingTop: TEXT_TOP, paddingHorizontal: 12 },
-  input: { flexGrow: 1, flexShrink: 1, minHeight: 0, fontSize: 16, lineHeight: LINE, paddingVertical: 0 },
-  inputResting: { paddingVertical: 10, paddingHorizontal: 3 },
-  inputOpen: { paddingVertical: 0 },
+  // Editing: the line box starts at the editor's 14pt top inset and grows downward.
+  fieldOpen: { flexGrow: 1, flexShrink: 1, minHeight: 0, justifyContent: 'flex-start', paddingTop: TEXT_TOP, paddingHorizontal: 12 },
+  // No vertical padding in either state: it would move the caret line box and drift
+  // the placeholder, which is why one padding cannot serve both.
+  input: { flexShrink: 1, minHeight: 0, fontSize: 16, lineHeight: LINE, paddingVertical: 0, paddingHorizontal: 0 },
+  inputResting: { paddingHorizontal: 3 },
+  inputOpen: {},
   bar: { height: BAR, flexShrink: 0, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 9 },
 })
