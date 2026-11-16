@@ -3,11 +3,12 @@ import * as ImagePicker from 'expo-image-picker'
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { t } from '../../ui/i18n.ts'
 import { ArrowUpIcon, CloseIcon, PlusIcon, StopIcon } from '../../ui/icons.tsx'
 import { Glass, GlassControl } from '../../ui/glass.tsx'
-import { COMPOSER_RESTING, composerInset, concentricInset, radius, screenRadius, type as typeScale, type Palette } from '../../ui/tokens.ts'
+import { COMPOSER_RESTING, composerInset, concentricInset, radius, screenRadius, SPRING_SHAPE, type as typeScale, type Palette } from '../../ui/tokens.ts'
 
 // A photo ready to send: shown from `uri`, sent as base64 JPEG.
 export interface Photo { uri: string; mediaType: string; data: string }
@@ -24,13 +25,12 @@ async function prepare(asset: ImagePicker.ImagePickerAsset): Promise<Photo> {
 }
 
 // zen's composer geometry: one resting capsule that shares the display corner's
-// centre (inset = R - h/2), and an editing card that grows from 124 up to 46% of
-// the screen with a 52pt control bar. Attachments live inside the card, and the
-// field is a single TextInput that only changes shape — never identity — so
-// focusing it does not tear the keyboard down.
+// centre (inset = R - h/2), and a card that is only as tall as its content: title
+// text plus the 52pt bar. A single line stays a capsule even while focused; the
+// card appears at two lines or with an attachment. The field is a single TextInput
+// that only changes shape — never identity — so it does not tear the keyboard down.
 const LINE = 22
 const RESTING = COMPOSER_RESTING
-const EDITING = 124
 const TEXT_TOP = 14
 const BAR = 52
 const EDITING_BOTTOM = 12
@@ -45,8 +45,10 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
   const [photos, setPhotos] = useState<Photo[]>([])
   const [preparing, setPreparing] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
-  const [focused, setFocused] = useState(false)
   const [textHeight, setTextHeight] = useState(LINE)
+  // Two lines open the card; it closes again only inside one line, so the edge at
+  // the threshold does not flicker while someone types.
+  const [twoLines, setTwoLines] = useState(false)
   const insets = useSafeAreaInsets()
   const { width: screenWidth, height: windowHeight } = useWindowDimensions()
   const draft = text.trim()
@@ -71,29 +73,62 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
       setPickError(failure instanceof Error ? failure.message : String(failure))
     } finally { setPreparing(false) }
   }
-  // Resting is the empty, unfocused state; anything typed keeps the card open.
-  const expanded = focused || text !== '' || photos.length > 0
-  const media = photos.length > 0 || preparing ? MEDIA : 0
+  // The card holds the text and the bar, nothing more: a line plus the bar is 88.
+  const hasMedia = photos.length > 0 || preparing
+  const media = hasMedia ? MEDIA : 0
+  const expanded = hasMedia || twoLines
+  // iOS reports the content size with the input's padding folded in, so the resting
+  // padding comes back out before counting lines.
+  const measured = Math.max(LINE, textHeight - (expanded ? 0 : 2 * 10))
+  useEffect(() => { setTwoLines(open => (open ? measured > LINE + 2 : measured >= LINE * 2 - 2)) }, [measured])
   const available = windowHeight - insets.top
   const cap = Math.min(available - 12, Math.max(available * 0.46, TEXT_TOP + BAR + LINE))
   // The bar keeps its 52pt whatever the text does; the field scrolls instead.
   const room = Math.max(LINE, cap - TEXT_TOP - media - BAR)
-  const height = expanded ? Math.min(cap, Math.max(EDITING, TEXT_TOP + media + Math.min(textHeight, room) + BAR)) : RESTING
+  const cardHeight = expanded ? Math.min(cap, Math.max(TEXT_TOP + BAR + LINE, TEXT_TOP + media + Math.min(measured, room) + BAR)) : RESTING
+  // zen's budget: the bar and the media row are reserved first, and the field gets
+  // exactly what is left, so it can never push the controls out of the card.
+  const textMax = Math.max(LINE, cardHeight - TEXT_TOP - media - BAR)
   const corner = expanded ? 26 : RESTING / 2
   const screenR = screenRadius(insets.bottom, Platform.OS)
   const android = Platform.OS === 'android'
   const inset = composerInset({ screenR, screenWidth, expanded, android })
-  const bottom = android ? Math.max(insets.bottom, 10) : keyboardUp ? EDITING_BOTTOM : concentricInset(screenR, RESTING)
   const stop = running && canStop && !ready
   // Reported after paint: the row above the dock lines up with this same value.
   useEffect(() => { onInset?.(inset) }, [inset, onInset])
+  // Both states read one spring, so the shell, the field's top inset and the bar
+  // cannot land on different frames.
+  const progress = useSharedValue(expanded ? 1 : 0)
+  useEffect(() => { progress.value = withSpring(expanded ? 1 : 0, SPRING_SHAPE) }, [expanded, progress])
+  const restInset = composerInset({ screenR, screenWidth, expanded: false, android })
+  const openInset = composerInset({ screenR, screenWidth, expanded: true, android })
+  const restBottom = android ? Math.max(insets.bottom, 10) : concentricInset(screenR, RESTING)
+  const openBottom = android ? restBottom : EDITING_BOTTOM
+  const shellStyle = useAnimatedStyle(() => ({
+    height: interpolate(progress.value, [0, 1], [RESTING, cardHeight]),
+    marginHorizontal: interpolate(progress.value, [0, 1], [restInset, openInset]),
+    // The keyboard owns the distance while it is up; nothing is animated over it.
+    marginBottom: keyboardUp && !android ? EDITING_BOTTOM : interpolate(progress.value, [0, 1], [restBottom, openBottom]),
+    borderRadius: interpolate(progress.value, [0, 1], [RESTING / 2, 26]),
+    // The corner is the shell's: on iOS the glass paints square and is clipped here,
+    // which is what lets 31 -> 26 animate at all.
+    overflow: 'hidden' as const,
+  }))
+  const fieldStyle = useAnimatedStyle(() => ({ paddingTop: interpolate(progress.value, [0, 1], [0, TEXT_TOP]) }))
+  const barStyle = useAnimatedStyle(() => ({
+    height: interpolate(progress.value, [0, 1], [0, BAR]),
+    opacity: progress.value,
+    transform: [{ translateY: interpolate(progress.value, [0, 1], [8, 0]) }],
+  }))
   const sendButton = stop
     ? <GlassControl label={t('Stop')} onPress={onStop}><StopIcon size={24} /></GlassControl>
     : <GlassControl label={t('Send')} accent disabled={!ready} onPress={send}><ArrowUpIcon size={24} /></GlassControl>
   return (
-    <View style={{ paddingBottom: bottom }}>
+    <View>
       {pickError !== null ? <Text style={[typeScale.small, { color: p.danger, textAlign: 'center', marginBottom: 4 }]}>{pickError}</Text> : null}
-      <Glass radius={corner} style={{ marginHorizontal: inset, height }} contentStyle={styles.cardIn}>
+      {/* The shell owns height, margins and the corner; the glass fills it edge to edge. */}
+      <Animated.View style={shellStyle}>
+      <Glass radius={android ? corner : 0} intensity="thin" flat style={{ flex: 1 }} contentStyle={styles.cardIn}>
         {photos.length > 0 || preparing ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.media} contentContainerStyle={styles.photos} keyboardShouldPersistTaps="handled">
             {photos.map(photo => (
@@ -115,31 +150,31 @@ export function Composer({ name, running, canStop, canAttach, keyboardUp, onSend
                 <PlusIcon size={22} color={p.ink2} />
               </Pressable>
             : <View style={styles.hit} />}
-          <View style={[styles.field, expanded && styles.fieldOpen]}>
+          <Animated.View style={[styles.field, expanded && styles.fieldOpen, fieldStyle, expanded && { maxHeight: TEXT_TOP + textMax }]}>
             <TextInput value={text} onChangeText={setText} placeholder={t('Message {name}', { name })} placeholderTextColor={p.ink3}
-              multiline scrollEnabled={expanded} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+              multiline scrollEnabled={expanded}
               onContentSizeChange={event => setTextHeight(event.nativeEvent.contentSize.height)}
-              style={[styles.input, expanded ? styles.inputOpen : styles.inputResting, { color: p.ink }]} accessibilityLabel={t('Message {name}', { name })} />
-          </View>
+              style={[styles.input, expanded ? styles.inputOpen : styles.inputResting, expanded && { maxHeight: textMax }, { color: p.ink }]} accessibilityLabel={t('Message {name}', { name })} />
+          </Animated.View>
           {expanded ? null : sendButton}
         </View>
-        {expanded ? (
-          <View style={styles.bar}>
-            {canAttach
-              ? <Pressable accessibilityRole="button" accessibilityLabel={t('Add photos')} onPress={() => void pick()} hitSlop={2} style={styles.hit}>
-                  <PlusIcon size={22} color={p.ink2} />
-                </Pressable>
-              : <View style={styles.hit} />}
-            {sendButton}
-          </View>
-        ) : null}
+        {/* Always mounted: it grows out of the card instead of popping in. */}
+        <Animated.View style={[styles.bar, barStyle]}>
+          {canAttach
+            ? <Pressable accessibilityRole="button" accessibilityLabel={t('Add photos')} onPress={() => void pick()} hitSlop={2} style={styles.hit}>
+                <PlusIcon size={22} color={p.ink2} />
+              </Pressable>
+            : <View style={styles.hit} />}
+          {sendButton}
+        </Animated.View>
       </Glass>
+      </Animated.View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  cardIn: { alignItems: 'stretch' },
+  cardIn: { alignItems: 'stretch', overflow: 'hidden' },
   media: { flexGrow: 0, flexShrink: 0 },
   photos: { gap: 8, paddingHorizontal: 9, paddingTop: 9 },
   photo: { width: 64, height: 64, borderRadius: 12 },
@@ -148,9 +183,9 @@ const styles = StyleSheet.create({
   rowOpen: { alignItems: 'stretch', paddingHorizontal: 0 },
   hit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   field: { flex: 1, minWidth: 0, justifyContent: 'center' },
-  fieldOpen: { flexGrow: 1, flexShrink: 1, minHeight: 0, paddingTop: TEXT_TOP, paddingHorizontal: 12 },
+  fieldOpen: { flexGrow: 1, flexShrink: 1, minHeight: 0, paddingHorizontal: 12 },
   input: { flexGrow: 1, flexShrink: 1, minHeight: 0, fontSize: 16, lineHeight: LINE, paddingVertical: 0 },
   inputResting: { paddingVertical: 10, paddingHorizontal: 3 },
   inputOpen: { paddingVertical: 0 },
-  bar: { height: BAR, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 9 },
+  bar: { height: BAR, flexShrink: 0, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 9 },
 })

@@ -44,11 +44,13 @@ const split = (style?: StyleProp<ViewStyle>): { box: ViewStyle; pad: ViewStyle }
 
 let serial = 0
 
-export function Glass({ radius = radii.pill, intensity = 'regular', tint, interactive = false, accessibilityLabel, accessibilityRole, style, contentStyle, children }: {
+export function Glass({ radius = radii.pill, intensity = 'regular', tint, interactive = false, flat = false, accessibilityLabel, accessibilityRole, style, contentStyle, children }: {
   radius?: number
   intensity?: Intensity
   tint?: string
   interactive?: boolean
+  /** Drops the token shadow on the fallback surface: the compositor sits on the page, not above it. */
+  flat?: boolean
   accessibilityLabel?: string
   accessibilityRole?: ViewProps['accessibilityRole']
   style?: StyleProp<ViewStyle>
@@ -77,7 +79,7 @@ export function Glass({ radius = radii.pill, intensity = 'regular', tint, intera
   }
   const fill = FILL[intensity]
   return (
-    <View accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole} style={[styles.plate, { borderRadius: radius }, shadow(2), box]}>
+    <View accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole} style={[styles.plate, { borderRadius: radius }, flat ? null : shadow(2), box]}>
       <View style={[styles.surface, {
         borderRadius: radius,
         borderColor: dark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.55)',
