@@ -15,17 +15,36 @@ const STOPS = [0, 0.25, 0.6, 1]
 const ALPHA = [0, 0.28, 0.78, 1]
 const INTENSITY = 48
 
-export function GlassFade({ edge, height, radius = 0, color }: {
+export function GlassFade({ edge, height, radius = 0, color, plain = false }: {
   edge: 'top' | 'bottom'
   height: number
   radius?: number
   color?: string
+  /** Draw the curve without MaskedView. Required inside any transform-animated parent: a native mask in a moving layer crashes. */
+  plain?: boolean
 }) {
   const { dark, p } = useTheme()
   const [id] = useState(() => `fade${(fadeSerial += 1)}`)
   const paper = color ?? p.main
   // The mask is transparent where the content starts and opaque at the screen edge.
   const alpha = edge === 'top' ? [...ALPHA].reverse() : ALPHA
+  const wash = (
+    <Svg width="100%" height="100%">
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          {STOPS.map((offset, i) => <Stop key={offset} offset={offset} stopColor={paper} stopOpacity={alpha[i]} />)}
+        </LinearGradient>
+      </Defs>
+      <Rect width="100%" height="100%" fill={`url(#${id})`} />
+    </Svg>
+  )
+  if (plain) {
+    return (
+      <View pointerEvents="none" style={[styles.wrap, { height, borderRadius: radius }, edge === 'top' ? { top: 0 } : { bottom: 0 }]}>
+        {wash}
+      </View>
+    )
+  }
   const mask = (
     <Svg width="100%" height="100%">
       <Defs>

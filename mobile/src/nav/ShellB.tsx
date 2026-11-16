@@ -99,7 +99,7 @@ function DrawerContent() {
         <View style={{ flex: 1 }}>
           <TeamList onOpen={open} query={searching ? query : ''} current={current} />
           {/* Rows vanish at the panel's top edge; this softens that line. */}
-          <GlassFade height={PANEL_HEAD_FADE} edge="top" />
+          <GlassFade height={PANEL_HEAD_FADE} edge="top" plain />
         </View>
       </View>
       <Modal visible={newOpen} transparent animationType="fade" onRequestClose={() => setNewOpen(false)}>
@@ -117,7 +117,7 @@ function DrawerContent() {
           </View>
         </Pressable>
       </Modal>
-      <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" />
+      <GlassFade color={p.sidebar} height={GEAR_FADE} edge="bottom" plain />
       <View style={[styles.foot, { left: gearInset, bottom: gearInset }]}>
         {/* Glass reads as nothing against the dark panel once its neighbours are gone, so the gear keeps the 1pt material rim. */}
         <Pressable accessibilityRole="button" accessibilityLabel={t('Settings')} onPress={() => open({ kind: 'settings' })} style={[styles.gear, materialSkin(dark, 22)]}>
