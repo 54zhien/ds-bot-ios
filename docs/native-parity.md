@@ -10,7 +10,7 @@
 | 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 文本、首张图片预览与原图打开已写；其余仍是简化占位 | 多图、Markdown、步骤、文件、视图与历史卡片 |
 | 输入框 | `screens/chat/composer.tsx`：图片、发送/停止、展开卡片、键盘、原版图标 | 文本、照片选择/压缩/暂存/发送、发送/停止、材质、展开已写；未真机验 | 图片回显、键盘/尺寸对照 |
 | 群聊 | `screens/Chat.tsx` 的 room 分支、`TeamList.tsx` | `room-chat` 文本读取、分页、发送/停止已写，待 CI | 群成员、消息形态及互动 |
-| 待处理 | `screens/NeedsYou.tsx`, `screens/chat/dock.tsx`：问题、审批、密钥、卡片、浏览器交接 | 无 | 列表与可提交动作 |
+| 待处理 | `screens/NeedsYou.tsx`, `screens/chat/dock.tsx`：问题、审批、密钥、卡片、浏览器交接 | 当前对话的问题/审批入口、列表和提交动作已写；密钥、卡片、浏览器交接未齐 | 其余卡片与 RN 的原位 dock 布局 |
 | Bot 管理 | `screens/manage.tsx`：详情、编辑、新建、模型、记忆、计划、目录、用量、浏览器 | 无 | 导航及逐页 RPC |
 | 群管理 | `screens/manage.tsx`：群详情、设置、新建 | 无 | 逐页 RPC |
 | 侧边对话 | `screens/side.tsx` | 无 | 列表、新建、提问 |
@@ -24,6 +24,9 @@
 - `1fe9c6e` 新增 feed 处理，Swift CI 通过（run `43819139451`）。
 - `0d37ecb` 新增 Bot/群切换，Swift CI 通过（run `43820052879`）。
 - `c25cf3d` 多电脑初稿 Swift CI 失败（run `43820550033`，`ComputersViewController.swift` 误用 `tintColor`）；`2d78b2f` 修复并新增扫码，Swift CI 通过（run `43820842876`）。
+- `1c3a77c` 待发消息、团队列表排序与预览，Swift CI 通过（run `43821389569`）。
+- `bcbbe17` 原生选图与发送，Swift CI 通过（run `43821926363`）。
+- `db6b5d8` 首图预览与原图查看，Swift CI 通过（run `43822583741`）。
 - 原生真机连接、收发、键盘、分页、后台恢复：尚无证据。
 
 本表每完成一项都应更新到具体提交和验证 run，不以“页面存在”代替 RN 功能对照。

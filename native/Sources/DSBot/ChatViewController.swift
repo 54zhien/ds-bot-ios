@@ -8,6 +8,9 @@ final class ChatViewController: UIViewController {
     private let emptyState = UILabel()
     private let composer = NativeComposerView()
     private var composerHeight: NSLayoutConstraint!
+    private let pendingButton = UIButton(type: .system)
+    private var pendingHeight: NSLayoutConstraint!
+    private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusBar = UIStackView()
     private let statusLabel = UILabel()
     private let retryButton = UIButton(type: .system)
@@ -217,6 +220,8 @@ final class ChatViewController: UIViewController {
         roomID = nil
         selectedTarget = nil
         teamState = nil
+        pendingItems = []
+        updatePendingButton()
         chatSessionID = nil
         olderRows = []
         latestRows = []
@@ -380,6 +385,8 @@ final class ChatViewController: UIViewController {
             guard let target else {
                 botID = nil
                 roomID = nil
+                pendingItems = []
+                updatePendingButton()
                 rows = []
                 list.reloadData()
                 emptyState.text = "No Bot yet"
@@ -425,6 +432,7 @@ final class ChatViewController: UIViewController {
                 cursor = page.cursor
             }
             chatSessionID = nextSessionID
+            updatePending(state, sessionID: nextSessionID)
             latestRows = page.items
             rebuildRows()
             if nearBottom && !rows.isEmpty {
@@ -504,6 +512,8 @@ final class ChatViewController: UIViewController {
                     roomID = nil
                     selectedTarget = nil
                     teamState = nil
+                    pendingItems = []
+                    updatePendingButton()
                     chatSessionID = nil
                     cursor = nil
                     olderRows = []
@@ -550,6 +560,8 @@ final class ChatViewController: UIViewController {
         rows = []
         cursor = nil
         title = target.name
+        pendingItems = []
+        updatePendingButton()
         list.reloadData()
         updateEmptyState()
         Task { await refreshLatest(for: sessionID) }
@@ -562,13 +574,21 @@ final class ChatViewController: UIViewController {
         composer.onHeightChange = { [weak self] height in
             guard let self else { return }
             composerHeight.constant = height
-            list.contentInset.bottom = height + 14
+            list.contentInset.bottom = height + pendingHeight.constant + 22
             UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
         }
         composer.onSend = { [weak self] text, images in self?.sendMessage(text, images: images) }
         composer.onAddPhoto = { [weak self] in self?.pickPhotos() }
         composer.onStop = { [weak self] in self?.stopChat() }
         view.addSubview(composer)
+        pendingButton.translatesAutoresizingMaskIntoConstraints = false
+        pendingButton.backgroundColor = .secondarySystemBackground
+        pendingButton.layer.cornerRadius = 18
+        pendingButton.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
+        pendingButton.addTarget(self, action: #selector(showPending), for: .touchUpInside)
+        view.addSubview(pendingButton)
+        pendingHeight = pendingButton.heightAnchor.constraint(equalToConstant: 0)
+        pendingButton.isHidden = true
         if #available(iOS 17.0, *) {
             view.keyboardLayoutGuide.usesBottomSafeArea = true
         }
@@ -577,7 +597,44 @@ final class ChatViewController: UIViewController {
             composer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             composer.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12),
             composerHeight,
+            pendingButton.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+            pendingButton.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
+            pendingButton.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
+            pendingHeight,
         ])
+    }
+
+    private func updatePending(_ state: JSONValue, sessionID: String) {
+        var items: [PendingActionsViewController.Item] = []
+        if let question = state["questions"]?[sessionID], question != .null {
+            items.append(.question(sessionID: sessionID, value: question))
+        }
+        if case .array(let approvals)? = state["work"]?["approvals"] {
+            for approval in approvals where approval["sessionId"]?.stringValue == sessionID
+                || (roomID != nil && approval["roomId"]?.stringValue == roomID) {
+                items.append(.approval(approval))
+            }
+        }
+        pendingItems = items
+        updatePendingButton()
+    }
+
+    private func updatePendingButton() {
+        let count = pendingItems.count
+        pendingButton.isHidden = count == 0
+        pendingButton.setTitle(count == 1 ? "Needs you · 1 item" : "Needs you · \(count) items", for: .normal)
+        pendingHeight.constant = count == 0 ? 0 : 48
+        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + 22
+    }
+
+    @objc private func showPending() {
+        guard !pendingItems.isEmpty else { return }
+        let actions = PendingActionsViewController(items: pendingItems, session: session)
+        actions.onChanged = { [weak self] in
+            guard let self else { return }
+            Task { await self.refreshLatest(for: self.sessionID) }
+        }
+        present(UINavigationController(rootViewController: actions), animated: true)
     }
 
     private func sendMessage(_ text: String, images: [String]) {
