@@ -106,6 +106,7 @@ public actor LinkSession {
     private var channel: Channel?
     private var dropWaiter: CheckedContinuation<Void, Never>?
     private var onStatus: (@Sendable (Status) -> Void)?
+    private var onError: (@Sendable (String) -> Void)?
     private var onEvent: (@Sendable (String, JSONValue) -> Void)?
 
     public init(
@@ -125,6 +126,10 @@ public actor LinkSession {
     public func setStatusHandler(_ handler: @escaping @Sendable (Status) -> Void) {
         onStatus = handler
         handler(status)
+    }
+
+    public func setErrorHandler(_ handler: @escaping @Sendable (String) -> Void) {
+        onError = handler
     }
 
     public func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) async {
@@ -182,6 +187,12 @@ public actor LinkSession {
             } catch {
                 channel = nil
                 guard wanted else { break }
+                onError?(String(describing: error))
+                if let rejected = error as? TransportError,
+                   rejected.code == .notPaired || rejected.code == .pairingRejected {
+                    wanted = false
+                    break
+                }
             }
             setStatus(.offline)
             let delay = backoff.nextDelayMs()

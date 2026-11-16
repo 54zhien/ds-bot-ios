@@ -40,6 +40,8 @@ public struct TransportError: Error, Equatable, CustomStringConvertible, Sendabl
         case invalidFrame
         case frameTooLarge
         case invalidBase64
+        case notPaired
+        case pairingRejected
     }
 
     public let code: Code

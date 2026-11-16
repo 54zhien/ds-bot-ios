@@ -64,6 +64,17 @@ final class LinkSessionTests: XCTestCase {
         XCTAssertEqual(attempts, 1, "the first wait already reaches the threshold")
     }
 
+    func testRejectedPairingStopsWithoutRetrying() async throws {
+        let factory = ChannelBox(failuresBeforeSuccess: .max, failureCode: .notPaired)
+        let session = LinkSession(options: LinkSession.Options(), makeChannel: factory.makeChannel, sleep: { _ in })
+        let log = StatusLog()
+        await session.setStatusHandler { status in log.append(status) }
+        await session.connect(factory.pairing)
+        try await waitUntil { await session.currentStatus == .disconnected && log.values.count > 2 }
+        XCTAssertEqual(factory.attempts, 1)
+        XCTAssertEqual(log.values, [.disconnected, .connecting, .disconnected])
+    }
+
     func testDisconnectStopsTheLoop() async throws {
         let factory = ChannelBox(failuresBeforeSuccess: .max)
         let session = LinkSession(
@@ -124,11 +135,13 @@ private final class StatusLog: @unchecked Sendable {
 private final class ChannelBox: @unchecked Sendable {
     private let lock = NSLock()
     private let failuresBeforeSuccess: Int
+    private let failureCode: TransportError.Code
     private var attemptsStorage = 0
     private var dropHandler: (@Sendable () -> Void)?
 
-    init(failuresBeforeSuccess: Int) {
+    init(failuresBeforeSuccess: Int, failureCode: TransportError.Code = .invalidFrame) {
         self.failuresBeforeSuccess = failuresBeforeSuccess
+        self.failureCode = failureCode
     }
 
     var attempts: Int {
@@ -170,7 +183,7 @@ private final class ChannelBox: @unchecked Sendable {
             return (current, failing)
         }
         if failing {
-            throw TransportError(.invalidFrame, "attempt (attempt) failed")
+            throw TransportError(failureCode, "attempt \(attempt) failed")
         }
         return StubChannel()
     }

@@ -101,8 +101,8 @@ public actor SecureTransport {
         await relay.setSecureHandler { [weak self] data in
             Task { await self?.handleSecure(data) }
         }
-        await relay.setCloseHandler { [weak self] _ in
-            Task { await self?.relayClosed() }
+        await relay.setCloseHandler { [weak self] error in
+            Task { await self?.relayClosed(error: error) }
         }
 
         let first = try noise.writeMessage(payload: hello)
@@ -171,10 +171,10 @@ public actor SecureTransport {
         }
     }
 
-    private func relayClosed() {
+    private func relayClosed(error: Error?) {
         sending = nil
         receiving = nil
-        waitingForStepTwo?.resume(throwing: TransportError(.invalidFrame, "The link dropped during the handshake."))
+        waitingForStepTwo?.resume(throwing: error ?? TransportError(.invalidFrame, "The link dropped during the handshake."))
         waitingForStepTwo = nil
         handshakeTimer?.cancel()
         handshakeTimer = nil

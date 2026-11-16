@@ -242,6 +242,9 @@ final class ChatViewController: UIViewController {
             await nextSession.setStatusHandler { [weak self] status in
                 Task { @MainActor [weak self] in self?.showStatus(status, for: id) }
             }
+            await nextSession.setErrorHandler { [weak self] message in
+                Task { @MainActor [weak self] in self?.showLinkError(message, for: id) }
+            }
             await nextSession.setEventHandler { [weak self] event, data in
                 Task { @MainActor [weak self] in self?.handleFeed(event, data: data, for: id) }
             }
@@ -251,7 +254,7 @@ final class ChatViewController: UIViewController {
 
     private func handleFeed(_ event: String, data: JSONValue, for id: UUID) {
         guard id == sessionID, linkStatus == .online else { return }
-        if event == "revision" || event == "live"
+        if event == "revision" || event == "live" || event == "notice"
             || (event == "message" && data["sessionId"]?.stringValue == chatSessionID)
             || (event == "room" && data["roomId"]?.stringValue == roomID) {
             Task { await refreshLatest(for: id) }
@@ -269,17 +272,9 @@ final class ChatViewController: UIViewController {
             statusLabel.text = "Connecting…"
             retryButton.isHidden = true
         case .online:
-            statusLabel.text = "Online"
+            statusLabel.text = "Checking computer…"
             retryButton.isHidden = true
-            if let pendingOffer {
-                pairingStore.save(pendingOffer)
-                savedOffer = pendingOffer
-                self.pendingOffer = nil
-                navigationItem.rightBarButtonItem?.title = "Computers"
-                updateEmptyState()
-                presentedViewController?.dismiss(animated: true)
-            }
-            startPolling(for: id)
+            Task { await checkComputer(for: id) }
         case .offline:
             statusLabel.text = "Offline · reconnecting"
             retryButton.isHidden = true
@@ -294,6 +289,43 @@ final class ChatViewController: UIViewController {
             composer.running = false
             polling?.cancel()
             polling = nil
+        }
+    }
+
+    private func showLinkError(_ message: String, for id: UUID) {
+        guard id == sessionID else { return }
+        statusLabel.text = message
+        let sheet = (presentedViewController as? UINavigationController)?.topViewController as? PairingViewController
+        sheet?.showError(message)
+    }
+
+    private func checkComputer(for id: UUID) async {
+        do {
+            let hello = try await BotAPI.call("hello", on: session)
+            guard id == sessionID, linkStatus == .online else { return }
+            guard hello["api"]?.intValue != nil else {
+                showLinkError("Update DS Bot on the computer to use this phone.", for: id)
+                await session.disconnect()
+                return
+            }
+            if let pendingOffer {
+                pairingStore.save(pendingOffer)
+                savedOffer = pendingOffer
+                self.pendingOffer = nil
+                navigationItem.rightBarButtonItem?.title = "Computers"
+                updateEmptyState()
+                presentedViewController?.dismiss(animated: true)
+            }
+            statusLabel.text = "Online"
+            startPolling(for: id)
+            let boot = hello["boot"]?.stringValue ?? ""
+            _ = try? await BotAPI.call("notices", payload: .object([
+                "boot": .string(boot), "since": .number(0),
+            ]), on: session)
+        } catch {
+            guard id == sessionID, linkStatus == .online else { return }
+            showLinkError(error.localizedDescription, for: id)
+            await session.disconnect()
         }
     }
 
@@ -884,6 +916,8 @@ private final class PairingViewController: UIViewController {
             navigationItem.rightBarButtonItem?.isEnabled = true
         }
     }
+
+    func showError(_ message: String) { errorLabel.text = message }
 
     @objc private func submit() {
         do {

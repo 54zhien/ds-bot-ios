@@ -4,7 +4,7 @@
 
 | 范围 | RN 基准 | 原生现状 | 下一项 |
 |---|---|---|---|
-| 配对与连接 | `screens/Pair.tsx`, `team/link.ts`, `store.ts`：扫码、粘贴、多电脑、重连、feed、通知补读 | 扫码、粘贴、多电脑记录/切换/删除、重连、feed 路径已写；未真机验 | hello/notice、拒绝配对反馈与真机扫码 |
+| 配对与连接 | `screens/Pair.tsx`, `team/link.ts`, `store.ts`：扫码、粘贴、多电脑、重连、feed、通知补读 | 扫码、粘贴、多电脑记录/切换/删除、重连、feed、hello 版本检查、notice 补读请求、拒绝配对停重试与错误提示已写；未真机验 | 真机扫码/重连及后台恢复 |
 | 团队导航 | `nav/ShellB.tsx`, `nav/Drawer.tsx`, `screens/TeamList.tsx`：主 Bot tile、Bot/群列表、搜索、未读、创建入口 | 主 Bot/Bot/群列表、搜索、目标切换、最近时间和置顶排序、预览、已读时间已写；卡片布局及创建入口未齐 | 抽屉布局、主 Bot tile、创建入口 |
 | Bot 聊天 | `screens/Chat.tsx`：最新页、旧页、feed、流式、发送、停止、滚动保持、待发消息 | 文本最新页/旧页、feed 补读、发送/停止、待发消息及失败重试已写；无流式 | 完成消息闭环与同屏核对 |
 | 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 文本、首张图片预览与原图打开已写；其余仍是简化占位 | 多图、Markdown、步骤、文件、视图与历史卡片 |

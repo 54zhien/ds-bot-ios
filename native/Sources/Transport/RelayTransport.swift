@@ -148,11 +148,15 @@ public actor RelayTransport {
     }
 
     public func close() async {
+        await shutdown(reason: nil)
+    }
+
+    private func shutdown(reason: Error?) async {
         guard !closed else { return }
         closed = true
         failReady(TransportError(.invalidFrame, "The relay transport closed."))
         await socket.close()
-        onClose?(nil)
+        onClose?(reason)
     }
 
     // MARK: - Control
@@ -190,7 +194,7 @@ public actor RelayTransport {
                 try await handle(text)
             } catch {
                 failReady(error)
-                await close()
+                await shutdown(reason: error)
                 return
             }
         }
@@ -223,7 +227,9 @@ public actor RelayTransport {
 
         case .connectRejected, .error:
             let message = frame.payload["message"]?.stringValue ?? "The Server rejected the relay connection."
-            throw TransportError(.invalidFrame, message)
+            let code = frame.payload["code"]?.stringValue
+            throw TransportError(code == "NOT_PAIRED" ? .notPaired
+                : code == "PAIRING_REJECTED" ? .pairingRejected : .invalidFrame, message)
 
         case .relay:
             guard let payloadId = frame.payload["connectionId"]?.stringValue, payloadId == connectionId,
