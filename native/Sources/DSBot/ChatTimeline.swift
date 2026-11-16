@@ -38,6 +38,9 @@ struct ChatRow {
     let name: String
     let text: String
     let time: Date?
+    let sourceKey: String
+    let localID: UUID?
+    let failed: Bool
 
     init(_ value: JSONValue) {
         kind = value["kind"]?.stringValue ?? "event"
@@ -71,6 +74,21 @@ struct ChatRow {
         } else {
             time = nil
         }
+        let sequence = value["seq"]?.intValue.map { String($0) } ?? ""
+        let timestamp = value["time"]?.intValue.map { String($0) } ?? ""
+        sourceKey = "\(sequence)|\(timestamp)|\(kind)|\(text)"
+        localID = nil
+        failed = false
+    }
+
+    init(localID: UUID, text: String, failed: Bool) {
+        kind = "user"
+        name = ""
+        self.text = text
+        time = Date()
+        sourceKey = "local-\(localID.uuidString)"
+        self.localID = localID
+        self.failed = failed
     }
 
     var isUser: Bool { kind == "user" }

@@ -31,7 +31,13 @@ final class OriginalSidebarIcon: UIView {
 final class TeamListViewController: UITableViewController, UISearchResultsUpdating {
     var onSelect: ((ChatTarget) -> Void)?
     private let state: JSONValue
-    private var sections: [(String, [ChatTarget])] = []
+    private struct Entry {
+        let target: ChatTarget
+        let preview: String
+        let pinned: Bool
+        let lastAt: Int
+    }
+    private var sections: [(String, [Entry])] = []
     private var query = ""
 
     init(state: JSONValue) {
@@ -78,19 +84,25 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             return value["hidden"] != .bool(true)
                 && (query.isEmpty || name.localizedCaseInsensitiveContains(query))
         }
-        func target(_ value: JSONValue, kind: ChatTarget.Kind) -> ChatTarget? {
+        func entry(_ value: JSONValue, kind: ChatTarget.Kind) -> Entry? {
             guard let id = value["id"]?.stringValue else { return nil }
-            return ChatTarget(kind: kind, id: id, name: value["name"]?.stringValue ?? id)
+            let target = ChatTarget(kind: kind, id: id, name: value["name"]?.stringValue ?? id)
+            let preview = value["preview"]?.stringValue ?? value["role"]?.stringValue ?? ""
+            return Entry(target: target, preview: preview, pinned: value["pinned"] == .bool(true),
+                         lastAt: value["lastAt"]?.intValue ?? value["createdAt"]?.intValue ?? 0)
         }
         let main = bots.filter { visible($0) && mains.contains($0["id"]?.stringValue ?? "") }
-            .compactMap { target($0, kind: .bot) }
+            .compactMap { entry($0, kind: .bot) }
         let otherBots = bots.filter { visible($0) && !mains.contains($0["id"]?.stringValue ?? "") }
-            .compactMap { target($0, kind: .bot) }
-        let groups = rooms.filter(visible).compactMap { target($0, kind: .room) }
+            .compactMap { entry($0, kind: .bot) }
+        let groups = rooms.filter(visible).compactMap { entry($0, kind: .room) }
+        let conversations = (otherBots + groups).sorted {
+            if $0.pinned != $1.pinned { return $0.pinned }
+            return $0.lastAt > $1.lastAt
+        }
         sections = [
             ("Main Bots", main),
-            ("Bots", otherBots),
-            ("Group chats", groups),
+            ("Conversations", conversations),
         ].filter { !$0.1.isEmpty }
         tableView.reloadData()
     }
@@ -105,14 +117,19 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "team")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "team")
-        let target = sections[indexPath.section].1[indexPath.row]
-        cell.textLabel?.text = target.name
-        cell.detailTextLabel?.text = target.kind == .room ? "Group chat" : "Bot"
+        let entry = sections[indexPath.section].1[indexPath.row]
+        cell.textLabel?.text = entry.target.name + (entry.pinned ? " · Pinned" : "")
+        cell.detailTextLabel?.text = entry.preview.isEmpty
+            ? (entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview
         cell.accessoryType = .disclosureIndicator
+        let seen = UserDefaults.standard.integer(forKey: "dsbot.seen.\(entry.target.id)")
+        cell.textLabel?.font = .systemFont(ofSize: 17, weight: entry.lastAt > seen ? .semibold : .regular)
         return cell
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        onSelect?(sections[indexPath.section].1[indexPath.row])
+        let entry = sections[indexPath.section].1[indexPath.row]
+        UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1_000), forKey: "dsbot.seen.\(entry.target.id)")
+        onSelect?(entry.target)
         dismiss(animated: true)
     }
 }

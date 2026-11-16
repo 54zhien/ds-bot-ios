@@ -17,6 +17,16 @@ final class ChatViewController: UIViewController {
     private var rows: [ChatRow] = []
     private var olderRows: [ChatRow] = []
     private var latestRows: [ChatRow] = []
+    private struct Outgoing {
+        let id: UUID
+        let text: String
+        let sessionID: String
+        let known: Set<String>
+        var failed = false
+        var delivered = false
+    }
+    private var outbox: [String: [Outgoing]] = [:]
+    private var acknowledgedRows: [String: Set<String>] = [:]
     private var cursor: JSONValue?
     private var chatSessionID: String?
     private var botID: String?
@@ -28,6 +38,33 @@ final class ChatViewController: UIViewController {
     private var readingLatest = false
     private var readAgain = false
     private var linkStatus: LinkSession.Status = .disconnected
+
+    private var chatKey: String? {
+        guard let host = savedOffer?.hostDeviceId, let target = botID ?? roomID else { return nil }
+        return "\(host):\(roomID == nil ? "bot" : "room"):\(target)"
+    }
+
+    private func rebuildRows() {
+        if let key = chatKey {
+            let visible = olderRows + latestRows
+            var matched = acknowledgedRows[key] ?? []
+            outbox[key]?.removeAll { entry in
+                guard entry.delivered,
+                      let row = visible.first(where: {
+                          $0.isUser && $0.text.trimmingCharacters(in: .whitespacesAndNewlines) == entry.text
+                              && !entry.known.contains($0.sourceKey) && !matched.contains($0.sourceKey)
+                      }) else { return false }
+                matched.insert(row.sourceKey)
+                return true
+            }
+            acknowledgedRows[key] = matched
+            rows = visible + (outbox[key] ?? []).map { ChatRow(localID: $0.id, text: $0.text, failed: $0.failed) }
+        } else {
+            rows = olderRows + latestRows
+        }
+        list.reloadData()
+        updateEmptyState()
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -267,6 +304,8 @@ final class ChatViewController: UIViewController {
                 emptyState.isHidden = false
                 return
             }
+            UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1_000),
+                                      forKey: "dsbot.seen.\(target.id)")
             if botID != (target.kind == .bot ? target.id : nil)
                 || roomID != (target.kind == .room ? target.id : nil) {
                 botID = target.kind == .bot ? target.id : nil
@@ -305,9 +344,7 @@ final class ChatViewController: UIViewController {
             }
             chatSessionID = nextSessionID
             latestRows = page.items
-            rows = olderRows + latestRows
-            list.reloadData()
-            updateEmptyState()
+            rebuildRows()
             if nearBottom && !rows.isEmpty {
                 list.layoutIfNeeded()
                 list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: false)
@@ -343,11 +380,9 @@ final class ChatViewController: UIViewController {
                 let page = ChatPage(value)
                 self.cursor = page.cursor
                 olderRows.insert(contentsOf: page.items, at: 0)
-                rows = olderRows + latestRows
-                list.reloadData()
+                rebuildRows()
                 list.layoutIfNeeded()
                 list.contentOffset.y = oldOffset + list.contentSize.height - oldHeight
-                updateEmptyState()
             } catch {
                 // The next upward scroll can request the same page again.
             }
@@ -467,17 +502,35 @@ final class ChatViewController: UIViewController {
             composer.restoreDraft(text)
             return
         }
+        guard let key = chatKey else { composer.restoreDraft(text); return }
+        let entry = Outgoing(id: UUID(), text: text, sessionID: sessionID,
+                             known: Set((olderRows + latestRows).map(\.sourceKey)))
+        outbox[key, default: []].append(entry)
+        rebuildRows()
+        list.layoutIfNeeded()
+        list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: true)
+        deliver(entry, key: key)
+    }
+
+    private func deliver(_ entry: Outgoing, key: String) {
         let id = self.sessionID
         Task {
             do {
                 _ = try await BotAPI.call("send", payload: .object([
-                    "sessionId": .string(sessionID), "text": .string(text),
+                    "sessionId": .string(entry.sessionID), "text": .string(entry.text),
                 ]), on: session)
+                guard id == self.sessionID else { return }
+                if let index = outbox[key]?.firstIndex(where: { $0.id == entry.id }) {
+                    outbox[key]?[index].delivered = true
+                    outbox[key]?[index].failed = false
+                }
                 await refreshLatest(for: id)
             } catch {
                 guard id == self.sessionID else { return }
-                composer.restoreDraft(text)
-                showActionError(error.localizedDescription)
+                if let index = outbox[key]?.firstIndex(where: { $0.id == entry.id }) {
+                    outbox[key]?[index].failed = true
+                }
+                if chatKey == key { rebuildRows() }
             }
         }
     }
@@ -515,6 +568,27 @@ extension ChatViewController: UITableViewDataSource {
 }
 
 extension ChatViewController: UITableViewDelegate {
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        guard rows.indices.contains(indexPath.row), let localID = rows[indexPath.row].localID,
+              rows[indexPath.row].failed, let key = chatKey,
+              let entry = outbox[key]?.first(where: { $0.id == localID }) else { return }
+        let sheet = UIAlertController(title: "Message not sent", message: entry.text, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Retry", style: .default) { [weak self] _ in
+            guard let self, let index = self.outbox[key]?.firstIndex(where: { $0.id == localID }) else { return }
+            self.outbox[key]?[index].failed = false
+            self.rebuildRows()
+            self.deliver(entry, key: key)
+        })
+        sheet.addAction(UIAlertAction(title: "Discard", style: .destructive) { [weak self] _ in
+            self?.outbox[key]?.removeAll(where: { $0.id == localID })
+            self?.rebuildRows()
+        })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
+        present(sheet, animated: true)
+    }
+
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         if (scrollView.isDragging || scrollView.isDecelerating) && scrollView.contentOffset.y < 100 {
             loadOlder()
@@ -590,9 +664,10 @@ private final class ChatMessageCell: UITableViewCell {
         messageLabel.text = row.text
         messageLabel.textAlignment = row.isNotice ? .center : .left
         messageLabel.textColor = row.isNotice ? .secondaryLabel : .label
-        timeLabel.text = row.time.map { Self.clock.string(from: $0) }
-        timeLabel.isHidden = row.time == nil || row.isNotice
-        accessibilityLabel = [row.author, row.text].joined(separator: ": ")
+        timeLabel.text = row.localID == nil ? row.time.map { Self.clock.string(from: $0) }
+            : row.failed ? "Not sent · tap to retry" : "Sending…"
+        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice
+        accessibilityLabel = [row.author, row.text, row.failed ? "Not sent" : ""].filter { !$0.isEmpty }.joined(separator: ": ")
     }
 }
 
