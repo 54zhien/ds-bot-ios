@@ -12,7 +12,7 @@
 | 群聊 | `screens/Chat.tsx` 的 room 分支、`TeamList.tsx` | `room-chat` 文本读取、分页、发送/停止已写，待 CI | 群成员、消息形态及互动 |
 | 待处理 | `screens/NeedsYou.tsx`, `screens/chat/dock.tsx`：问题、审批、密钥、卡片、浏览器交接 | 当前对话的问题/审批入口、列表和提交动作已写；密钥、卡片、浏览器交接未齐 | 其余卡片与 RN 的原位 dock 布局 |
 | Bot 管理 | `screens/manage.tsx`：详情、编辑、新建、模型、记忆、计划、目录、用量、浏览器 | 新建、基本编辑、模型选择、主 Bot、复制和删除已写；详情、记忆、计划、目录、用量、浏览器未齐 | 详情页及剩余功能 |
-| 群管理 | `screens/manage.tsx`：群详情、设置、新建 | 无 | 逐页 RPC |
+| 群管理 | `screens/manage.tsx`：群详情、设置、新建 | 新建、成员/管理员、名称/通知/发言模式编辑及删除已写；详情页未齐 | 群详情与同屏核对 |
 | 侧边对话 | `screens/side.tsx` | 无 | 列表、新建、提问 |
 | 设置 | `screens/Settings.tsx`, `settings-pages.tsx`：电脑、外观、语言、横幅、模型、连接器、能力、用量、密钥、位置、更新、关于 | 设置入口、电脑、外观与关于已写；团队设置页未齐 | 语言、横幅及逐页团队设置 |
 | 通知 | RN 当前包的本地通知/横幅行为，`team/link.ts` 的 notices | 无 | 核对实际 RN 能力后移植 |

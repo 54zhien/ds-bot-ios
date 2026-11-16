@@ -35,7 +35,7 @@ public enum MessageType: String, Codable, Sendable, CaseIterable {
     case event
 }
 
-public struct TransportError: Error, Equatable, CustomStringConvertible, Sendable {
+public struct TransportError: Error, Equatable, CustomStringConvertible, LocalizedError, Sendable {
     public enum Code: String, Sendable {
         case invalidFrame
         case frameTooLarge
@@ -53,6 +53,9 @@ public struct TransportError: Error, Equatable, CustomStringConvertible, Sendabl
     }
 
     public var description: String { "\(code.rawValue): \(message)" }
+    // Without this the UI only ever shows "The operation couldn't be completed.",
+    // which hid the host's own error code from the screen.
+    public var errorDescription: String? { description }
 }
 
 /// Payloads are JSON literals on the wire; unknown fields are kept so a newer host

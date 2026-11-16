@@ -82,7 +82,9 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     var onSelect: ((ChatTarget) -> Void)?
     var onSettings: (() -> Void)?
     var onCreateBot: (() -> Void)?
+    var onCreateGroup: (() -> Void)?
     var onEditBot: ((String) -> Void)?
+    var onEditGroup: ((String) -> Void)?
     private let state: JSONValue
     private struct Entry {
         let target: ChatTarget
@@ -112,8 +114,8 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         settings.addSubview(icon)
         let create = UIButton(type: .system)
         create.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        create.accessibilityLabel = "Create Bot"
-        create.addTarget(self, action: #selector(createBot), for: .touchUpInside)
+        create.accessibilityLabel = "Create"
+        create.addTarget(self, action: #selector(showCreate), for: .touchUpInside)
         let plus = OriginalPlusIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
         plus.isUserInteractionEnabled = false
         create.addSubview(plus)
@@ -135,9 +137,21 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         let action = onSettings
         dismiss(animated: true) { action?() }
     }
-    @objc private func createBot() {
-        let action = onCreateBot
-        dismiss(animated: true) { action?() }
+    @objc private func showCreate() {
+        let sheet = UIAlertController(title: "Create", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "New Bot", style: .default) { [weak self] _ in
+            guard let self else { return }
+            let action = onCreateBot
+            dismiss(animated: true) { action?() }
+        })
+        sheet.addAction(UIAlertAction(title: "Group chat", style: .default) { [weak self] _ in
+            guard let self else { return }
+            let action = onCreateGroup
+            dismiss(animated: true) { action?() }
+        })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.popoverPresentationController?.barButtonItem = navigationItem.rightBarButtonItems?.last
+        present(sheet, animated: true)
     }
 
     func updateSearchResults(for searchController: UISearchController) {
@@ -215,11 +229,15 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         _ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
     ) -> UISwipeActionsConfiguration? {
         let target = sections[indexPath.section].1[indexPath.row].target
-        guard target.kind == .bot else { return nil }
         let edit = UIContextualAction(style: .normal, title: "Edit") { [weak self] _, _, done in
             guard let self else { done(false); return }
-            let action = onEditBot
-            dismiss(animated: true) { action?(target.id) }
+            let botAction = onEditBot
+            let groupAction = onEditGroup
+            if target.kind == .bot {
+                dismiss(animated: true) { botAction?(target.id) }
+            } else {
+                dismiss(animated: true) { groupAction?(target.id) }
+            }
             done(true)
         }
         return UISwipeActionsConfiguration(actions: [edit])

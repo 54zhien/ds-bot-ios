@@ -548,7 +548,9 @@ final class ChatViewController: UIViewController {
         team.onSelect = { [weak self] target in self?.selectTarget(target) }
         team.onSettings = { [weak self] in self?.showSettings() }
         team.onCreateBot = { [weak self] in self?.showBotEditor(id: nil) }
+        team.onCreateGroup = { [weak self] in self?.showGroupEditor(id: nil) }
         team.onEditBot = { [weak self] id in self?.showBotEditor(id: id) }
+        team.onEditGroup = { [weak self] id in self?.showGroupEditor(id: id) }
         present(UINavigationController(rootViewController: team), animated: true)
     }
 
@@ -560,6 +562,22 @@ final class ChatViewController: UIViewController {
         } else { bot = nil }
         if id != nil && bot == nil { return }
         let editor = BotEditorViewController(bot: bot, state: teamState, session: session)
+        editor.onSaved = { [weak self] target in
+            guard let self else { return }
+            if let target { self.selectTarget(target) }
+            Task { await self.refreshLatest(for: self.sessionID) }
+        }
+        present(UINavigationController(rootViewController: editor), animated: true)
+    }
+
+    private func showGroupEditor(id: String?) {
+        guard linkStatus == .online, let teamState else { return }
+        let room: JSONValue?
+        if let id, case .array(let rooms)? = teamState["rooms"] {
+            room = rooms.first(where: { $0["id"]?.stringValue == id })
+        } else { room = nil }
+        if id != nil && room == nil { return }
+        let editor = GroupEditorViewController(room: room, state: teamState, session: session)
         editor.onSaved = { [weak self] target in
             guard let self else { return }
             if let target { self.selectTarget(target) }
@@ -692,10 +710,13 @@ final class ChatViewController: UIViewController {
                     ) }
                     staged.append(.string(imageID))
                 }
-                _ = try await BotAPI.call("send", payload: .object([
+                // The host only expects the field when photos ride along; an empty
+                // array is a different shape than the one the phone normally sends.
+                var payload: [String: JSONValue] = [
                     "sessionId": .string(entry.sessionID), "text": .string(entry.text),
-                    "images": .array(staged),
-                ]), on: session)
+                ]
+                if !staged.isEmpty { payload["images"] = .array(staged) }
+                _ = try await BotAPI.call("send", payload: .object(payload), on: session)
                 guard id == self.sessionID else { return }
                 if let index = outbox[key]?.firstIndex(where: { $0.id == entry.id }) {
                     outbox[key]?[index].delivered = true
