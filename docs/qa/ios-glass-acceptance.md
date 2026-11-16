@@ -38,3 +38,7 @@
 - Host：可随时断网与睡眠
 - 身份：Main Bot 与普通成员各一个
 - 产物：重签后的实际 bundle id 与 buildNumber、每版 .xcarchive 与 dSYM 位置
+
+## 另一半：重连与断线
+
+这版同时改了网络层，「断网 → 重连 → 重试」的步骤与判定不在本表里，单独一份：[`ios-reconnect-checks.md`](./ios-reconnect-checks.md)。三组场景（短断网 / 长断网 / 电脑端断开）不跑，不算验完。那份额外写了 `linked` 与 `online` 两个状态怎么区分。
