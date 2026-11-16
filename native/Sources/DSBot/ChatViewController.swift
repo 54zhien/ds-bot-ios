@@ -158,21 +158,46 @@ final class ChatViewController: UIViewController {
         )
         let sideButton = UIButton(type: .system)
         sideButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        NSLayoutConstraint.activate([
+            sideButton.widthAnchor.constraint(equalToConstant: 44),
+            sideButton.heightAnchor.constraint(equalToConstant: 44),
+        ])
         sideButton.accessibilityLabel = "Side chat"
         sideButton.addTarget(self, action: #selector(showSideChat), for: .touchUpInside)
-        let sideIcon = OriginalSideIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
+        let sideIcon = OriginalSideIcon()
+        sideIcon.translatesAutoresizingMaskIntoConstraints = false
+        sideIcon.isOpaque = false
+        sideIcon.backgroundColor = .clear
         sideIcon.isUserInteractionEnabled = false
         sideButton.addSubview(sideIcon)
+        NSLayoutConstraint.activate([
+            sideIcon.centerXAnchor.constraint(equalTo: sideButton.centerXAnchor),
+            sideIcon.centerYAnchor.constraint(equalTo: sideButton.centerYAnchor),
+            sideIcon.widthAnchor.constraint(equalToConstant: 28),
+            sideIcon.heightAnchor.constraint(equalToConstant: 28),
+        ])
         sideItem = UIBarButtonItem(customView: sideButton)
         updateSideButton()
         let teamButton = UIButton(type: .system)
         teamButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        NSLayoutConstraint.activate([
+            teamButton.widthAnchor.constraint(equalToConstant: 44),
+            teamButton.heightAnchor.constraint(equalToConstant: 44),
+        ])
         teamButton.accessibilityLabel = "Team"
         teamButton.addTarget(self, action: #selector(showTeam), for: .touchUpInside)
-        let teamIcon = OriginalSidebarIcon(frame: CGRect(x: 9, y: 9, width: 26, height: 26))
+        let teamIcon = OriginalSidebarIcon()
+        teamIcon.translatesAutoresizingMaskIntoConstraints = false
+        teamIcon.isOpaque = false
         teamIcon.isUserInteractionEnabled = false
         teamIcon.backgroundColor = .clear
         teamButton.addSubview(teamIcon)
+        NSLayoutConstraint.activate([
+            teamIcon.centerXAnchor.constraint(equalTo: teamButton.centerXAnchor),
+            teamIcon.centerYAnchor.constraint(equalTo: teamButton.centerYAnchor),
+            teamIcon.widthAnchor.constraint(equalToConstant: 28),
+            teamIcon.heightAnchor.constraint(equalToConstant: 28),
+        ])
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: teamButton)
         configureStatusBar()
         configureList()

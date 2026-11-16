@@ -233,7 +233,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     }
 }
 
-final class OriginalActionIcon: UIView {
+final class OriginalActionIcon: OriginalIconView {
     var showsStop = false { didSet { setNeedsDisplay() } }
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
@@ -260,7 +260,7 @@ final class OriginalActionIcon: UIView {
 }
 
 /// PlusIcon path from mobile/src/ui/icons.tsx.
-final class OriginalPlusIcon: UIView {
+final class OriginalPlusIcon: OriginalIconView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()

@@ -203,6 +203,10 @@ final class SideChatViewController: UIViewController {
 }
 
 extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
+    func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        openID == nil ? "Ask about the work so far" : "Answered from progress so far; nothing was run"
+    }
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         openID == nil ? chats.count : entries.count
     }
@@ -226,7 +230,14 @@ extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UI
             cell.detailTextLabel?.text = status == "answering" ? "Answering…"
                 : status == "failed" ? entry["failure"]?.stringValue ?? "The side answer failed."
                 : status == "cancelled" ? "Cancelled" : entry["answer"]?.stringValue ?? ""
-            cell.accessoryView = nil
+            if status == "answering" {
+                let cancelButton = UIButton(type: .system)
+                cancelButton.setTitle("Cancel", for: .normal)
+                cancelButton.accessibilityLabel = "Cancel this side question"
+                cancelButton.frame = CGRect(x: 0, y: 0, width: 70, height: 44)
+                cancelButton.addAction(UIAction { [weak self] _ in self?.cancel(entry) }, for: .touchUpInside)
+                cell.accessoryView = cancelButton
+            } else { cell.accessoryView = nil }
         }
         return cell
     }

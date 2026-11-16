@@ -8,7 +8,17 @@ struct ChatTarget: Equatable {
 }
 
 /// SidebarIcon from mobile/src/ui/icons.tsx, 20×20 viewBox.
-final class OriginalSidebarIcon: UIView {
+class OriginalIconView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+final class OriginalSidebarIcon: OriginalIconView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()
@@ -27,7 +37,7 @@ final class OriginalSidebarIcon: UIView {
 }
 
 /// GearIcon path from mobile/src/ui/icons.tsx.
-final class OriginalGearIcon: UIView {
+final class OriginalGearIcon: OriginalIconView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()
@@ -58,7 +68,7 @@ final class OriginalGearIcon: UIView {
 }
 
 /// ChevronRightIcon path from mobile/src/ui/icons.tsx.
-final class OriginalChevronRightIcon: UIView {
+final class OriginalChevronRightIcon: OriginalIconView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()
@@ -77,7 +87,7 @@ final class OriginalChevronRightIcon: UIView {
 }
 
 /// SideIcon path from mobile/src/ui/icons.tsx.
-final class OriginalSideIcon: UIView {
+final class OriginalSideIcon: OriginalIconView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()
@@ -112,7 +122,7 @@ final class OriginalSideIcon: UIView {
 }
 
 /// CloseIcon path from mobile/src/ui/icons.tsx.
-final class OriginalCloseIcon: UIView {
+final class OriginalCloseIcon: OriginalIconView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()
