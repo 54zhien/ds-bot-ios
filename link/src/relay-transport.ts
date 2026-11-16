@@ -26,10 +26,12 @@ export interface RelayTransportOptions {
   handshakeTimeoutMs?: number
   /** How often a ready socket's silence is checked; default 5 s. */
   watchdogIntervalMs?: number
-  /** Silence after which a ready socket is probed; default 15 s. */
+  /** Silence after which a ready socket is probed; defaults to the heartbeat interval the Server asked for, else 15 s. */
   watchdogSilenceMs?: number
-  /** Silence after a probe that declares the link dead; default 10 s. */
+  /** Silence after one probe before it is retried, and again before the link is declared dead; default 10 s. */
   probeTimeoutMs?: number
+  /** Probes sent before a silent link is declared dead; default 2, so one lost pong costs a retry, not the link. */
+  probeAttempts?: number
   createSocket?: (url: string) => WebSocket
 }
 
@@ -49,9 +51,16 @@ export class RelayTransport extends BaseTransport implements SecureHandshakeTran
   private readyReject?: (error: Error) => void
   private handshakeTimer?: ReturnType<typeof setTimeout>
   private controlFrameLimits: ControlFrameByteLimits = {}
-  /** Last frame heard from the current socket, and when the pending probe went out (0 = none). */
+  /** Last frame heard from the current socket. */
   private lastHeard = 0
-  private probeAt = 0
+  /** When the outstanding probe went out; 0 while none is outstanding. */
+  private probingSince = 0
+  /** When the last probe went out, answered or not; 0 before the first one. */
+  private lastProbeAt = 0
+  /** Probes sent since the last frame heard; cleared by any frame. */
+  private probeAttempt = 0
+  /** The heartbeat interval from hello.ack; 0 until the Server states one. */
+  private serverHeartbeatMs = 0
   /** Ends the current socket (reports its close once, without waiting for its close event). */
   private endCurrent?: (reason?: Error, emit?: boolean) => void
   private readonly url: string
@@ -69,6 +78,7 @@ export class RelayTransport extends BaseTransport implements SecureHandshakeTran
     this.controlFrameLimits = {}
     this.relayCounter = 0
     this.closeReason = undefined
+    this.serverHeartbeatMs = 0
     this.socket.binaryType = 'arraybuffer'
     await new Promise<void>((resolve, reject) => {
       this.readyResolve = resolve
@@ -101,8 +111,18 @@ export class RelayTransport extends BaseTransport implements SecureHandshakeTran
       }
       this.endCurrent = endSocket
       this.lastHeard = Date.now()
-      this.probeAt = 0
-      socket.onmessage = event => { if (!stale()) { this.lastHeard = Date.now(); this.handleSocketMessage(event.data) } }
+      this.probingSince = 0
+      this.lastProbeAt = 0
+      this.probeAttempt = 0
+      // Any frame — a pong, a heartbeat, a message — answers the outstanding
+      // probe and arms the watchdog again.
+      socket.onmessage = event => {
+        if (stale()) return
+        this.lastHeard = Date.now()
+        this.probingSince = 0
+        this.probeAttempt = 0
+        this.handleSocketMessage(event.data)
+      }
       socket.onopen = () => {
         if (stale()) return
         this.sendControl('hello', {
@@ -130,13 +150,17 @@ export class RelayTransport extends BaseTransport implements SecureHandshakeTran
       watchdog = setInterval(() => {
         if (ended || this.socket !== socket || this.connectionId === undefined) return
         const now = Date.now()
-        if (this.probeAt > 0) {
-          if (now - Math.max(this.lastHeard, this.probeAt) >= (this.options.probeTimeoutMs ?? 10_000)) {
-            endSocket(Object.assign(new Error('The Server stopped answering'), { code: 'SERVER_UNREACHABLE' }))
-          }
+        if (this.probingSince > 0) {
+          if (now - this.probingSince < this.probeTimeoutMs) return
+          if (this.probeAttempt < this.probeAttempts) { this.probeNow(); return }
+          endSocket(Object.assign(new Error('The Server stopped answering'), { code: 'SERVER_UNREACHABLE' }))
           return
         }
-        if (now - this.lastHeard >= (this.options.watchdogSilenceMs ?? 15_000)) this.probeNow()
+        if (now - this.lastHeard < this.silenceMs) return
+        // One probe per silence window plus one timeout: an idle link is never
+        // probed faster than a dead one is declared.
+        if (now - this.lastProbeAt < this.silenceMs + this.probeTimeoutMs) return
+        this.probeNow()
       }, this.options.watchdogIntervalMs ?? 5_000)
     })
   }
@@ -181,18 +205,39 @@ export class RelayTransport extends BaseTransport implements SecureHandshakeTran
     return () => this.handshakeHandlers.delete(cb)
   }
 
-  /** Ask the Server for a liveness reply now; a dead socket ends itself via the watchdog. */
+  /**
+   * Ask the Server for a liveness reply now. One probe may be outstanding at a
+   * time; once any frame answers it, this may be called again.
+   */
   probe(): void {
-    if (this.socket?.readyState !== 1 || this.connectionId === undefined || this.probeAt > 0) return
+    if (this.socket?.readyState !== 1 || this.connectionId === undefined || this.probingSince > 0) return
     this.probeNow()
   }
 
   private probeNow(): void {
     if (this.socket === undefined) return
-    this.probeAt = Date.now()
+    this.probingSince = Date.now()
+    this.lastProbeAt = this.probingSince
+    this.probeAttempt += 1
     // Runs from a timer: a throw here would be uncaught (a redbox on the phone).
-    try { this.sendControl('ping', { nonce: this.probeAt }) }
+    try { this.sendControl('ping', { nonce: this.probingSince }) }
     catch { this.endCurrent?.(Object.assign(new Error('The Server stopped answering'), { code: 'SERVER_UNREACHABLE' })) }
+  }
+
+  /** The Server's own heartbeat interval wins over the built-in default. */
+  private get silenceMs(): number {
+    const configured = this.options.watchdogSilenceMs
+    if (configured !== undefined && configured > 0) return configured
+    return this.serverHeartbeatMs > 0 ? this.serverHeartbeatMs : 15_000
+  }
+
+  private get probeTimeoutMs(): number {
+    const configured = this.options.probeTimeoutMs
+    return configured !== undefined && configured > 0 ? configured : 10_000
+  }
+
+  private get probeAttempts(): number {
+    return Math.max(1, this.options.probeAttempts ?? 2)
   }
 
   async close(): Promise<void> {
@@ -220,6 +265,8 @@ export class RelayTransport extends BaseTransport implements SecureHandshakeTran
       if (frame.type === 'hello.ack') {
         const payload = frame.payload as Partial<HelloAckPayload>
         if (payload.protocol !== PROTOCOL_VERSION) throw new Error('Server selected an unsupported protocol version')
+        const heartbeat = payload.heartbeatIntervalMs
+        if (typeof heartbeat === 'number' && Number.isSafeInteger(heartbeat) && heartbeat > 0) this.serverHeartbeatMs = heartbeat
         const negotiated = acceptNegotiatedCapabilities(this.offeredCapabilities(), payload.capabilities)
         this.controlFrameLimits = {
           maxControlFrameBytes: payload.maxControlFrameBytes,
