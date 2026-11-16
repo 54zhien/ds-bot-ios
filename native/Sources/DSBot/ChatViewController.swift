@@ -4,7 +4,8 @@ import UIKit
 final class ChatViewController: UIViewController {
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
-    private let composer = UIView()
+    private let composer = NativeComposerView()
+    private var composerHeight: NSLayoutConstraint!
     private let statusBar = UIStackView()
     private let statusLabel = UILabel()
     private let retryButton = UIButton(type: .system)
@@ -108,6 +109,8 @@ final class ChatViewController: UIViewController {
         let id = UUID()
         sessionID = id
         linkStatus = .connecting
+        composer.canSend = false
+        composer.running = false
         polling?.cancel()
         polling = nil
         botID = nil
@@ -164,11 +167,15 @@ final class ChatViewController: UIViewController {
         case .offline:
             statusLabel.text = "Offline · reconnecting"
             retryButton.isHidden = true
+            composer.canSend = false
+            composer.running = false
             polling?.cancel()
             polling = nil
         case .disconnected:
             statusLabel.text = savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"
             retryButton.isHidden = savedOffer == nil && pendingOffer == nil
+            composer.canSend = false
+            composer.running = false
             polling?.cancel()
             polling = nil
         }
@@ -220,6 +227,10 @@ final class ChatViewController: UIViewController {
                 olderRows = []
                 cursor = nil
             }
+            composer.canSend = true
+            let work = state["work"]?["bots"]?[nextBotID]
+            let activity = state["activity"]?[nextBotID]
+            composer.running = (work != nil && work != .null) || (activity != nil && activity != .null)
             let value = try await BotAPI.call("chat", payload: .object([
                 "botId": .string(nextBotID), "steps": .bool(false),
             ]), on: session)
@@ -296,25 +307,63 @@ final class ChatViewController: UIViewController {
     /// The resting capsule's height, so step 4 can grow it in place.
     private func configureComposer() {
         composer.translatesAutoresizingMaskIntoConstraints = false
-        composer.backgroundColor = .secondarySystemBackground
-        composer.layer.cornerRadius = 31
-        composer.layer.borderWidth = 1
-        composer.layer.borderColor = UIColor.separator.cgColor
+        composerHeight = composer.heightAnchor.constraint(equalToConstant: 62)
+        composer.onHeightChange = { [weak self] height in
+            guard let self else { return }
+            composerHeight.constant = height
+            list.contentInset.bottom = height + 14
+            UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
+        }
+        composer.onSend = { [weak self] text in self?.sendMessage(text) }
+        composer.onStop = { [weak self] in self?.stopChat() }
         view.addSubview(composer)
-        let placeholder = UILabel()
-        placeholder.translatesAutoresizingMaskIntoConstraints = false
-        placeholder.text = "Message"
-        placeholder.textColor = .placeholderText
-        placeholder.font = .preferredFont(forTextStyle: .body)
-        composer.addSubview(placeholder)
+        view.keyboardLayoutGuide.usesBottomSafeArea = true
         NSLayoutConstraint.activate([
             composer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             composer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            composer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
-            composer.heightAnchor.constraint(equalToConstant: 62),
-            placeholder.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
-            placeholder.centerYAnchor.constraint(equalTo: composer.centerYAnchor),
+            composer.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12),
+            composerHeight,
         ])
+    }
+
+    private func sendMessage(_ text: String) {
+        guard linkStatus == .online, let sessionID = chatSessionID ?? botID else {
+            composer.restoreDraft(text)
+            return
+        }
+        let id = self.sessionID
+        Task {
+            do {
+                _ = try await BotAPI.call("send", payload: .object([
+                    "sessionId": .string(sessionID), "text": .string(text),
+                ]), on: session)
+                await refreshLatest(for: id)
+            } catch {
+                guard id == self.sessionID else { return }
+                composer.restoreDraft(text)
+                showActionError(error.localizedDescription)
+            }
+        }
+    }
+
+    private func stopChat() {
+        guard linkStatus == .online, let botID else { return }
+        Task {
+            do {
+                _ = try await BotAPI.call("stop-chat", payload: .object([
+                    "botId": .string(botID),
+                ]), on: session)
+                await refreshLatest(for: sessionID)
+            } catch {
+                showActionError(error.localizedDescription)
+            }
+        }
+    }
+
+    private func showActionError(_ message: String) {
+        let alert = UIAlertController(title: "Could not complete the action", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 }
 
