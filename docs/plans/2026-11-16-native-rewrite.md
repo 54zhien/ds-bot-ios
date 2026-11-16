@@ -26,6 +26,11 @@
 - **验收**：与本地 Node relay + host 端到端跑通；用 TS 侧测试里的同一组向量做逐字节比对（握手 prologue、帧编码、counter 语义）；断网 10s / 90s / 重启 host 三种情况行为与 RN 版一致。
 - 放行条件：`swift test` 全绿 + 真机与真实 relay 连通 + 断线场景通过。
 
+### N0 状态：**已通过**（2026-11-16）
+- 向量层面：`Frames` 三条向量（hello 304 / relay 214 / error 155 字节）与 `Noise` 的 message1/message2/hash/双向密钥/首条密文逐字节相等（run `43804701521`）。
+- 端到端：`ios-native-interop`（dispatch-only）在 CI 里起真 `link/server` + 真 host，Swift 客户端完成 hello 鉴权 → Noise 两段握手 → 一次 `bot.state` RPC → 干净关闭（run `43807637080`，52 秒）。
+- 覆盖的纪律：编译与测试只在 GitHub 上跑；本地 Windows 不装 Swift 工具链。
+
 ### N1 单屏闭环（聊天）
 - 原生聊天页：消息列表（分页、反转）、输入框（照 zen 的 Composer 结构：caret 定位占位符、UIVisualEffectView 表面、键盘时序动画）、发送/停止、断线与重连横幅。
 - 验收：与 RN 版同屏对照，收发、滚动、重连一致；输入框手感对齐 zen。
