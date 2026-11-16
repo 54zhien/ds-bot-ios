@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 
@@ -10,10 +11,12 @@ import XCTest
 final class InteropChainTests: XCTestCase {
     func testConnectHandshakeAndOneRpc() async throws {
         let pairingCode = InteropConfig.pairingCode
-        let deviceId = "d-swift-interop"
 
         let privateKey = Data((0..<32).map { index in UInt8((index * 7 + 3) & 0xff) })
         let phoneKeys = try NoiseKeyPair(privateKey: privateKey)
+        // gateway.ts derives the device id from the identity key and rejects a hello
+        // whose id does not match, so the test has to derive it the same way.
+        let deviceId = InteropChainTests.deviceId(for: phoneKeys.publicKey)
         let identity = SecureTransport.Identity(
             deviceId: deviceId,
             publicKey: Base64URL.encode(phoneKeys.publicKey),
@@ -61,5 +64,11 @@ final class InteropChainTests: XCTestCase {
         await secure.close()
         let readyAfterClose = await secure.isReady
         XCTAssertFalse(readyAfterClose, "close() leaves no usable channel")
+    }
+
+    /// keys.ts: `d-` + base64url(sha256(raw X25519 public key)[0..<16]).
+    private static func deviceId(for publicKey: Data) -> String {
+        let digest = Data(SHA256.hash(data: publicKey))
+        return "d-" + Base64URL.encode(digest.prefix(16))
     }
 }
