@@ -36,7 +36,10 @@ final class LinkSessionTests: XCTestCase {
         await session.connect(factory.pairing)
 
         try await waitUntil { await session.currentStatus == .online }
-        XCTAssertEqual(log.values.prefix(4), [.connecting, .offline, .connecting, .online])
+        // setStatusHandler reports the value it already has when it is registered, so
+        // the first entry is the initial state, not a transition.
+        let transitions = Array(log.values.dropFirst())
+        XCTAssertEqual(Array(transitions.prefix(4)), [.connecting, .offline, .connecting, .online])
         let attempts = await factory.attempts
         XCTAssertEqual(attempts, 3)
     }
