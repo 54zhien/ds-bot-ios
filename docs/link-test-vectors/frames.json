@@ -1,0 +1,102 @@
+{
+  "$comment": "Control frames: the object, the exact encoded string, and the size each one must fit.",
+  "source": {
+    "encode": "src/frames.ts:164-177",
+    "envelope": "src/frames.ts:192-207",
+    "limits": "src/frames.ts:308-314"
+  },
+  "limits": {
+    "maxControlFrameBytes": 65536,
+    "maxRelayFrameBytes": 1048576,
+    "note": "relay frames are held to maxRelayFrameBytes, every other type to maxControlFrameBytes; the Server announces both in hello.ack and a peer may only lower them (src/frames.ts:308-314)."
+  },
+  "timestamp": 1893456000000,
+  "frames": [
+    {
+      "name": "hello",
+      "payload": {
+        "role": "client",
+        "deviceId": "d-qqj_9wO1CyKX9PbhNQj3JA",
+        "identityKey": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+        "accessToken": "QkNERUZHSEJDREVGR0hCQ0RFRkdIQkNERUZHSEJDREU",
+        "protocols": [
+          1
+        ],
+        "capabilities": [
+          "transport.relay"
+        ]
+      },
+      "decoded": {
+        "v": 1,
+        "id": "vec-hello-1",
+        "type": "hello",
+        "timestamp": 1893456000000,
+        "payload": {
+          "role": "client",
+          "deviceId": "d-qqj_9wO1CyKX9PbhNQj3JA",
+          "identityKey": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+          "accessToken": "QkNERUZHSEJDREVGR0hCQ0RFRkdIQkNERUZHSEJDREU",
+          "protocols": [
+            1
+          ],
+          "capabilities": [
+            "transport.relay"
+          ]
+        }
+      },
+      "encoded": "{\"v\":1,\"id\":\"vec-hello-1\",\"type\":\"hello\",\"timestamp\":1893456000000,\"payload\":{\"role\":\"client\",\"deviceId\":\"d-qqj_9wO1CyKX9PbhNQj3JA\",\"identityKey\":\"B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw\",\"accessToken\":\"QkNERUZHSEJDREVGR0hCQ0RFRkdIQkNERUZHSEJDREU\",\"protocols\":[1],\"capabilities\":[\"transport.relay\"]}}",
+      "encodedBytes": 304
+    },
+    {
+      "name": "relay",
+      "payload": {
+        "connectionId": "conn-vector-1",
+        "targetDeviceId": "d-Zja72X_8gO4gcesaJSs3lQ",
+        "counter": 7,
+        "ciphertext": "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2k",
+        "ciphertextSourceHex": "030a11181f262d343b424950575e656c737a81888f969da4"
+      },
+      "decoded": {
+        "v": 1,
+        "id": "vec-relay-1",
+        "type": "relay",
+        "timestamp": 1893456000000,
+        "payload": {
+          "connectionId": "conn-vector-1",
+          "targetDeviceId": "d-Zja72X_8gO4gcesaJSs3lQ",
+          "counter": 7,
+          "ciphertext": "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2k"
+        }
+      },
+      "encoded": "{\"v\":1,\"id\":\"vec-relay-1\",\"type\":\"relay\",\"timestamp\":1893456000000,\"payload\":{\"connectionId\":\"conn-vector-1\",\"targetDeviceId\":\"d-Zja72X_8gO4gcesaJSs3lQ\",\"counter\":7,\"ciphertext\":\"AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2k\"}}",
+      "encodedBytes": 214
+    },
+    {
+      "name": "error",
+      "payload": {
+        "code": "HOST_OFFLINE",
+        "message": "The computer is offline.",
+        "retryable": true
+      },
+      "decoded": {
+        "v": 1,
+        "id": "vec-error-1",
+        "type": "error",
+        "timestamp": 1893456000000,
+        "payload": {
+          "code": "HOST_OFFLINE",
+          "message": "The computer is offline.",
+          "retryable": true
+        }
+      },
+      "encoded": "{\"v\":1,\"id\":\"vec-error-1\",\"type\":\"error\",\"timestamp\":1893456000000,\"payload\":{\"code\":\"HOST_OFFLINE\",\"message\":\"The computer is offline.\",\"retryable\":true}}",
+      "encodedBytes": 155
+    }
+  ],
+  "accepted": {
+    "accessToken": "QkNERUZHSEJDREVGR0hCQ0RFRkdIQkNERUZHSEJDREU",
+    "phoneDeviceId": "d-qqj_9wO1CyKX9PbhNQj3JA",
+    "hostDeviceId": "d-Zja72X_8gO4gcesaJSs3lQ",
+    "note": "The Server derives the device id from identityKey and rejects a mismatch (server/gateway.ts:218-226)."
+  }
+}

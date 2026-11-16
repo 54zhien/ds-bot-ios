@@ -1,0 +1,83 @@
+{
+  "$comment": "Noise IK (Noise_IK_25519_ChaChaPoly_SHA256) — handshake bytes, session keys and the first transport message.",
+  "source": {
+    "suite": "Noise_IK_25519_ChaChaPoly_SHA256",
+    "prologue": "src/noise.ts:127-134",
+    "handshake": "src/noise.ts:53-68",
+    "transport": "src/noise.ts:70-76"
+  },
+  "pinnedRandom": "random(tag, n) = sha256(tag || uint24le(n))[0..len); tag is \"phone\" for the initiator, \"host\" for the responder. The first call per side yields its ephemeral private key; later calls are unused by IK, but the rule stays the same.",
+  "deviceIds": {
+    "phone": "d-qqj_9wO1CyKX9PbhNQj3JA",
+    "host": "d-Zja72X_8gO4gcesaJSs3lQ"
+  },
+  "keys": {
+    "phone": {
+      "privateKey": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+      "publicKey": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw"
+    },
+    "host": {
+      "privateKey": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8",
+      "publicKey": "YFpyXSpK3-6xop4X7dYhwbdZPujNvESsbEq24vgF0jw"
+    }
+  },
+  "connection": {
+    "connectionId": "conn-vector-1",
+    "hostDeviceId": "d-Zja72X_8gO4gcesaJSs3lQ",
+    "clientDeviceId": "d-qqj_9wO1CyKX9PbhNQj3JA"
+  },
+  "prologue": {
+    "utf8": "DS-BOT-LINK\u0000v=1\u0000connection=conn-vector-1\u0000host=d-Zja72X_8gO4gcesaJSs3lQ\u0000client=d-qqj_9wO1CyKX9PbhNQj3JA",
+    "hex": "44532d424f542d4c494e4b00763d3100636f6e6e656374696f6e3d636f6e6e2d766563746f722d3100686f73743d642d5a6a613732585f38674f3467636573614a5373336c5100636c69656e743d642d71716a5f39774f3143794b58395062684e516a334a41",
+    "bytes": 102
+  },
+  "handshake": {
+    "message1": {
+      "from": "initiator",
+      "payload": {
+        "name": "Phone (vector)"
+      },
+      "bytes": 121,
+      "hex": "f30d9b055669c8229622a00811b8055aa97372a9c8343fd3076b22f43238c44489d5c48883649648625240fc810937f3e3687e638cf4c5674cd4aa9c31f415c681004eb62143696c2b75daa2509ccfda9a9e2cbcb8c4dce7d4746876545d3a31ea9aa8eec4908f0bf5ae6981c5202248d2bde775046a534d6a",
+      "base64url": "8w2bBVZpyCKWIqAIEbgFWqlzcqnIND_TB2si9DI4xESJ1cSIg2SWSGJSQPyBCTfz42h-Y4z0xWdM1KqcMfQVxoEATrYhQ2lsK3XaolCcz9qaniy8uMTc59R0aHZUXTox6pqo7sSQjwv1rmmBxSAiSNK953UEalNNag"
+    },
+    "message1Decrypted": {
+      "name": "Phone (vector)"
+    },
+    "message2": {
+      "from": "responder",
+      "payload": {
+        "name": "Desk (vector)"
+      },
+      "bytes": 72,
+      "hex": "e0a7342230096c032af05bdf2d6b0c19a05825dbeefb3d1e596d086137fb8a08ef240aeb2a624bc7efdf2f13ba2502a6404b313d5ee915ec4f2ed416878d04782c5ec4bab43621c9",
+      "base64url": "4Kc0IjAJbAMq8FvfLWsMGaBYJdvu-z0eWW0IYTf7igjvJArrKmJLx-_fLxO6JQKmQEsxPV7pFexPLtQWh40EeCxexLq0NiHJ"
+    },
+    "message2Decrypted": {
+      "name": "Desk (vector)"
+    },
+    "handshakeHash": {
+      "hex": "c302e804c8c3685525951a3d32e93e072d8010000dca73484dc342aad5d75a41",
+      "bytes": 32
+    }
+  },
+  "session": {
+    "initiatorToResponder": {
+      "hex": "9413535cb3cb0db7ae95f9f2b5b3aeeb7847a8d28269e019a5e40b09dc9af067",
+      "base64url": "lBNTXLPLDbeulfnytbOu63hHqNKCaeAZpeQLCdya8Gc"
+    },
+    "responderToInitiator": {
+      "hex": "b02be68350711f92b86b9afc35581ec5410d2e8760f512512edc7984b5c609c4",
+      "base64url": "sCvmg1BxH5K4a5r8NVgexUENLodg9RJRLtx5hLXGCcQ"
+    },
+    "note": "initiatorToResponder encrypts what the phone sends; responderToInitiator what the computer sends. A Swift session that reproduces message1/message2 must also reproduce these two keys."
+  },
+  "transportProof": {
+    "order": 0,
+    "nonce": "0",
+    "plaintextUtf8": "DSBOT-PROOF",
+    "ciphertextHex": "c08a8900aa4fec7c56f4055a74731a07089beed1ef7002c6d8ba03",
+    "ciphertextBytes": 27,
+    "note": "First transport message of this session; the nonce advances to 1 afterwards. 12-byte tag appended, no AD."
+  }
+}
