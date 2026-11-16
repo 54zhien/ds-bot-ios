@@ -1,0 +1,61 @@
+name: DSBot
+options:
+  bundleIdPrefix: io.github.fei2411
+  deploymentTarget:
+    iOS: "16.4"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.4"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CODE_SIGNING_ALLOWED: NO
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGN_IDENTITY: ""
+targets:
+  DSBot:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.4"
+    sources:
+      - path: Sources/DSBot
+      - path: Sources/Transport
+    info:
+      path: Support/Info.plist
+      properties:
+        CFBundleDisplayName: DS Bot
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIRequiresFullScreen: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot
+        PRODUCT_NAME: DSBot
+        TARGETED_DEVICE_FAMILY: "1,2"
+  DSBotTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.4"
+    sources:
+      - path: Tests/TransportTests
+    dependencies:
+      - target: DSBot
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot.tests
+schemes:
+  DSBot:
+    build:
+      targets:
+        DSBot: all
+        DSBotTests: [test]
+    test:
+      targets:
+        - DSBotTests
+    run:
+      config: Debug
