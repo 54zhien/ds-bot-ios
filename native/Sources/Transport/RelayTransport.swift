@@ -79,6 +79,7 @@ public actor RelayTransport {
     private var closed = false
     private var onSecure: (@Sendable (Data) -> Void)?
     private var onHandshake: (@Sendable (Int, Data) -> Void)?
+    private var onClose: (@Sendable (Error?) -> Void)?
 
     public init(options: RelayOptions, socket: RelaySocket) {
         self.options = options
@@ -110,6 +111,11 @@ public actor RelayTransport {
 
     public func setHandshakeHandler(_ handler: @escaping @Sendable (Int, Data) -> Void) {
         onHandshake = handler
+    }
+
+    /// Called when the socket goes away: a drop, a failure, or our own close().
+    public func setCloseHandler(_ handler: @escaping @Sendable (Error?) -> Void) {
+        onClose = handler
     }
 
     /// One ciphertext frame; the counter is this direction's message index.
@@ -146,6 +152,7 @@ public actor RelayTransport {
         closed = true
         failReady(TransportError(.invalidFrame, "The relay transport closed."))
         await socket.close()
+        onClose?(nil)
     }
 
     // MARK: - Control
@@ -176,6 +183,7 @@ public actor RelayTransport {
                 text = try await socket.receive()
             } catch {
                 failReady(error)
+                onClose?(error)
                 return
             }
             do {

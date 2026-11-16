@@ -42,6 +42,7 @@ public actor SecureTransport {
     private var waitingForStepTwo: CheckedContinuation<Data, Error>?
     private var handshakeTimer: Task<Void, Never>?
     private var onMessage: (@Sendable (Data) -> Void)?
+    private var onClose: (@Sendable () -> Void)?
     private var connectionId: String?
 
     /// hello is the handshake hello the phone sends inside the Noise handshake.
@@ -61,6 +62,11 @@ public actor SecureTransport {
 
     public func setMessageHandler(_ handler: @escaping @Sendable (Data) -> Void) {
         onMessage = handler
+    }
+
+    /// Called once when the channel is gone, whether it dropped or we closed it.
+    public func setCloseHandler(_ handler: @escaping @Sendable () -> Void) {
+        onClose = handler
     }
 
     /// Relay handshake, Noise message 1, Noise message 2 — in that order.
@@ -94,6 +100,9 @@ public actor SecureTransport {
         }
         await relay.setSecureHandler { [weak self] data in
             Task { await self?.handleSecure(data) }
+        }
+        await relay.setCloseHandler { [weak self] _ in
+            Task { await self?.relayClosed() }
         }
 
         let first = try noise.writeMessage(payload: hello)
@@ -129,6 +138,7 @@ public actor SecureTransport {
         sending = nil
         receiving = nil
         await relay.close()
+        onClose?()
     }
 
     // MARK: - Frames
@@ -159,6 +169,16 @@ public actor SecureTransport {
             // A ciphertext that does not open ends the session; the supervisor reconnects.
             self.receiving = nil
         }
+    }
+
+    private func relayClosed() {
+        sending = nil
+        receiving = nil
+        waitingForStepTwo?.resume(throwing: TransportError(.invalidFrame, "The link dropped during the handshake."))
+        waitingForStepTwo = nil
+        handshakeTimer?.cancel()
+        handshakeTimer = nil
+        onClose?()
     }
 
     private func expireHandshake() {
