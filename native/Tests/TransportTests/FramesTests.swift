@@ -66,7 +66,8 @@ final class FramesTests: XCTestCase {
     func testRelayCiphertextIsBase64URLOfTheKnownBytes() throws {
         let fixture = try VectorFixture.load()
         guard let vector = fixture.frames.first(where: { $0.type == ControlFrameType.relay.rawValue }),
-              let expectedHex = vector.ciphertextSourceHex,
+              // The generator writes the hex inside the payload, next to the base64url it came from.
+              let expectedHex = vector.payload["ciphertextSourceHex"]?.stringValue,
               let ciphertext = vector.payload["ciphertext"]?.stringValue
         else {
             throw XCTSkip("frames.json has no relay frame with ciphertextSourceHex")
@@ -115,7 +116,6 @@ private struct VectorFixture: Decodable {
         let encodedBytes: Int
         let decoded: Decoded
         let payload: JSONValue
-        let ciphertextSourceHex: String?
 
         var type: String { decoded.type }
     }
