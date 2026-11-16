@@ -39,6 +39,8 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
   const clientRef = useRef<RpcClient | undefined>(undefined)
   // The supervisor lives in the effect; the banner's Retry reaches it through here.
   const reconnectRef = useRef<() => void>(() => {})
+  // The failure streak is effect-local; a manual retry restarts it through this.
+  const resetFailuresRef = useRef<() => void>(() => {})
   const revision = useRef<number>(-1)
   const writes = useRef<Write[]>([])
   const liveKey = useRef<string | undefined>(undefined)
@@ -179,6 +181,7 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
     // Every wait belongs to the supervisor; this only counts consecutive failures so
     // the "not connected" switch follows its backoff instead of a second timer.
     let failures = 0
+    resetFailuresRef.current = () => { failures = 0 }
     let link: SupervisedLink | undefined
     link = connectSupervised({
       open: () => openLink(computer, identity),
@@ -253,7 +256,7 @@ export function useTeamLink(computer: SavedComputer, identity: PhoneIdentity) {
 
   // Stable so the banner's button keeps its identity across renders. A manual retry
   // also clears the verdict, so the bar goes back to "reconnecting" until it fails again.
-  const reconnect = useCallback(() => { setError(null); reconnectRef.current() }, [])
+  const reconnect = useCallback(() => { setError(null); resetFailuresRef.current(); reconnectRef.current() }, [])
 
   return {
     team: switched ? null : team,
