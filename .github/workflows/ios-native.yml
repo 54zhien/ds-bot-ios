@@ -457,22 +457,10 @@ jobs:
           echo "unsigned: confirmed"
 
           built="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
-          ids="$(python3 -c '
-          import re
-          text = open("native/project.yml", encoding="utf-8").read()
-          declared = prefix = ""
-          for line in text.splitlines():
-              found = re.match(r"\s*PRODUCT_BUNDLE_IDENTIFIER:\s*(.+)", line)
-              if found and not declared:
-                  declared = found.group(1).strip().strip("\"\x27")
-              found = re.match(r"\s*bundleIdPrefix:\s*(.+)", line)
-              if found and not prefix:
-                  prefix = found.group(1).strip().strip("\"\x27")
-          print(declared)
-          print(prefix)
-          ')"
-          declared="$(printf '%s' "$ids" | sed -n 1p)"
-          prefix="$(printf '%s' "$ids" | sed -n 2p)"
+          # awk, not python -c: a python body inside a YAML block scalar inherits the
+          # block indentation and dies with IndentationError before printing anything.
+          declared="$(awk '/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER:/{print $2; exit}' native/project.yml)"
+          prefix="$(awk '/^[[:space:]]*bundleIdPrefix:/{print $2; exit}' native/project.yml)"
           scheme="${{ steps.project.outputs.scheme }}"
           if [ -n "$declared" ]; then
             expected="$declared"
@@ -489,7 +477,22 @@ jobs:
             echo "::error::Info.plist has bundle id $built, project.yml leads to $expected"
             exit 1
           fi
-          echo "bundle id: $built"
+          # Built vs project.yml is self-consistency: both sides agree while both are wrong.
+          # Pin the suffix and make sure the native app can never take the React Native identity.
+          rn_id="$(awk -F'"' '/"bundleIdentifier"/{print $4; exit}' mobile/app.json)"
+          [ -n "$rn_id" ] || rn_id='io.github.fei2411.dsbot'
+          case "$built" in
+            *".native") ;;
+            *)
+              echo "::error::bundle id $built must end in .native so the native app installs beside the React Native one"
+              exit 1
+              ;;
+          esac
+          if [ "$built" = "$rn_id" ] || [ "$built" = "io.github.fei2411.dsbot" ]; then
+            echo "::error::bundle id $built is the React Native app's ($rn_id); the native build would replace it"
+            exit 1
+          fi
+          echo "bundle id: $built (React Native app keeps $rn_id)"
 
           minimum="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$app/Info.plist")"
           if [ "$minimum" != "16.4" ]; then

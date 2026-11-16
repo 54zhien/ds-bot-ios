@@ -33,7 +33,7 @@ targets:
         UIRequiresFullScreen: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot.native
         PRODUCT_NAME: DSBot
         TARGETED_DEVICE_FAMILY: "1,2"
   DSBotTests:
@@ -47,7 +47,7 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot.tests
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot.native.tests
 schemes:
   DSBot:
     build:
