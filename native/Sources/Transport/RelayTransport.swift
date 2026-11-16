@@ -163,7 +163,7 @@ public actor RelayTransport {
         }
     }
 
-    private func sendControl<Payload: WirePayload>(_ type: ControlFrameType, payload: Payload) async throws {
+    private func sendControl<Payload: WirePayload & Codable>(_ type: ControlFrameType, payload: Payload) async throws {
         let frame = ControlFrame(type: type, payload: payload)
         let text = try FrameCodec.encode(frame, limits: limits)
         try await socket.send(text)

@@ -106,7 +106,7 @@ public enum JSONValue: Codable, Sendable, Equatable {
 
     public var stringArrayValue: [String]? {
         guard case .array(let items) = self else { return nil }
-        let strings = items.compactMap(.stringValue)
+        let strings = items.compactMap { $0.stringValue }
         return strings.count == items.count ? strings : nil
     }
 
@@ -404,7 +404,7 @@ public struct ControlFrameLimits: Sendable, Equatable {
 /// JSON on the wire, byte-for-byte with what JSON.stringify produces: no spaces,
 /// no escaped slashes, keys in declaration order.
 public enum FrameCodec {
-    public static func encode<Payload: WirePayload>(
+    public static func encode<Payload: WirePayload & Codable>(
         _ frame: ControlFrame<Payload>,
         limits: ControlFrameLimits = .init()
     ) throws -> String {
