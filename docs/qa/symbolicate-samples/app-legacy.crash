@@ -1,0 +1,33 @@
+Incident Identifier: 5B0C7A11-3C4D-4E5F-9A10-B2C3D4E5F607
+CrashReporter Key:   8f2c1b44-9a31-3d2e-8b7c-1f0a2d3e4c55
+Hardware Model:      iPhone15,3
+Process:             DSBot [4242]
+Path:                /private/var/containers/Bundle/Application/0A1B2C3D-4E5F-6789-ABCD-EF0123456789/DSBot.app/DSBot
+Identifier:          io.github.fei2411.dsbot
+Version:             0.3.6 (360099)
+Code Type:           ARM-64 (Native)
+Parent Process:      [1]
+Date/Time:           2026-11-16 09:12:44.11 +0800
+OS Version:          iPhone OS 18.1.0 (22B83)
+Report Version:      104
+
+Exception Type:  EXC_BAD_ACCESS (SIGSEGV)
+Exception Codes: KERN_INVALID_ADDRESS at 0x0000000000000010
+Triggered by Thread:  0
+
+Thread 0 name:  DispatchQueue: com.apple.main-thread
+Thread 0 Crashed:
+0   DSBot   0x00000001043c6024 0x1043c0000 + 24612
+1   DSBot   0x00000001043c61a8 0x1043c0000 + 25000
+2   DSBot   0x00000001043c41f0 0x1043c0000 + 16880
+3   DeepView   0x00000001050033a4 0x105000000 + 13220
+4   libsystem_kernel.dylib   0x000000019b2c1234 0x19b2c0000 + 4660
+
+Thread 1:
+0   DSBot   0x00000001043c7a10 0x1043c0000 + 31248
+1   DeepView   0x0000000105002c00 0x105000000 + 11264
+
+Binary Images:
+0x1043c0000 - 0x1044bffff +DSBot arm64  <8f2c1b44-9a31-3d2e-8b7c-1f0a2d3e4c55> /private/var/containers/Bundle/Application/0A1B2C3D-4E5F-6789-ABCD-EF0123456789/DSBot.app/DSBot
+0x105000000 - 0x10503ffff +DeepView arm64  <2b7e5c11-6d0a-3f21-9cab-77e1d2c3b4a5> /private/var/containers/Bundle/Application/0A1B2C3D-4E5F-6789-ABCD-EF0123456789/DSBot.app/Frameworks/DeepView.framework/DeepView
+0x19b2c0000 - 0x19b2fbfff libsystem_kernel.dylib arm64e  <9d1e4a77-0b2c-3d4e-8f01-2a3b4c5d6e7f> /usr/lib/system/libsystem_kernel.dylib

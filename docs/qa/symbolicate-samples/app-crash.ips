@@ -1,0 +1,95 @@
+{"app_name":"DSBot","timestamp":"2026-11-16 09:12:44.00 +0800","app_version":"0.3.6","slice_uuid":"8f2c1b44-9a31-3d2e-8b7c-1f0a2d3e4c55","build_version":"360099","platform":2,"bundleID":"io.github.fei2411.dsbot","bug_type":"309","os_version":"iPhone OS 18.1.0 (22B83)","name":"DSBot","incident_id":"5B0C7A11-3C4D-4E5F-9A10-B2C3D4E5F607"}
+{
+  "procName": "DSBot",
+  "pid": 4242,
+  "procRole": "Foreground",
+  "captureTime": "2026-11-16 09:12:44.1180 +0800",
+  "incident": "5B0C7A11-3C4D-4E5F-9A10-B2C3D4E5F607",
+  "exception": {
+    "codes": "0x0000000000000001, 0x0000000000000000",
+    "rawCodes": [
+      1,
+      0
+    ],
+    "type": "EXC_BAD_ACCESS",
+    "signal": "SIGSEGV"
+  },
+  "faultingThread": 0,
+  "threads": [
+    {
+      "triggered": true,
+      "id": 775,
+      "name": "main",
+      "queue": "com.apple.main-thread",
+      "frames": [
+        {
+          "imageIndex": 0,
+          "imageOffset": 24612,
+          "symbol": ""
+        },
+        {
+          "imageIndex": 0,
+          "imageOffset": 25000,
+          "symbol": ""
+        },
+        {
+          "imageIndex": 0,
+          "imageOffset": 16880,
+          "symbol": ""
+        },
+        {
+          "imageIndex": 1,
+          "imageOffset": 13220,
+          "symbol": ""
+        },
+        {
+          "imageIndex": 2,
+          "imageOffset": 4660,
+          "symbol": "__pthread_kill"
+        }
+      ]
+    },
+    {
+      "id": 1963,
+      "name": "com.apple.uikit.eventfetch-thread",
+      "frames": [
+        {
+          "imageIndex": 0,
+          "imageOffset": 31248,
+          "symbol": ""
+        },
+        {
+          "imageIndex": 1,
+          "imageOffset": 11264,
+          "symbol": ""
+        }
+      ]
+    }
+  ],
+  "usedImages": [
+    {
+      "size": 1048576,
+      "arch": "arm64",
+      "base": 4366008320,
+      "uuid": "8f2c1b44-9a31-3d2e-8b7c-1f0a2d3e4c55",
+      "path": "/private/var/containers/Bundle/Application/0A1B2C3D-4E5F-6789-ABCD-EF0123456789/DSBot.app/DSBot",
+      "name": "DSBot"
+    },
+    {
+      "size": 262144,
+      "arch": "arm64",
+      "base": 4378853376,
+      "uuid": "2b7e5c11-6d0a-3f21-9cab-77e1d2c3b4a5",
+      "path": "/private/var/containers/Bundle/Application/0A1B2C3D-4E5F-6789-ABCD-EF0123456789/DSBot.app/Frameworks/DeepView.framework/DeepView",
+      "name": "DeepView"
+    },
+    {
+      "size": 245760,
+      "arch": "arm64",
+      "base": 6898319360,
+      "uuid": "9d1e4a77-0b2c-3d4e-8f01-2a3b4c5d6e7f",
+      "path": "/usr/lib/system/libsystem_kernel.dylib",
+      "name": "libsystem_kernel.dylib"
+    }
+  ]
+}
