@@ -43,7 +43,7 @@ final class ComputersViewController: UITableViewController {
         if indexPath.section == 1 {
             cell.textLabel?.text = "Add a computer"
             cell.detailTextLabel?.text = nil
-            cell.textLabel?.textColor = tintColor
+            cell.textLabel?.textColor = view.tintColor
             cell.accessoryType = .none
         } else {
             let offer = computers[indexPath.row]

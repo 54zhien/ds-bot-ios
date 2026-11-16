@@ -4,7 +4,7 @@
 
 | 范围 | RN 基准 | 原生现状 | 下一项 |
 |---|---|---|---|
-| 配对与连接 | `screens/Pair.tsx`, `team/link.ts`, `store.ts`：扫码、粘贴、多电脑、重连、feed、通知补读 | 粘贴、多电脑记录/切换/删除、重连、feed 路径已写；未真机验 | 扫码、hello/notice、拒绝配对反馈 |
+| 配对与连接 | `screens/Pair.tsx`, `team/link.ts`, `store.ts`：扫码、粘贴、多电脑、重连、feed、通知补读 | 扫码、粘贴、多电脑记录/切换/删除、重连、feed 路径已写；未真机验 | hello/notice、拒绝配对反馈与真机扫码 |
 | 团队导航 | `nav/ShellB.tsx`, `nav/Drawer.tsx`, `screens/TeamList.tsx`：主 Bot tile、Bot/群列表、搜索、未读、创建入口 | 主 Bot/Bot/群列表与目标切换已写，待 CI；布局、未读、创建入口未齐 | 抽屉布局、预览、未读、创建入口 |
 | Bot 聊天 | `screens/Chat.tsx`：最新页、旧页、feed、流式、发送、停止、滚动保持、待发消息 | 文本最新页/旧页、feed 补读、发送/停止；无流式、待发消息 | 完成消息闭环与同屏核对 |
 | 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 仅纯文本与简化占位 | 按 kind 逐项渲染与打开附件 |

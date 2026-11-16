@@ -629,7 +629,11 @@ private final class PairingViewController: UIViewController {
         errorLabel.textColor = .systemRed
         progressLabel.font = .preferredFont(forTextStyle: .subheadline)
         progressLabel.textColor = .secondaryLabel
-        let stack = UIStackView(arrangedSubviews: [instructions, field, errorLabel, progressLabel])
+        let scanButton = UIButton(type: .system)
+        scanButton.setTitle("Scan QR code", for: .normal)
+        scanButton.addTarget(self, action: #selector(scanCode), for: .touchUpInside)
+        scanButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        let stack = UIStackView(arrangedSubviews: [instructions, scanButton, field, errorLabel, progressLabel])
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.axis = .vertical
         stack.spacing = 16
@@ -643,6 +647,16 @@ private final class PairingViewController: UIViewController {
     }
 
     @objc private func close() { dismiss(animated: true) }
+
+    @objc private func scanCode() {
+        let scanner = PairingScannerViewController()
+        scanner.onCode = { [weak self] code in
+            guard let self else { return }
+            field.text = code
+            submit()
+        }
+        present(UINavigationController(rootViewController: scanner), animated: true)
+    }
 
     func showStatus(_ status: LinkSession.Status) {
         switch status {
