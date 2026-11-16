@@ -1,0 +1,364 @@
+name: iOS native interop
+
+# The one gate N0 needs that the other two workflows cannot answer: does the Swift client
+# really talk to the Node host over the relay, hello -> connect.request -> two Noise
+# handshakes -> one RPC?
+#
+# Manual only. It boots a relay and a host, so it carries node dependencies and port
+# timing that must never sit on the push path of ios-native.yml. macOS test target on
+# purpose: the transport is Foundation + CryptoKit, and a macOS destination skips the
+# ~31s simctl scan and ~3min simulator build the iOS destination costs.
+#
+# No IPA, no certificate, no Apple account.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: macOS image
+        type: choice
+        default: macos-26
+        options:
+          - macos-26
+          - macos-15
+      xcode_version:
+        description: Xcode to select, e.g. 26.6; empty picks the newest stable on the image
+        type: string
+        default: ''
+      scheme:
+        description: Scheme holding the macOS interop test target; empty uses the project name
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  CI: '1'
+  LANG: en_US.UTF-8
+
+concurrency:
+  group: ios-native-interop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  interop:
+    name: Swift against the Node host
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    # Building once and running one test; this only stops a wedged relay or host.
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Three pieces have to be in the tree before anything starts. Each one is a hard
+      # stop: without them a green run would claim the link works when nothing ran.
+      - name: Guard the inputs exist
+        run: |
+          if [ ! -d native ]; then
+            echo "::error::native/ is missing on this commit. The Swift rewrite has not landed yet."
+            exit 1
+          fi
+          if [ ! -f native/project.yml ]; then
+            echo "::error::native/project.yml is missing; there is no XcodeGen spec to generate from."
+            ls -la native || true
+            exit 1
+          fi
+          if [ ! -f link/package-lock.json ]; then
+            echo "::error::link/package-lock.json is missing; npm ci cannot install the relay."
+            ls -la link || true
+            exit 1
+          fi
+          if [ ! -f scripts/interop-host.mjs ]; then
+            echo "::error::scripts/interop-host.mjs is missing; there is no host to pair with."
+            exit 1
+          fi
+          echo "native/, native/project.yml, link/package-lock.json and the host script are present"
+
+      # The macOS target is the whole reason this job is cheap, so its absence is an
+      # error rather than a silent fallback to the iOS simulator. The generated Swift file
+      # goes into that target's own source directory, because a file sitting loose in
+      # native/Sources belongs to no target and would never compile.
+      - name: Guard the macOS test target exists
+        id: target
+        run: |
+          found="$(python3 -c '
+          import re
+          in_targets = False
+          current = None
+          sources = {}
+          targets = {}
+          open_sources = False
+          for line in open("native/project.yml", encoding="utf-8"):
+              if re.match(r"^targets:\s*$", line):
+                  in_targets = True
+                  continue
+              if in_targets and re.match(r"^\S", line):
+                  in_targets = False
+              if not in_targets:
+                  continue
+              found = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", line)
+              if found:
+                  current = found.group(1)
+                  targets[current] = {}
+                  sources[current] = []
+                  open_sources = False
+                  continue
+              if current is None:
+                  continue
+              if re.match(r"^    sources:\s*$", line):
+                  open_sources = True
+                  continue
+              if open_sources:
+                  found = re.match(r"^      - path:\s*(\S+)", line)
+                  if found:
+                      sources[current].append(found.group(1))
+                      continue
+                  open_sources = False
+              found = re.match(r"^    (type|platform):\s*(\S+)", line)
+              if found:
+                  targets[current][found.group(1)] = found.group(2).strip()
+          for name, spec in targets.items():
+              if spec.get("platform") == "macOS" and "test" in spec.get("type", ""):
+                  print(name)
+                  chosen = ""
+                  for path in sources[name]:
+                      if "test" in path.lower():
+                          chosen = path
+                          break
+                  print(chosen or (sources[name][0] if sources[name] else "Tests/InteropTests"))
+                  break
+          ')"
+          target="$(printf '%s' "$found" | sed -n 1p)"
+          source_dir="$(printf '%s' "$found" | sed -n 2p)"
+          if [ -z "$target" ]; then
+            echo "::error::native/project.yml has no macOS test target. Mason has to add one: type bundle.unit-test, platform macOS, sources pointing at the interop tests. This job will not fall back to the iOS simulator."
+            exit 1
+          fi
+          if [ -z "$source_dir" ]; then
+            echo "::error::the macOS test target $target lists no sources, so the generated Swift file has nowhere to live."
+            exit 1
+          fi
+          echo "macOS test target: $target, generated config goes to $source_dir/InteropConfig.generated.swift"
+          {
+            echo "name=$target"
+            echo "config=$source_dir/InteropConfig.generated.swift"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Select Xcode
+        env:
+          WANTED: ${{ inputs.xcode_version }}
+        run: |
+          if [ -n "$WANTED" ]; then
+            selected="/Applications/Xcode_$WANTED.app"
+            if [ ! -d "$selected" ]; then
+              echo "::error::$selected is not on this image. Available:"
+              ls -d /Applications/Xcode*.app
+              exit 1
+            fi
+          else
+            # sort -V is not dependable on every macOS, so the versions are compared as numbers.
+            selected="$(node -e '
+              const fs = require("node:fs")
+              const version = (name) => (name.match(/^Xcode_([0-9.]+?)(?:_[a-z0-9]+)?\.app$/) || [])[1] || ""
+              const newer = (a, b) => {
+                const left = a.split(".").map(Number)
+                const right = b.split(".").map(Number)
+                for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+                  const gap = (left[i] || 0) - (right[i] || 0)
+                  if (gap !== 0) return gap
+                }
+                return 0
+              }
+              const candidates = fs.readdirSync("/Applications")
+                .filter((name) => version(name) !== "")
+                .sort((a, b) => newer(version(a), version(b)))
+              process.stdout.write(candidates.length ? "/Applications/" + candidates[candidates.length - 1] : "")
+            ')"
+          fi
+          if [ -z "$selected" ]; then
+            echo "::error::no Xcode found on this image"
+            exit 1
+          fi
+          sudo xcode-select -s "$selected"
+          xcodebuild -version
+          major="$(xcodebuild -version | awk '/^Xcode /{split($2, p, "."); print p[1]}')"
+          if [ "${major:-0}" -lt 26 ]; then
+            echo "::error::Xcode $major has no iOS 26 SDK, which native/ needs"
+            exit 1
+          fi
+
+      # Pinned on purpose: the relay entry is TypeScript run straight by node, and that
+      # only works on 24. The image happens to carry 24.19.0 today; this does not rely on it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: link/package-lock.json
+
+      - name: Install the relay's packages
+        run: |
+          node --version
+          npm ci --no-fund --no-audit --prefix link
+
+      # In-memory on purpose: DSBOT_LINK_DATA is left unset, so nothing is written to disk
+      # and every run starts with an empty device table.
+      - name: Start the relay
+        run: |
+          mkdir -p interop
+          rm -f "${{ steps.target.outputs.config }}"
+          PORT=8787 HOST=127.0.0.1 nohup node link/server/main.ts > interop/server.log 2>&1 &
+          echo $! > interop/server.pid
+          sleep 1
+          cat interop/server.log || true
+
+      - name: Wait for the relay
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8787/healthz >/dev/null 2>&1; then
+              echo "relay answered /healthz after ${i}s"
+              exit 0
+            fi
+            if ! kill -0 "$(cat interop/server.pid)" 2>/dev/null; then
+              echo "::error::the relay exited before answering"
+              tail -60 interop/server.log || true
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::the relay never answered on 127.0.0.1:8787"
+          tail -60 interop/server.log || true
+          exit 1
+
+      - name: Start the interop host
+        run: |
+          PORT=8787 INTEROP_HOST=127.0.0.1 INTEROP_CONFIG_PATH="${{ steps.target.outputs.config }}" \
+            nohup node scripts/interop-host.mjs > interop/host.log 2>&1 &
+          echo $! > interop/host.pid
+          sleep 1
+          cat interop/host.log || true
+
+      # The host writes the Swift file only after it is online and holds an open pairing
+      # code, so the file appearing is the readiness signal for the whole rig.
+      - name: Wait for the host's config
+        run: |
+          for i in $(seq 1 90); do
+            if [ -f "${{ steps.target.outputs.config }}" ]; then
+              echo "the host wrote its config after ${i}s"
+              cat "${{ steps.target.outputs.config }}"
+              exit 0
+            fi
+            if ! kill -0 "$(cat interop/host.pid)" 2>/dev/null; then
+              echo "::error::the host exited before writing its config"
+              tail -80 interop/host.log || true
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::the host never wrote its config"
+          tail -80 interop/host.log || true
+          exit 1
+
+      # Generation happens after the host has written its Swift file, so the file is in
+      # place before the project is built from the spec.
+      - name: Generate the Xcode project
+        id: generate
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+          cd native
+          xcodegen generate
+          project_file="$(ls -d *.xcodeproj 2>/dev/null | head -1)"
+          if [ -z "$project_file" ]; then
+            echo "::error::xcodegen produced no .xcodeproj in native/"
+            ls -la
+            exit 1
+          fi
+          echo "project=native/$project_file" >> "$GITHUB_OUTPUT"
+          echo "generated $project_file"
+
+      - name: Read the scheme
+        id: scheme
+        run: |
+          project_file="${{ steps.generate.outputs.project }}"
+          listed="$(xcodebuild -list -json -project "$project_file")"
+          echo "$listed"
+          scheme="$(printf '%s' "$listed" | python3 -c '
+          import json, sys
+          listed = json.load(sys.stdin)
+          container = listed.get("project") or listed.get("workspace") or {}
+          names = [name for name in (container.get("schemes") or []) if not name.startswith("Pods")]
+          wanted, target, fallback = sys.argv[1], sys.argv[2], sys.argv[3]
+          # An explicit input wins, then the scheme named after the target without its
+          # Tests suffix (an InteropTests target usually sits in an Interop scheme),
+          # then the scheme carrying the project name.
+          stem = target[:-5] if target.endswith("Tests") else target
+          for candidate in (wanted, stem, stem + "Interop", fallback):
+              if candidate and candidate in names:
+                  print(candidate)
+                  break
+          ' "${{ inputs.scheme }}" "${{ steps.target.outputs.name }}" "$(basename "$project_file" .xcodeproj)")"
+          if [ -z "$scheme" ]; then
+            echo "::error::no scheme carries the interop test target. Schemes listed: $listed (pass one with the scheme input)."
+            exit 1
+          fi
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "running ${{ steps.target.outputs.name }} from scheme $scheme on macOS"
+
+      # One test target, one destination, no simulator. The Swift side finds its endpoint
+      # in the compiled-in InteropConfig that the host wrote a moment ago.
+      - name: Run the interop test
+        run: |
+          set -o pipefail
+          mkdir -p interop
+          xcodebuild test \
+            -project "${{ steps.generate.outputs.project }}" \
+            -scheme "${{ steps.scheme.outputs.scheme }}" \
+            -destination 'platform=macOS' \
+            -only-testing:"${{ steps.target.outputs.name }}" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee interop/xcodebuild.log
+
+      # A shell trap cannot span steps, so this is the workflow's equivalent: it kills the
+      # two background processes by their recorded pids, waits for the port to close, and
+      # prints both logs. always() so a failed or cancelled run still cleans up.
+      - name: Stop the rig
+        if: always()
+        run: |
+          for name in host server; do
+            if [ -f "interop/$name.pid" ]; then
+              pid="$(cat "interop/$name.pid")"
+              if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+                for i in $(seq 1 10); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+                kill -9 "$pid" 2>/dev/null || true
+                echo "stopped $name (pid $pid)"
+              fi
+            fi
+          done
+          for i in $(seq 1 20); do
+            if ! nc -z 127.0.0.1 8787 >/dev/null 2>&1; then
+              echo "port 8787 is released"
+              break
+            fi
+            sleep 0.5
+          done
+          echo '--- relay ---'
+          tail -40 interop/server.log 2>/dev/null || true
+          echo '--- host ---'
+          tail -60 interop/host.log 2>/dev/null || true
+
+      - name: Upload the interop logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-native-interop-log
+          path: interop/*.log
+          retention-days: 7
+          if-no-files-found: warn
