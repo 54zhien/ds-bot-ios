@@ -24,6 +24,7 @@ final class ChatViewController: UIViewController {
     private var rows: [ChatRow] = []
     private var olderRows: [ChatRow] = []
     private var latestRows: [ChatRow] = []
+    private var stream = ChatStream()
     private struct Outgoing {
         let id: UUID
         let text: String
@@ -73,6 +74,9 @@ final class ChatViewController: UIViewController {
             rows = visible + (outbox[key] ?? []).map {
                 ChatRow(localID: $0.id, text: $0.text, imageCount: $0.images.count,
                         failureReason: $0.failureReason)
+            }
+            if stream.sessionID == chatSessionID, !stream.text.isEmpty {
+                rows.append(ChatRow(.object(["kind": .string("bot"), "text": .string(stream.text)])))
             }
         } else {
             rows = olderRows + latestRows
@@ -325,6 +329,15 @@ final class ChatViewController: UIViewController {
 
     private func handleFeed(_ event: String, data: JSONValue, for id: UUID) {
         guard id == sessionID, linkStatus == .online else { return }
+        if event == "stream", stream.receive(data, for: chatSessionID) {
+            let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
+            rebuildRows()
+            if nearBottom && !rows.isEmpty {
+                list.layoutIfNeeded()
+                list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: false)
+            }
+            return
+        }
         if event == "revision" || event == "live" || event == "notice"
             || (event == "message" && data["sessionId"]?.stringValue == chatSessionID)
             || (event == "room" && data["roomId"]?.stringValue == roomID) {
@@ -353,6 +366,8 @@ final class ChatViewController: UIViewController {
             composer.running = false
             polling?.cancel()
             polling = nil
+            stream.clear()
+            rebuildRows()
         case .disconnected:
             statusLabel.text = savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"
             retryButton.isHidden = savedOffer == nil && pendingOffer == nil
@@ -360,6 +375,8 @@ final class ChatViewController: UIViewController {
             composer.running = false
             polling?.cancel()
             polling = nil
+            stream.clear()
+            rebuildRows()
         }
     }
 
@@ -452,6 +469,7 @@ final class ChatViewController: UIViewController {
                 botID = nil
                 roomID = nil
                 chatSessionID = nil
+                stream.clear()
                 updateSideButton()
                 pendingItems = []
                 updatePendingButton()
@@ -469,6 +487,7 @@ final class ChatViewController: UIViewController {
                 roomID = target.kind == .room ? target.id : nil
                 title = chosen?["name"]?.stringValue ?? target.name
                 chatSessionID = nil
+                stream.clear()
                 olderRows = []
                 expandedSteps = []
                 cursor = nil
@@ -497,6 +516,7 @@ final class ChatViewController: UIViewController {
             if chatSessionID != nextSessionID {
                 olderRows = []
                 cursor = page.cursor
+                stream.clear()
             } else if cursor == nil {
                 cursor = page.cursor
             }
