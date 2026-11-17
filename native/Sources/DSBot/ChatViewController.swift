@@ -908,8 +908,13 @@ final class ChatViewController: UIViewController {
 
     private func updatePendingButton() {
         let count = pendingItems.count
+        let needsAttention = pendingItems.contains {
+            if case .aside = $0 { return false }
+            return true
+        }
         pendingButton.isHidden = count == 0
-        pendingButton.setTitle(count == 1 ? "Needs you · 1 item" : "Needs you · \(count) items", for: .normal)
+        let label = needsAttention ? "Needs you" : "Aside"
+        pendingButton.setTitle("\(label) · \(count) \(count == 1 ? "item" : "items")", for: .normal)
         pendingHeight.constant = count == 0 ? 0 : 48
         list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + 22
     }
