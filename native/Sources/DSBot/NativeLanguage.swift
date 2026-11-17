@@ -71,6 +71,18 @@ enum NativeLanguage {
         "Waiting for an answer": "等待回答",
         "Let the Bot use {name}?": "允许 Bot 使用 {name}？",
         "Could not answer": "无法提交回答",
+        "Provider ID": "服务商 ID",
+        "Provider name": "服务商名称",
+        "API base URL": "API 基础地址",
+        "Manual model IDs": "手动输入模型 ID",
+        "Model IDs, comma separated": "模型 ID（逗号分隔）",
+        "Finding models…": "正在查找模型…",
+        "Find models": "查找模型",
+        "API protocol": "API 协议",
+        "Could not find models": "无法查找模型",
+        "Could not add provider": "无法添加服务商",
+        "Missing details": "缺少必要信息",
+        "Provider ID, API URL and at least one model are required.": "需要服务商 ID、API 地址和至少一个模型。",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }

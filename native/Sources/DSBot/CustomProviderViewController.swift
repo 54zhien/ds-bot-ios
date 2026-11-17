@@ -32,7 +32,7 @@ final class CustomProviderViewController: UITableViewController {
         for (field, hint) in [(providerID, "Provider ID"), (providerName, "Name"),
                               (baseURL, "API base URL"), (apiKey, "API key"),
                               (manualModels, "Model IDs, comma separated")] {
-            field.placeholder = hint
+            field.placeholder = NativeLanguage.text(hint)
             field.autocapitalizationType = .none
             field.autocorrectionType = .no
             field.clearButtonMode = .whileEditing
@@ -40,17 +40,17 @@ final class CustomProviderViewController: UITableViewController {
         }
         apiKey.isSecureTextEntry = true
         baseURL.keyboardType = .URL
-        providerID.accessibilityLabel = "Provider ID"
-        providerName.accessibilityLabel = "Provider name"
-        baseURL.accessibilityLabel = "API base URL"
-        apiKey.accessibilityLabel = "API key"
-        manualModels.accessibilityLabel = "Manual model IDs"
+        providerID.accessibilityLabel = NativeLanguage.text("Provider ID")
+        providerName.accessibilityLabel = NativeLanguage.text("Provider name")
+        baseURL.accessibilityLabel = NativeLanguage.text("API base URL")
+        apiKey.accessibilityLabel = NativeLanguage.text("API key")
+        manualModels.accessibilityLabel = NativeLanguage.text("Manual model IDs")
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Connection", "Models", nil][section]
+        ["Connection", "Models", nil][section].map(NativeLanguage.text)
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -72,12 +72,12 @@ final class CustomProviderViewController: UITableViewController {
             cell.textLabel?.text = nil
             cell.selectionStyle = .none
         } else if path.section == 0 {
-            cell.textLabel?.text = "Protocol"
-            cell.detailTextLabel?.text = selectedProtocol ?? "Default"
+            cell.textLabel?.text = NativeLanguage.text("Protocol")
+            cell.detailTextLabel?.text = selectedProtocol ?? NativeLanguage.text("Default")
             cell.accessoryType = .disclosureIndicator
             cell.selectionStyle = .default
         } else if path.section == 1 && path.row == 0 {
-            cell.textLabel?.text = discovering ? "Finding models…" : "Find models"
+            cell.textLabel?.text = NativeLanguage.text(discovering ? "Finding models…" : "Find models")
             cell.textLabel?.textColor = view.tintColor
             cell.selectionStyle = .default
         } else if path.section == 1 && path.row == 1 {
@@ -93,7 +93,7 @@ final class CustomProviderViewController: UITableViewController {
             cell.accessoryType = selectedModels.contains(id) ? .checkmark : .none
             cell.selectionStyle = .default
         } else {
-            cell.textLabel?.text = saving ? "Adding…" : "Add provider"
+            cell.textLabel?.text = NativeLanguage.text(saving ? "Adding…" : "Add provider")
             cell.textLabel?.textColor = view.tintColor
             cell.selectionStyle = .default
         }
@@ -125,14 +125,14 @@ final class CustomProviderViewController: UITableViewController {
 
     private func chooseProtocol(from source: UIView?) {
         guard !protocols.isEmpty else { return }
-        let sheet = UIAlertController(title: "API protocol", message: nil, preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: NativeLanguage.text("API protocol"), message: nil, preferredStyle: .actionSheet)
         for api in protocols {
             sheet.addAction(UIAlertAction(title: api, style: .default) { [weak self] _ in
                 self?.selectedProtocol = api
                 self?.tableView.reloadRows(at: [IndexPath(row: 3, section: 0)], with: .none)
             })
         }
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = source
         present(sheet, animated: true)
     }
@@ -172,7 +172,7 @@ final class CustomProviderViewController: UITableViewController {
             .object(["id": .string($0)])
         }
         guard !id.isEmpty, !url.isEmpty, !models.isEmpty else {
-            showError("Missing details", message: "Provider ID, API URL and at least one model are required.")
+            showError("Missing details", message: NativeLanguage.text("Provider ID, API URL and at least one model are required."))
             return
         }
         view.endEditing(true)
@@ -197,8 +197,8 @@ final class CustomProviderViewController: UITableViewController {
     }
 
     private func showError(_ title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text(title), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
