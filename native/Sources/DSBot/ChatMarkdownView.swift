@@ -83,7 +83,7 @@ final class ChatMarkdownView: UIStackView {
         spacing = 8
     }
 
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     static func hasWideBlock(_ text: String) -> Bool {
         ChatMarkdownBlock.parse(text).contains {
@@ -152,14 +152,18 @@ final class ChatMarkdownView: UIStackView {
         content.translatesAutoresizingMaskIntoConstraints = false
         content.axis = .vertical
         scroll.addSubview(content)
+        let columnCount = rows.map(\.count).max() ?? 0
         for (rowIndex, values) in rows.enumerated() {
             let row = UIStackView()
             row.axis = .horizontal
             row.alignment = .fill
             row.backgroundColor = rowIndex == 0 ? UIColor.label.withAlphaComponent(0.06) : .clear
-            for value in values {
+            for index in 0..<columnCount {
+                let value = index < values.count ? values[index] : ""
                 let label = UILabel()
-                label.text = value
+                if let markdown = try? AttributedString(markdown: value) {
+                    label.attributedText = NSAttributedString(markdown)
+                } else { label.text = value }
                 label.font = .systemFont(ofSize: 14, weight: rowIndex == 0 ? .semibold : .regular)
                 label.numberOfLines = 2
                 label.textAlignment = .left
@@ -168,11 +172,11 @@ final class ChatMarkdownView: UIStackView {
             }
             row.isLayoutMarginsRelativeArrangement = true
             row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10)
-            row.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            row.heightAnchor.constraint(greaterThanOrEqualToConstant: 54).isActive = true
             content.addArrangedSubview(row)
         }
         NSLayoutConstraint.activate([
-            scroll.heightAnchor.constraint(equalToConstant: CGFloat(max(1, rows.count) * 44)),
+            scroll.heightAnchor.constraint(equalToConstant: CGFloat(max(1, rows.count) * 54)),
             content.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
             content.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
             content.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
