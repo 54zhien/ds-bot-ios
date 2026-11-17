@@ -68,9 +68,10 @@ private final class TeamDrawerAnimator: NSObject, UIViewControllerAnimatedTransi
     }
 
     func animateTransition(using context: UIViewControllerContextTransitioning) {
-        let key: UITransitionContextViewControllerKey = opening ? .to : .from
-        guard let controller = context.viewController(forKey: key),
-              let panel = context.view(forKey: key) else {
+        let controllerKey: UITransitionContextViewControllerKey = opening ? .to : .from
+        let viewKey: UITransitionContextViewKey = opening ? .to : .from
+        guard let controller = context.viewController(forKey: controllerKey),
+              let panel = context.view(forKey: viewKey) else {
             context.completeTransition(false)
             return
         }
