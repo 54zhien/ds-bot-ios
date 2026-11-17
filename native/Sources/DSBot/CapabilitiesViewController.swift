@@ -1,6 +1,7 @@
 import UIKit
 
 final class CapabilitiesViewController: UITableViewController {
+    private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let session: LinkSession
     private var items: [JSONValue] = []
     private var statuses: JSONValue?
@@ -43,8 +44,8 @@ final class CapabilitiesViewController: UITableViewController {
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "capability")
         cell.detailTextLabel?.numberOfLines = 2
         if items.isEmpty {
-            cell.textLabel?.text = "No capabilities"
-            cell.detailTextLabel?.text = "Tap + to add an MCP server, skill, or pack"
+            cell.textLabel?.text = tr("No capabilities")
+            cell.detailTextLabel?.text = tr("Tap + to add an MCP server, skill, or pack")
             cell.accessoryType = .none
         } else {
             let item = items[indexPath.row]
@@ -52,11 +53,11 @@ final class CapabilitiesViewController: UITableViewController {
             let status = statuses?[name]
             cell.textLabel?.text = name
             let kind = item["kind"]?.stringValue ?? "mcp"
-            let detail = kind == "mcp" ? (item["transport"]?.stringValue == "stdio" ? "Local command" : "HTTP server")
-                : kind == "skill" ? "Skill" : "Pack"
+            let detail = tr(kind == "mcp" ? (item["transport"]?.stringValue == "stdio" ? "Local command" : "HTTP server")
+                : kind == "skill" ? "Skill" : "Pack")
             let state = status?["state"]?.stringValue
-            let stateText = state == "ready" ? "Ready" : state == "needs-approval" ? "Needs approval"
-                : state == "error" ? status?["error"]?.stringValue ?? "Connection error" : nil
+            let stateText = state == "ready" ? tr("Ready") : state == "needs-approval" ? tr("Needs approval")
+                : state == "error" ? status?["error"]?.stringValue ?? tr("Connection error") : nil
             cell.detailTextLabel?.text = [detail, item["description"]?.stringValue, stateText]
                 .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
             cell.accessoryType = .disclosureIndicator
@@ -72,30 +73,30 @@ final class CapabilitiesViewController: UITableViewController {
         let sheet = UIAlertController(title: name,
                                       message: item["content"]?.stringValue ?? item["description"]?.stringValue,
                                       preferredStyle: .actionSheet)
-        sheet.addAction(UIAlertAction(title: "Edit", style: .default) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: tr("Edit"), style: .default) { [weak self] _ in
             self?.edit(item)
         })
         if statuses?[name]?["state"]?.stringValue == "needs-approval" {
-            sheet.addAction(UIAlertAction(title: "Approve", style: .default) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: tr("Approve"), style: .default) { [weak self] _ in
                 self?.run("capability-approve", payload: ["name": .string(name)])
             })
         }
-        sheet.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: tr("Delete"), style: .destructive) { [weak self] _ in
             self?.confirmDelete(name)
         })
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
         present(sheet, animated: true)
     }
 
     @objc private func add() {
-        let sheet = UIAlertController(title: "Add capability", message: nil, preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: tr("Add capability"), message: nil, preferredStyle: .actionSheet)
         for (kind, title) in [("mcp", "MCP server"), ("skill", "Skill"), ("pack", "Pack")] {
-            sheet.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: tr(title), style: .default) { [weak self] _ in
                 self?.showEditor(kind: kind, item: nil)
             })
         }
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.barButtonItem = navigationItem.rightBarButtonItem
         present(sheet, animated: true)
     }
@@ -106,13 +107,13 @@ final class CapabilitiesViewController: UITableViewController {
 
     private func showEditor(kind: String, item: JSONValue?) {
         if kind == "mcp" {
-            let sheet = UIAlertController(title: "MCP transport", message: nil, preferredStyle: .actionSheet)
+            let sheet = UIAlertController(title: tr("MCP transport"), message: nil, preferredStyle: .actionSheet)
             for (transport, title) in [("stdio", "Local command"), ("streamable-http", "HTTP server")] {
-                sheet.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                sheet.addAction(UIAlertAction(title: tr(title), style: .default) { [weak self] _ in
                     self?.showFields(kind: kind, transport: transport, item: item)
                 })
             }
-            sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
             sheet.popoverPresentationController?.sourceView = view
             present(sheet, animated: true)
         } else {
@@ -125,7 +126,7 @@ final class CapabilitiesViewController: UITableViewController {
             : kind == "pack" ? ["Items (comma separated)"]
             : transport == "stdio" ? ["Command", "Arguments (comma separated)", "Environment (JSON object)"]
             : ["URL", "Headers (JSON object)"])
-        let alert = UIAlertController(title: item == nil ? "Add capability" : "Edit capability",
+        let alert = UIAlertController(title: tr(item == nil ? "Add capability" : "Edit capability"),
                                       message: nil, preferredStyle: .alert)
         let values = [item?["name"]?.stringValue ?? "", item?["description"]?.stringValue ?? ""]
             + (kind == "skill" ? [item?["content"]?.stringValue ?? ""]
@@ -136,15 +137,15 @@ final class CapabilitiesViewController: UITableViewController {
                : [item?["url"]?.stringValue ?? "", Self.jsonText(item?["headers"])])
         for (index, name) in names.enumerated() {
             alert.addTextField { field in
-                field.placeholder = name
+                field.placeholder = self.tr(name)
                 field.text = values[index]
                 field.autocapitalizationType = .none
                 field.autocorrectionType = .no
                 if index == 0 && item != nil { field.isEnabled = false }
             }
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Save"), style: .default) { [weak self, weak alert] _ in
             guard let fields = alert?.textFields else { return }
             let texts = fields.map { $0.text ?? "" }
             let name = texts[0].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -198,8 +199,8 @@ final class CapabilitiesViewController: UITableViewController {
 
     private func confirmDelete(_ name: String) {
         let alert = UIAlertController(title: "Delete \(name)?", message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Keep", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: tr("Keep"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Delete"), style: .destructive) { [weak self] _ in
             self?.run("capability-delete", payload: ["name": .string(name)])
         })
         present(alert, animated: true)
@@ -215,13 +216,14 @@ final class CapabilitiesViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Capability action failed", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: tr("Capability action failed"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("OK"), style: .default))
         present(alert, animated: true)
     }
 }
 
 final class BotCapabilitiesViewController: UITableViewController {
+    private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let botID: String
     private let session: LinkSession
     private var items: [JSONValue] = []
@@ -268,7 +270,7 @@ final class BotCapabilitiesViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "bot-capability")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "bot-capability")
         if items.isEmpty {
-            cell.textLabel?.text = "No capabilities in team library"
+            cell.textLabel?.text = tr("No capabilities in team library")
             cell.detailTextLabel?.text = nil
             cell.accessoryType = .none
             cell.selectionStyle = .none
@@ -302,9 +304,9 @@ final class BotCapabilitiesViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Could not update capabilities", message: message,
+        let alert = UIAlertController(title: tr("Could not update capabilities"), message: message,
                                       preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: tr("OK"), style: .default))
         present(alert, animated: true)
     }
 }

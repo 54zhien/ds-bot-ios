@@ -35,7 +35,7 @@ final class LocationSettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "location")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "location")
-        cell.textLabel?.text = indexPath.row == 0 ? "Team workspace" : "Data location"
+        cell.textLabel?.text = NativeLanguage.text(indexPath.row == 0 ? "Team workspace" : "Data location")
         cell.detailTextLabel?.text = indexPath.row == 0 ? workspace : dataPath
         cell.detailTextLabel?.numberOfLines = 0
         cell.selectionStyle = indexPath.row == 0 ? .default : .none

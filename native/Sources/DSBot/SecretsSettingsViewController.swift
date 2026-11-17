@@ -1,6 +1,7 @@
 import UIKit
 
 final class SecretsSettingsViewController: UITableViewController {
+    private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let session: LinkSession
     private var secrets: [JSONValue] = []
 
@@ -41,8 +42,8 @@ final class SecretsSettingsViewController: UITableViewController {
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "secret")
         cell.selectionStyle = .none
         if secrets.isEmpty {
-            cell.textLabel?.text = "Nothing saved yet"
-            cell.detailTextLabel?.text = "Tap + to add a secret"
+            cell.textLabel?.text = tr("Nothing saved yet")
+            cell.detailTextLabel?.text = tr("Tap + to add a secret")
         } else {
             let secret = secrets[indexPath.row]
             cell.textLabel?.text = secret["name"]?.stringValue
@@ -50,7 +51,7 @@ final class SecretsSettingsViewController: UITableViewController {
                 cell.detailTextLabel?.text = scope.compactMap(\.stringValue).joined(separator: ", ")
             } else {
                 cell.detailTextLabel?.text = secret["scope"]?.stringValue == "all"
-                    ? "All Bots" : secret["scope"]?.stringValue
+                    ? tr("All Bots") : secret["scope"]?.stringValue
             }
         }
         return cell
@@ -62,7 +63,7 @@ final class SecretsSettingsViewController: UITableViewController {
         guard secrets.indices.contains(indexPath.row), let name = secrets[indexPath.row]["name"]?.stringValue else {
             return nil
         }
-        let action = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, done in
+        let action = UIContextualAction(style: .destructive, title: tr("Delete")) { [weak self] _, _, done in
             self?.confirmDelete(name)
             done(false)
         }
@@ -70,19 +71,19 @@ final class SecretsSettingsViewController: UITableViewController {
     }
 
     @objc private func add() {
-        let alert = UIAlertController(title: "Add secret", message: nil, preferredStyle: .alert)
+        let alert = UIAlertController(title: tr("Add secret"), message: nil, preferredStyle: .alert)
         alert.addTextField { field in
-            field.placeholder = "Name"
+            field.placeholder = self.tr("Name")
             field.autocapitalizationType = .allCharacters
         }
         alert.addTextField { field in
-            field.placeholder = "Paste or type the key"
+            field.placeholder = self.tr("Paste or type the key")
             field.isSecureTextEntry = true
             field.autocapitalizationType = .none
             field.autocorrectionType = .no
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Save"), style: .default) { [weak self, weak alert] _ in
             guard let name = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !name.isEmpty, let value = alert?.textFields?.last?.text, !value.isEmpty else { return }
             self?.run("secret-set", payload: ["name": .string(name), "value": .string(value)])
@@ -91,9 +92,10 @@ final class SecretsSettingsViewController: UITableViewController {
     }
 
     private func confirmDelete(_ name: String) {
-        let alert = UIAlertController(title: "Delete \(name)?", message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Keep", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+        let alert = UIAlertController(title: NativeLanguage.text("Delete {name}?", ["name": name]),
+                                      message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("Keep"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Delete"), style: .destructive) { [weak self] _ in
             self?.run("secret-delete", payload: ["name": .string(name)])
         })
         present(alert, animated: true)
@@ -109,8 +111,8 @@ final class SecretsSettingsViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Secret action failed", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: tr("Secret action failed"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("OK"), style: .default))
         present(alert, animated: true)
     }
 }

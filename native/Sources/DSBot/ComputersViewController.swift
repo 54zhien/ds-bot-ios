@@ -35,13 +35,13 @@ final class ComputersViewController: UITableViewController {
         section == 0 ? computers.count : 1
     }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Computers" : nil
+        section == 0 ? NativeLanguage.text("Computers") : nil
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "computer")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "computer")
         if indexPath.section == 1 {
-            cell.textLabel?.text = "Add a computer"
+            cell.textLabel?.text = NativeLanguage.text("Add a computer")
             cell.detailTextLabel?.text = nil
             cell.textLabel?.textColor = view.tintColor
             cell.accessoryType = .none
@@ -72,14 +72,14 @@ final class ComputersViewController: UITableViewController {
     ) -> UISwipeActionsConfiguration? {
         guard indexPath.section == 0 else { return nil }
         let offer = computers[indexPath.row]
-        let forget = UIContextualAction(style: .destructive, title: "Forget") { [weak self] _, _, done in
+        let forget = UIContextualAction(style: .destructive, title: NativeLanguage.text("Forget")) { [weak self] _, _, done in
             guard let self else { done(false); return }
             let alert = UIAlertController(
-                title: "Forget \(offer.name.isEmpty ? "this computer" : offer.name)?",
+                title: NativeLanguage.text("Forget {name}?", ["name": offer.name.isEmpty ? NativeLanguage.text("this computer") : offer.name]),
                 message: nil, preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in done(false) })
-            alert.addAction(UIAlertAction(title: "Forget", style: .destructive) { _ in
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel) { _ in done(false) })
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("Forget"), style: .destructive) { _ in
                 self.store.remove(offer.hostDeviceId)
                 self.onForget?(offer.hostDeviceId)
                 self.reload()

@@ -36,7 +36,7 @@ final class UpdatesSettingsViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["DS Bot", "DSH", "Diagnostics"][section]
+        NativeLanguage.text(["DS Bot", "DSH", "Diagnostics"][section])
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
@@ -53,13 +53,13 @@ final class UpdatesSettingsViewController: UITableViewController {
         let pair: (String, String?)
         switch (indexPath.section, indexPath.row) {
         case (0, 0): pair = ("DS Bot \(update?["current"]?.stringValue ?? "")", status(update))
-        case (0, 1): pair = (busy ? "Checking…" : "Check for updates", nil)
-        case (0, 2): pair = ("Install DS Bot update", update?["latest"]?.stringValue)
+        case (0, 1): pair = (NativeLanguage.text(busy ? "Checking…" : "Check for updates"), nil)
+        case (0, 2): pair = (NativeLanguage.text("Install DS Bot update"), update?["latest"]?.stringValue)
         case (1, 0): pair = ("DSH \(dsh?["current"]?.stringValue ?? "")", status(dsh))
-        case (1, 1): pair = ("Install DSH update", dsh?["verified"]?.stringValue ?? dsh?["latest"]?.stringValue)
-        case (2, 0): pair = ("Log entries", diagnostics?["total"]?.intValue.map(String.init) ?? "—")
-        case (2, 1): pair = ("Diagnostics log", "View")
-        default: pair = ("Clear diagnostics", nil)
+        case (1, 1): pair = (NativeLanguage.text("Install DSH update"), dsh?["verified"]?.stringValue ?? dsh?["latest"]?.stringValue)
+        case (2, 0): pair = (NativeLanguage.text("Log entries"), diagnostics?["total"]?.intValue.map(String.init) ?? "—")
+        case (2, 1): pair = (NativeLanguage.text("Diagnostics log"), NativeLanguage.text("View"))
+        default: pair = (NativeLanguage.text("Clear diagnostics"), nil)
         }
         cell.textLabel?.text = pair.0
         cell.detailTextLabel?.text = pair.1
@@ -74,17 +74,17 @@ final class UpdatesSettingsViewController: UITableViewController {
     private func status(_ value: JSONValue?) -> String {
         guard let value else { return "—" }
         switch value["phase"]?.stringValue {
-        case "installing": return "Installing…"
-        case "installed": return "Installed · restart DSH"
-        case "failed": return value["error"]?.stringValue ?? "Update failed"
+        case "installing": return NativeLanguage.text("Installing…")
+        case "installed": return NativeLanguage.text("Installed · restart DSH")
+        case "failed": return value["error"]?.stringValue ?? NativeLanguage.text("Update failed")
         default: break
         }
         if value["available"] == .bool(true) {
-            return "Version \(value["latest"]?.stringValue ?? value["verified"]?.stringValue ?? "") available"
+            return NativeLanguage.text("Version {version} available", ["version": value["latest"]?.stringValue ?? value["verified"]?.stringValue ?? ""])
         }
-        if value["enabled"] == .bool(false) { return "Update checks are off" }
-        if value["source"]?.stringValue == "path" { return "Update from the local folder" }
-        return "Up to date"
+        if value["enabled"] == .bool(false) { return NativeLanguage.text("Update checks are off") }
+        if value["source"]?.stringValue == "path" { return NativeLanguage.text("Update from the local folder") }
+        return NativeLanguage.text("Up to date")
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -100,9 +100,9 @@ final class UpdatesSettingsViewController: UITableViewController {
     }
 
     private func confirm(_ title: String, endpoint: String) {
-        let alert = UIAlertController(title: title, message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: endpoint == "diagnostics-clear" ? "Clear" : "Install",
+        let alert = UIAlertController(title: NativeLanguage.text(title), message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text(endpoint == "diagnostics-clear" ? "Clear" : "Install"),
                                       style: endpoint == "diagnostics-clear" ? .destructive : .default) { [weak self] _ in
             self?.run(endpoint)
         })
@@ -130,9 +130,9 @@ final class UpdatesSettingsViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Could not load diagnostics", message: message,
+        let alert = UIAlertController(title: NativeLanguage.text("Could not load diagnostics"), message: message,
                                       preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
@@ -149,7 +149,7 @@ private final class DiagnosticsLogViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Diagnostics log"
+        title = NativeLanguage.text("Diagnostics log")
         view.backgroundColor = .systemBackground
         let editor = UITextView()
         editor.translatesAutoresizingMaskIntoConstraints = false
@@ -163,7 +163,7 @@ private final class DiagnosticsLogViewController: UIViewController {
             editor.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             editor.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
         ])
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Copy", style: .plain,
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: NativeLanguage.text("Copy"), style: .plain,
                                                             target: self, action: #selector(copyLog))
     }
 

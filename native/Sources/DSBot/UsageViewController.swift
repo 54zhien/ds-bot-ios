@@ -73,9 +73,9 @@ final class UsageViewController: UITableViewController {
             loaded = true
             tableView.reloadData()
         } catch {
-            let alert = UIAlertController(title: "Usage unavailable", message: error.localizedDescription,
+            let alert = UIAlertController(title: NativeLanguage.text("Usage unavailable"), message: error.localizedDescription,
                                           preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
             present(alert, animated: true)
         }
         refreshControl?.endRefreshing()
@@ -84,7 +84,7 @@ final class UsageViewController: UITableViewController {
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Usage", "Bots", "Models"][section]
+        NativeLanguage.text(["Usage", "Bots", "Models"][section])
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -100,8 +100,8 @@ final class UsageViewController: UITableViewController {
             ?? UITableViewCell(style: .value1, reuseIdentifier: "usage")
         let item: (String, String)
         switch (indexPath.section, indexPath.row) {
-        case (0, 0): item = ("Tokens in", loaded ? totals.input.formatted() : "—")
-        case (0, 1): item = ("Tokens out", loaded ? totals.output.formatted() : "—")
+        case (0, 0): item = (NativeLanguage.text("Tokens in"), loaded ? totals.input.formatted() : "—")
+        case (0, 1): item = (NativeLanguage.text("Tokens out"), loaded ? totals.output.formatted() : "—")
         case (1, _): item = (owners[indexPath.row].0, owners[indexPath.row].1.formatted())
         default: item = (models[indexPath.row].0, models[indexPath.row].1.formatted())
         }

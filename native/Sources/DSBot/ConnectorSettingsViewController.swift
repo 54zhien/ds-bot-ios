@@ -1,6 +1,7 @@
 import UIKit
 
 final class ConnectorSettingsViewController: UITableViewController {
+    private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let session: LinkSession
     private var connectors: [JSONValue] = []
 
@@ -39,7 +40,7 @@ final class ConnectorSettingsViewController: UITableViewController {
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "connector")
         cell.accessoryView = nil
         if connectors.isEmpty {
-            cell.textLabel?.text = "No connectors"
+            cell.textLabel?.text = tr("No connectors")
             cell.detailTextLabel?.text = nil
             cell.selectionStyle = .none
         } else {
@@ -47,10 +48,12 @@ final class ConnectorSettingsViewController: UITableViewController {
             cell.textLabel?.text = item["name"]?.stringValue ?? item["id"]?.stringValue
             let status = item["state"]?.stringValue ?? "off"
             switch status {
-            case "ready": cell.detailTextLabel?.text = item["account"]?.stringValue.map { "Connected as \($0)" } ?? "Connected"
-            case "connecting": cell.detailTextLabel?.text = "Connecting…"
-            case "error": cell.detailTextLabel?.text = item["error"]?.stringValue ?? "Could not connect"
-            default: cell.detailTextLabel?.text = "Not connected"
+            case "ready": cell.detailTextLabel?.text = item["account"]?.stringValue.map {
+                NativeLanguage.text("Connected as {name}", ["name": $0])
+            } ?? tr("Connected")
+            case "connecting": cell.detailTextLabel?.text = tr("Connecting…")
+            case "error": cell.detailTextLabel?.text = item["error"]?.stringValue ?? tr("Could not connect")
+            default: cell.detailTextLabel?.text = tr("Not connected")
             }
             cell.selectionStyle = .default
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
@@ -66,35 +69,36 @@ final class ConnectorSettingsViewController: UITableViewController {
         let sheet = UIAlertController(title: item["name"]?.stringValue ?? id,
                                       message: item["error"]?.stringValue, preferredStyle: .actionSheet)
         if status == "off" {
-            sheet.addAction(UIAlertAction(title: "Connect", style: .default) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: tr("Connect"), style: .default) { [weak self] _ in
                 self?.askToken(for: id, name: item["name"]?.stringValue ?? id)
             })
         } else {
             if status == "error" {
-                sheet.addAction(UIAlertAction(title: "Try again", style: .default) { [weak self] _ in
+                sheet.addAction(UIAlertAction(title: tr("Try again"), style: .default) { [weak self] _ in
                     self?.run("connector-retry", id: id)
                 })
             }
-            sheet.addAction(UIAlertAction(title: "Disconnect", style: .destructive) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: tr("Disconnect"), style: .destructive) { [weak self] _ in
                 self?.run("connector-disconnect", id: id)
             })
         }
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
         present(sheet, animated: true)
     }
 
     private func askToken(for id: String, name: String) {
-        let alert = UIAlertController(title: "Connect \(name)", message: "Paste a token from \(name).",
+        let alert = UIAlertController(title: NativeLanguage.text("Connect {name}", ["name": name]),
+                                      message: NativeLanguage.text("Paste a token from {name}.", ["name": name]),
                                       preferredStyle: .alert)
         alert.addTextField { field in
-            field.placeholder = "Token"
+            field.placeholder = self.tr("Token")
             field.isSecureTextEntry = true
             field.autocorrectionType = .no
             field.autocapitalizationType = .none
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Connect", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Connect"), style: .default) { [weak self, weak alert] _ in
             guard let token = alert?.textFields?.first?.text, !token.isEmpty else { return }
             self?.run("connector-connect", id: id, token: token)
         })
@@ -113,8 +117,8 @@ final class ConnectorSettingsViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Connector action failed", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: tr("Connector action failed"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("OK"), style: .default))
         present(alert, animated: true)
     }
 }

@@ -1,6 +1,7 @@
 import UIKit
 
 final class ProviderSettingsViewController: UITableViewController {
+    private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let session: LinkSession
     private var providers: [JSONValue] = []
     private var addable: [JSONValue] = []
@@ -38,7 +39,7 @@ final class ProviderSettingsViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Model providers" : section == 1 ? "Known providers" : "Custom API"
+        tr(section == 0 ? "Model providers" : section == 1 ? "Known providers" : "Custom API")
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         section == 0 ? max(1, providers.count) : section == 1 ? addable.count : 1
@@ -49,14 +50,14 @@ final class ProviderSettingsViewController: UITableViewController {
         cell.accessoryView = nil
         cell.selectionStyle = .default
         if indexPath.section == 0 && providers.isEmpty {
-            cell.textLabel?.text = available ? "No providers" : "This computer cannot set up model providers"
+            cell.textLabel?.text = tr(available ? "No providers" : "This computer cannot set up model providers")
             cell.detailTextLabel?.text = nil
             cell.selectionStyle = .none
         } else if indexPath.section == 0 {
             let item = providers[indexPath.row]
             cell.textLabel?.text = item["name"]?.stringValue ?? item["id"]?.stringValue
             let configured = item["key"]?["configured"] == .bool(true)
-            let key = configured ? "Key set" : "Needs an API key"
+            let key = tr(configured ? "Key set" : "Needs an API key")
             let count: Int
             if case .array(let models)? = item["models"] { count = models.count } else { count = 0 }
             cell.detailTextLabel?.text = "\(key) · \(count) models"
@@ -67,8 +68,8 @@ final class ProviderSettingsViewController: UITableViewController {
             cell.detailTextLabel?.text = nil
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         } else {
-            cell.textLabel?.text = "Add custom provider"
-            cell.detailTextLabel?.text = "API URL and model IDs"
+            cell.textLabel?.text = tr("Add custom provider")
+            cell.detailTextLabel?.text = tr("API URL and model IDs")
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         }
         return cell
@@ -89,35 +90,35 @@ final class ProviderSettingsViewController: UITableViewController {
                                       message: item["error"]?.stringValue, preferredStyle: .actionSheet)
         if item["key"]?["writable"] == .bool(true) {
             sheet.addAction(UIAlertAction(title: item["key"]?["configured"] == .bool(true)
-                                          ? "Replace API key" : "Set API key", style: .default) { [weak self] _ in
+                                          ? tr("Replace API key") : tr("Set API key"), style: .default) { [weak self] _ in
                 self?.askKey(for: id)
             })
             if item["key"]?["configured"] == .bool(true) {
-                sheet.addAction(UIAlertAction(title: "Remove key", style: .destructive) { [weak self] _ in
+                sheet.addAction(UIAlertAction(title: tr("Remove key"), style: .destructive) { [weak self] _ in
                     self?.run("provider-key", payload: ["provider": .string(id), "value": .null])
                 })
             }
         }
         if item["removable"] == .bool(true) {
-            sheet.addAction(UIAlertAction(title: "Remove provider", style: .destructive) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: tr("Remove provider"), style: .destructive) { [weak self] _ in
                 self?.confirmRemoval(id: id, name: item["name"]?.stringValue ?? id)
             })
         }
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = source
         present(sheet, animated: true)
     }
 
     private func askKey(for id: String) {
-        let alert = UIAlertController(title: "API key", message: nil, preferredStyle: .alert)
+        let alert = UIAlertController(title: tr("API key"), message: nil, preferredStyle: .alert)
         alert.addTextField { field in
-            field.placeholder = "Paste API key"
+            field.placeholder = self.tr("Paste API key")
             field.isSecureTextEntry = true
             field.autocorrectionType = .no
             field.autocapitalizationType = .none
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Save"), style: .default) { [weak self, weak alert] _ in
             guard let value = alert?.textFields?.first?.text, !value.isEmpty else { return }
             self?.run("provider-key", payload: ["provider": .string(id), "value": .string(value)])
         })
@@ -127,15 +128,15 @@ final class ProviderSettingsViewController: UITableViewController {
     private func add(_ item: JSONValue) {
         guard let id = item["id"]?.stringValue else { return }
         let alert = UIAlertController(title: "Add \(item["name"]?.stringValue ?? id)",
-                                      message: "Enter an API key if you have one.", preferredStyle: .alert)
+                                      message: tr("Enter an API key if you have one."), preferredStyle: .alert)
         alert.addTextField { field in
-            field.placeholder = "API key"
+            field.placeholder = self.tr("API key")
             field.isSecureTextEntry = true
             field.autocorrectionType = .no
             field.autocapitalizationType = .none
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Add", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Add"), style: .default) { [weak self, weak alert] _ in
             self?.run("provider-add", payload: [
                 "provider": .string(id), "key": .string(alert?.textFields?.first?.text ?? ""),
             ])
@@ -151,9 +152,9 @@ final class ProviderSettingsViewController: UITableViewController {
 
     private func confirmRemoval(id: String, name: String) {
         let alert = UIAlertController(title: "Remove \(name)?",
-                                      message: "Bots using this provider need another model.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Keep", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Remove", style: .destructive) { [weak self] _ in
+                                      message: tr("Bots using this provider need another model."), preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("Keep"), style: .cancel))
+        alert.addAction(UIAlertAction(title: tr("Remove"), style: .destructive) { [weak self] _ in
             self?.run("provider-remove", payload: ["provider": .string(id)])
         })
         present(alert, animated: true)
@@ -169,8 +170,8 @@ final class ProviderSettingsViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Provider action failed", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: tr("Provider action failed"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("OK"), style: .default))
         present(alert, animated: true)
     }
 }
