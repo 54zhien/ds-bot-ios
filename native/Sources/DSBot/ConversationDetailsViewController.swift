@@ -11,6 +11,7 @@ final class ConversationDetailsViewController: UITableViewController {
     private var usageText: String?
     private var scheduleText: String?
     private var workDirOverride: String?
+    private var permissionOverride: String?
 
     init(target: ChatTarget, state: JSONValue, session: LinkSession) {
         self.target = target
@@ -56,14 +57,18 @@ final class ConversationDetailsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if target.kind == .bot { return [2, 4, 3, 1][section] }
         if section == 1 { return memberIDs.count }
-        return section == 0 ? 2 : 2
+        return section == 0 ? 2 : state["memory"] == .bool(false) ? 2 : 3
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "detail")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "detail")
-        cell.selectionStyle = target.kind == .bot && (indexPath.section == 3
-            || (indexPath.section == 1 && indexPath.row == 2)) ? .default : .none
+        let selectable = target.kind == .bot
+            ? indexPath.section == 3 || indexPath.section == 1
+                || indexPath.section == 2 && indexPath.row == 0 && state["memory"] != .bool(false)
+                || indexPath.section == 2 && indexPath.row == 2
+            : indexPath.section == 2 && indexPath.row == 2
+        cell.selectionStyle = selectable ? .default : .none
         cell.accessoryView = nil
         cell.textLabel?.font = .preferredFont(forTextStyle: .body)
         cell.detailTextLabel?.font = .preferredFont(forTextStyle: .subheadline)
@@ -72,8 +77,7 @@ final class ConversationDetailsViewController: UITableViewController {
         let pair = target.kind == .bot ? botRow(indexPath) : groupRow(indexPath)
         cell.textLabel?.text = pair.0
         cell.detailTextLabel?.text = pair.1
-        if target.kind == .bot && (indexPath.section == 3
-            || (indexPath.section == 1 && indexPath.row == 2)) {
+        if selectable {
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         }
         return cell
@@ -81,8 +85,26 @@ final class ConversationDetailsViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard target.kind == .bot else { return }
-        if indexPath.section == 1 && indexPath.row == 2 {
+        if target.kind == .room && indexPath.section == 2 && indexPath.row == 2 {
+            navigationController?.pushViewController(
+                MemoryViewController(owner: .room(target.id), session: session), animated: true
+            )
+        } else if target.kind == .bot && indexPath.section == 2 && indexPath.row == 0
+                    && state["memory"] != .bool(false) {
+            navigationController?.pushViewController(
+                MemoryViewController(owner: .bot(target.id), session: session), animated: true
+            )
+        } else if target.kind == .bot && indexPath.section == 2 && indexPath.row == 2 {
+            let schedules = SchedulesViewController(
+                botID: target.id, sessionID: record?["sessionId"]?.stringValue ?? target.id,
+                session: session
+            )
+            navigationController?.pushViewController(schedules, animated: true)
+        } else if target.kind == .bot && indexPath.section == 1 && indexPath.row == 1 {
+            pickPermission(source: tableView.cellForRow(at: indexPath))
+        } else if target.kind == .bot && indexPath.section == 1 && indexPath.row != 2 {
+            onEdit?()
+        } else if target.kind == .bot && indexPath.section == 1 && indexPath.row == 2 {
             let folder = FolderPickerViewController(
                 current: workDirOverride ?? record?["workDir"]?.stringValue ?? "",
                 owner: .bot(target.id), session: session
@@ -92,7 +114,7 @@ final class ConversationDetailsViewController: UITableViewController {
                 self?.tableView.reloadData()
             }
             navigationController?.pushViewController(folder, animated: true)
-        } else if indexPath.section == 3 {
+        } else if target.kind == .bot && indexPath.section == 3 {
             let browser = BrowserHandoffViewController(
                 botID: target.id, hold: state["browserHolds"]?[target.id] ?? .object([:]), session: session
             )
@@ -106,11 +128,12 @@ final class ConversationDetailsViewController: UITableViewController {
         case (0, 0): return ("Name", bot?["name"]?.stringValue ?? target.name)
         case (0, 1): return ("Role", bot?["role"]?.stringValue ?? "—")
         case (1, 0): return ("Model", bot?["model"]?.stringValue ?? state["defaultModel"]?.stringValue ?? "Default")
-        case (1, 1): return ("Permissions", bot?["permission"]?.stringValue
+        case (1, 1): return ("Permissions", permissionOverride ?? bot?["permission"]?.stringValue
                              ?? state["permissions"]?["defaultPreset"]?.stringValue ?? "Default")
         case (1, 2): return ("Working folder", workDirOverride ?? bot?["workDir"]?.stringValue ?? "Team workspace")
         case (1, 3): return ("Instructions", bot?["instructions"]?.stringValue ?? "Add in Bot settings")
-        case (2, 0): return ("Memory", memoryCount.map { "\($0) entries" } ?? "—")
+        case (2, 0): return ("Memory", state["memory"] == .bool(false) ? "Unavailable"
+                             : memoryCount.map { "\($0) entries" } ?? "—")
         case (2, 1): return ("Usage", usageText ?? "—")
         case (3, 0): return ("Open browser", "See the current page and hand it back to the Bot")
         default: return ("Scheduled tasks", scheduleText ?? "—")
@@ -118,6 +141,34 @@ final class ConversationDetailsViewController: UITableViewController {
     }
 
     private var memberIDs: [String] { record?["members"]?.stringArrayValue ?? [] }
+
+    private func pickPermission(source: UIView?) {
+        guard case .array(let options)? = state["permissions"]?["options"] else { return }
+        let sheet = UIAlertController(title: "Permissions", message: nil, preferredStyle: .actionSheet)
+        for option in options {
+            guard let value = option["value"]?.stringValue else { continue }
+            sheet.addAction(UIAlertAction(title: option["name"]?.stringValue ?? value, style: .default) { [weak self] _ in
+                guard let self else { return }
+                Task {
+                    do {
+                        _ = try await BotAPI.call("update-bot", payload: .object([
+                            "id": .string(self.target.id), "permission": .string(value),
+                        ]), on: self.session)
+                        self.permissionOverride = value
+                        self.tableView.reloadData()
+                    } catch {
+                        let alert = UIAlertController(title: "Could not change permissions",
+                                                      message: error.localizedDescription, preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        self.present(alert, animated: true)
+                    }
+                }
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.popoverPresentationController?.sourceView = source
+        present(sheet, animated: true)
+    }
 
     private func groupRow(_ path: IndexPath) -> (String, String) {
         let room = record
@@ -134,7 +185,8 @@ final class ConversationDetailsViewController: UITableViewController {
         case (0, 0): return ("Name", room?["name"]?.stringValue ?? target.name)
         case (0, 1): return ("Notice", room?["notice"]?.stringValue ?? "Add in group settings")
         case (2, 0): return ("Who answers", room?["mode"]?.stringValue == "everyone" ? "Everyone" : "Admin leads")
-        default: return ("Members", "\(memberIDs.count)")
+        case (2, 1): return ("Members", "\(memberIDs.count)")
+        default: return ("Memory", "Manage group memory")
         }
     }
 
