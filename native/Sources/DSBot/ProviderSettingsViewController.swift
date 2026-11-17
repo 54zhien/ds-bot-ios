@@ -166,12 +166,14 @@ final class ProviderSettingsViewController: UITableViewController {
                 self.showError("Provider ID, API URL, and model IDs are required")
                 return
             }
-            self.run("provider-add", payload: [
+            var payload: [String: JSONValue] = [
                 "custom": .bool(true), "provider": .string(values[0]), "name": .string(values[1]),
-                "baseURL": .string(values[2]), "api": .string(self.protocols.first ?? ""),
+                "baseURL": .string(values[2]),
                 "key": .string(values[3]),
                 "models": .array(models.map { .object(["id": .string($0)]) }),
-            ])
+            ]
+            if let api = self.protocols.first { payload["api"] = .string(api) }
+            self.run("provider-add", payload: payload)
         })
         present(alert, animated: true)
     }
