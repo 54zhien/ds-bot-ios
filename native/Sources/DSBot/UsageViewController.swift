@@ -23,7 +23,7 @@ final class UsageViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Usage"
+        title = NativeLanguage.text("Usage")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done, target: self, action: #selector(close)
         )

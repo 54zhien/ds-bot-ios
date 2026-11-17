@@ -14,7 +14,7 @@ final class CapabilitiesViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Capabilities"
+        title = NativeLanguage.text("Capabilities")
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add, target: self,
                                                             action: #selector(add))
         refreshControl = UIRefreshControl()
@@ -238,7 +238,7 @@ final class BotCapabilitiesViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Bot capabilities"
+        title = NativeLanguage.text("Bot capabilities")
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         Task { await load() }

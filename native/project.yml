@@ -21,6 +21,7 @@ targets:
     sources:
       - path: Sources/DSBot
       - path: Sources/Transport
+      - path: Resources
     info:
       path: Support/Info.plist
       properties:

@@ -13,7 +13,7 @@ final class SecretsSettingsViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Secrets"
+        title = NativeLanguage.text("Secrets")
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
                                                             target: self, action: #selector(add))
         refreshControl = UIRefreshControl()

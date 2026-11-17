@@ -4,6 +4,7 @@ import UIKit
 
 /// N1 chat shell. Messages and composer behaviour arrive in later steps.
 final class ChatViewController: UIViewController {
+    private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
     private let composer = NativeComposerView()
@@ -160,9 +161,9 @@ final class ChatViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Chat"
+        title = tr("Chat")
         titleButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
-        titleButton.setTitle("Chat", for: .normal)
+        titleButton.setTitle(tr("Chat"), for: .normal)
         titleButton.accessibilityLabel = "Conversation details"
         titleButton.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
         navigationItem.titleView = titleButton
@@ -221,9 +222,19 @@ final class ChatViewController: UIViewController {
         configureList()
         configureComposer()
         savedOffer = pairingStore.load()
-        computerItem.title = savedOffer == nil ? "Pair" : "Computers"
+        computerItem.title = tr(savedOffer == nil ? "Pair" : "Computers")
         updateEmptyState()
         if let savedOffer { connect(to: savedOffer, pairingCode: nil) }
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if selectedTarget == nil { title = tr("Chat") }
+        computerItem?.title = tr(savedOffer == nil ? "Pair" : "Computers")
+        retryButton.setTitle(tr("Retry"), for: .normal)
+        updateTitleButton()
+        updateEmptyState()
+        updatePendingButton()
     }
 
     private func configureStatusBar() {
@@ -239,11 +250,11 @@ final class ChatViewController: UIViewController {
         statusLabel.textColor = .secondaryLabel
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         statusBar.addArrangedSubview(statusLabel)
-        retryButton.setTitle("Retry", for: .normal)
+        retryButton.setTitle(tr("Retry"), for: .normal)
         retryButton.addTarget(self, action: #selector(retryConnection), for: .touchUpInside)
         statusBar.addArrangedSubview(retryButton)
         retryButton.isHidden = true
-        statusLabel.text = "Not paired"
+        statusLabel.text = tr("Not paired")
         NSLayoutConstraint.activate([
             statusBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -281,9 +292,10 @@ final class ChatViewController: UIViewController {
     }
 
     private func updateEmptyState() {
-        emptyState.text = savedOffer == nil
+        let message: String? = savedOffer == nil
             ? "Pair with your computer to start chatting."
             : botID == nil && roomID == nil ? "No Bot yet" : rows.isEmpty ? "No messages yet" : nil
+        emptyState.text = message.map(tr)
         emptyState.isHidden = rows.count > 0
     }
 
@@ -314,7 +326,7 @@ final class ChatViewController: UIViewController {
         cursor = nil
         list.reloadData()
         updateEmptyState()
-        statusLabel.text = "Connecting…"
+        statusLabel.text = tr("Connecting…")
         retryButton.isHidden = true
         let phone = PhoneIdentityStore.loadOrCreate()
         let pairing = LinkSession.Pairing(
@@ -433,14 +445,14 @@ final class ChatViewController: UIViewController {
         pairingSheet?.showStatus(status)
         switch status {
         case .connecting:
-            statusLabel.text = "Connecting…"
+            statusLabel.text = tr("Connecting…")
             retryButton.isHidden = true
         case .online:
-            statusLabel.text = "Checking computer…"
+            statusLabel.text = tr("Checking computer…")
             retryButton.isHidden = true
             Task { await checkComputer(for: id) }
         case .offline:
-            statusLabel.text = "Offline · reconnecting"
+            statusLabel.text = tr("Offline · reconnecting")
             retryButton.isHidden = true
             composer.canSend = false
             composer.running = false
@@ -449,7 +461,7 @@ final class ChatViewController: UIViewController {
             stream.clear()
             rebuildRows()
         case .disconnected:
-            statusLabel.text = savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"
+            statusLabel.text = tr(savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline")
             retryButton.isHidden = savedOffer == nil && pendingOffer == nil
             composer.canSend = false
             composer.running = false
@@ -480,11 +492,11 @@ final class ChatViewController: UIViewController {
                 pairingStore.save(pendingOffer)
                 savedOffer = pendingOffer
                 self.pendingOffer = nil
-                computerItem.title = "Computers"
+                computerItem.title = tr("Computers")
                 updateEmptyState()
                 presentedViewController?.dismiss(animated: true)
             }
-            statusLabel.text = "Online"
+            statusLabel.text = tr("Online")
             startPolling(for: id)
             let boot = hello["boot"]?.stringValue ?? ""
             _ = try? await BotAPI.call("notices", payload: .object([
@@ -696,8 +708,8 @@ final class ChatViewController: UIViewController {
                     rows = []
                     list.reloadData()
                     updateEmptyState()
-                    statusLabel.text = "Not paired"
-                    computerItem.title = "Pair"
+                    statusLabel.text = tr("Not paired")
+                    computerItem.title = tr("Pair")
                     Task { await old.disconnect() }
                 }
             }
@@ -742,7 +754,7 @@ final class ChatViewController: UIViewController {
     }
 
     private func updateTitleButton() {
-        titleButton.setTitle((title ?? "Chat") + (botID != nil || roomID != nil ? "  ⌄" : ""), for: .normal)
+        titleButton.setTitle((title ?? tr("Chat")) + (botID != nil || roomID != nil ? "  ⌄" : ""), for: .normal)
         titleButton.isEnabled = teamState != nil && (botID != nil || roomID != nil)
     }
 
@@ -914,7 +926,7 @@ final class ChatViewController: UIViewController {
         }
         pendingButton.isHidden = count == 0
         let label = needsAttention ? "Needs you" : "Aside"
-        pendingButton.setTitle("\(label) · \(count) \(count == 1 ? "item" : "items")", for: .normal)
+        pendingButton.setTitle("\(tr(label)) · \(count) \(tr(count == 1 ? "item" : "items"))", for: .normal)
         pendingHeight.constant = count == 0 ? 0 : 48
         list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + 22
     }

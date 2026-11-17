@@ -13,7 +13,7 @@ final class ConnectorSettingsViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Connectors"
+        title = NativeLanguage.text("Connectors")
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         Task { await load() }

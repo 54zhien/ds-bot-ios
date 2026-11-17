@@ -27,7 +27,7 @@ final class CustomProviderViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Custom provider"
+        title = NativeLanguage.text("Custom provider")
         tableView.keyboardDismissMode = .interactive
         for (field, hint) in [(providerID, "Provider ID"), (providerName, "Name"),
                               (baseURL, "API base URL"), (apiKey, "API key"),

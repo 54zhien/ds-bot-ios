@@ -143,6 +143,7 @@ final class OriginalCloseIcon: OriginalIconView {
 /// The mobile team's navigation data, in the same main/bot/room order as
 /// mobile/src/screens/TeamList.tsx.
 final class TeamListViewController: UITableViewController, UISearchResultsUpdating {
+    private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     var onSelect: ((ChatTarget) -> Void)?
     var onSettings: (() -> Void)?
     var onCreateBot: (() -> Void)?
@@ -171,14 +172,14 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         title = "DS Bot"
         let settings = UIButton(type: .system)
         settings.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        settings.accessibilityLabel = "Settings"
+        settings.accessibilityLabel = tr("Settings")
         settings.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         let icon = OriginalGearIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
         icon.isUserInteractionEnabled = false
         settings.addSubview(icon)
         let create = UIButton(type: .system)
         create.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        create.accessibilityLabel = "Create"
+        create.accessibilityLabel = tr("Create")
         create.addTarget(self, action: #selector(showCreate), for: .touchUpInside)
         let plus = OriginalPlusIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
         plus.isUserInteractionEnabled = false
@@ -191,7 +192,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         let search = UISearchController(searchResultsController: nil)
         search.searchResultsUpdater = self
         search.obscuresBackgroundDuringPresentation = false
-        search.searchBar.placeholder = "Search the team"
+        search.searchBar.placeholder = tr("Search the team")
         navigationItem.searchController = search
         rebuild()
     }
@@ -202,18 +203,18 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         dismiss(animated: true) { action?() }
     }
     @objc private func showCreate() {
-        let sheet = UIAlertController(title: "Create", message: nil, preferredStyle: .actionSheet)
-        sheet.addAction(UIAlertAction(title: "New Bot", style: .default) { [weak self] _ in
+        let sheet = UIAlertController(title: tr("Create"), message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: tr("New Bot"), style: .default) { [weak self] _ in
             guard let self else { return }
             let action = onCreateBot
             dismiss(animated: true) { action?() }
         })
-        sheet.addAction(UIAlertAction(title: "Group chat", style: .default) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: tr("Group chat"), style: .default) { [weak self] _ in
             guard let self else { return }
             let action = onCreateGroup
             dismiss(animated: true) { action?() }
         })
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.barButtonItem = navigationItem.rightBarButtonItems?.last
         present(sheet, animated: true)
     }
@@ -267,15 +268,15 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         sections[section].1.count
     }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        sections[section].0
+        tr(sections[section].0)
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "team")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "team")
         let entry = sections[indexPath.section].1[indexPath.row]
-        cell.textLabel?.text = entry.target.name + (entry.pinned ? " · Pinned" : "")
+        cell.textLabel?.text = entry.target.name + (entry.pinned ? " · \(tr("Pinned"))" : "")
         cell.detailTextLabel?.text = entry.preview.isEmpty
-            ? (entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview
+            ? tr(entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview
         cell.accessoryType = .none
         cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         let seen = UserDefaults.standard.integer(forKey: "dsbot.seen.\(entry.target.id)")
@@ -293,7 +294,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         _ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
     ) -> UISwipeActionsConfiguration? {
         let target = sections[indexPath.section].1[indexPath.row].target
-        let edit = UIContextualAction(style: .normal, title: "Edit") { [weak self] _, _, done in
+        let edit = UIContextualAction(style: .normal, title: tr("Edit")) { [weak self] _, _, done in
             guard let self else { done(false); return }
             let botAction = onEditBot
             let groupAction = onEditGroup

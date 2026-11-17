@@ -16,7 +16,7 @@ final class UpdatesSettingsViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Updates & diagnostics"
+        title = NativeLanguage.text("Updates & diagnostics")
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         Task { await load() }

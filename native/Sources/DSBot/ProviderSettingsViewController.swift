@@ -16,7 +16,7 @@ final class ProviderSettingsViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Model providers"
+        title = NativeLanguage.text("Model providers")
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         Task { await load() }

@@ -16,7 +16,7 @@ final class ComputersViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Computers"
+        title = NativeLanguage.text("Computers")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done, target: self, action: #selector(close)
         )

@@ -14,7 +14,7 @@ final class LocationSettingsViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Location"
+        title = NativeLanguage.text("Location")
         Task { await load() }
     }
 
