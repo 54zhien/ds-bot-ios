@@ -27,7 +27,7 @@ final class NativeSettingsViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        [3, 4, 1][section]
+        [2, 6, 1][section]
     }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         ["Phone", "Team", "DS Bot"][section]
@@ -45,9 +45,6 @@ final class NativeSettingsViewController: UITableViewController {
             cell.textLabel?.text = "Appearance"
             let selected = UserDefaults.standard.string(forKey: "dsbot.theme") ?? "System"
             cell.detailTextLabel?.text = selected
-        case (0, 2):
-            cell.textLabel?.text = "Usage"
-            cell.detailTextLabel?.text = nil
         case (1, 0):
             cell.textLabel?.text = "Model providers"
             cell.detailTextLabel?.text = nil
@@ -55,9 +52,15 @@ final class NativeSettingsViewController: UITableViewController {
             cell.textLabel?.text = "Connectors"
             cell.detailTextLabel?.text = nil
         case (1, 2):
-            cell.textLabel?.text = "Location"
+            cell.textLabel?.text = "Usage"
             cell.detailTextLabel?.text = nil
         case (1, 3):
+            cell.textLabel?.text = "Secrets"
+            cell.detailTextLabel?.text = nil
+        case (1, 4):
+            cell.textLabel?.text = "Location"
+            cell.detailTextLabel?.text = nil
+        case (1, 5):
             cell.textLabel?.text = "Updates & diagnostics"
             cell.detailTextLabel?.text = nil
         default:
@@ -85,16 +88,18 @@ final class NativeSettingsViewController: UITableViewController {
             sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
             sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
             present(sheet, animated: true)
-        case (0, 2):
-            let action = onUsage
-            dismiss(animated: true) { action?() }
         case (1, 0):
             navigationController?.pushViewController(ProviderSettingsViewController(session: session), animated: true)
         case (1, 1):
             navigationController?.pushViewController(ConnectorSettingsViewController(session: session), animated: true)
         case (1, 2):
-            navigationController?.pushViewController(LocationSettingsViewController(session: session), animated: true)
+            let action = onUsage
+            dismiss(animated: true) { action?() }
         case (1, 3):
+            navigationController?.pushViewController(SecretsSettingsViewController(session: session), animated: true)
+        case (1, 4):
+            navigationController?.pushViewController(LocationSettingsViewController(session: session), animated: true)
+        case (1, 5):
             navigationController?.pushViewController(UpdatesSettingsViewController(session: session), animated: true)
         default:
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
