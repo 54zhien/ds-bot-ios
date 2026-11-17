@@ -43,15 +43,17 @@ final class ConversationDetailsViewController: UITableViewController {
     @objc private func close() { dismiss(animated: true) }
     @objc private func editDetails() { onEdit?() }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
+    override func numberOfSections(in tableView: UITableView) -> Int {
+        target.kind == .bot && state["browser"] != .bool(false) ? 4 : 3
+    }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        if target.kind == .bot { return ["Bot", "Work", "Activity"][section] }
+        if target.kind == .bot { return ["Bot", "Work", "Activity", "Browser"][section] }
         return ["Group", "Members", "Conversation"][section]
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        if target.kind == .bot { return [2, 4, 3][section] }
+        if target.kind == .bot { return [2, 4, 3, 1][section] }
         if section == 1 { return memberIDs.count }
         return section == 0 ? 2 : 2
     }
@@ -59,7 +61,7 @@ final class ConversationDetailsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "detail")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "detail")
-        cell.selectionStyle = .none
+        cell.selectionStyle = target.kind == .bot && indexPath.section == 3 ? .default : .none
         cell.accessoryView = nil
         cell.textLabel?.font = .preferredFont(forTextStyle: .body)
         cell.detailTextLabel?.font = .preferredFont(forTextStyle: .subheadline)
@@ -68,7 +70,19 @@ final class ConversationDetailsViewController: UITableViewController {
         let pair = target.kind == .bot ? botRow(indexPath) : groupRow(indexPath)
         cell.textLabel?.text = pair.0
         cell.detailTextLabel?.text = pair.1
+        if target.kind == .bot && indexPath.section == 3 {
+            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+        }
         return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        guard target.kind == .bot && indexPath.section == 3 else { return }
+        let browser = BrowserHandoffViewController(
+            botID: target.id, hold: state["browserHolds"]?[target.id] ?? .object([:]), session: session
+        )
+        navigationController?.pushViewController(browser, animated: true)
     }
 
     private func botRow(_ path: IndexPath) -> (String, String) {
@@ -83,6 +97,7 @@ final class ConversationDetailsViewController: UITableViewController {
         case (1, 3): return ("Instructions", bot?["instructions"]?.stringValue ?? "Add in Bot settings")
         case (2, 0): return ("Memory", memoryCount.map { "\($0) entries" } ?? "—")
         case (2, 1): return ("Usage", usageText ?? "—")
+        case (3, 0): return ("Open browser", "See the current page and hand it back to the Bot")
         default: return ("Scheduled tasks", scheduleText ?? "—")
         }
     }

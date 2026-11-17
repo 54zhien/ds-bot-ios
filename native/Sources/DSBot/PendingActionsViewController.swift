@@ -5,11 +5,16 @@ final class PendingActionsViewController: UITableViewController {
     enum Item {
         case question(sessionID: String, value: JSONValue)
         case approval(JSONValue)
+        case secret(JSONValue)
+        case handoff(botID: String, value: JSONValue)
 
         var title: String {
             switch self {
             case .question(_, let value): return value["question"]?.stringValue ?? "Question"
             case .approval(let value): return value["tool"]?.stringValue ?? "Approval"
+            case .secret(let value):
+                return value["kind"]?.stringValue == "allow" ? "Allow a secret" : "Secret needed"
+            case .handoff: return "Browser handoff"
             }
         }
 
@@ -17,6 +22,9 @@ final class PendingActionsViewController: UITableViewController {
             switch self {
             case .question(_, let value): return value["detail"]?.stringValue ?? "Choose an answer"
             case .approval(let value): return value["reason"]?.stringValue ?? "Allow or reject this request"
+            case .secret(let value): return value["name"]?.stringValue ?? "Enter a key or decide on access"
+            case .handoff(_, let value):
+                return value["note"]?.stringValue ?? value["reason"]?.stringValue ?? "Open the browser"
             }
         }
     }
@@ -81,6 +89,60 @@ final class PendingActionsViewController: UITableViewController {
             sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
             sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
             present(sheet, animated: true)
+        case .secret(let value):
+            showSecret(value)
+        case .handoff(let botID, let value):
+            let browser = BrowserHandoffViewController(botID: botID, hold: value, session: session)
+            browser.onChanged = { [weak self] in self?.onChanged?() }
+            navigationController?.pushViewController(browser, animated: true)
+        }
+    }
+
+    private func showSecret(_ value: JSONValue) {
+        guard let id = value["id"]?.stringValue else { return }
+        let name = value["name"]?.stringValue ?? "key"
+        if value["kind"]?.stringValue == "allow" {
+            let sheet = UIAlertController(title: "Let the Bot use \(name)?",
+                                          message: value["scope"]?.stringValue, preferredStyle: .actionSheet)
+            sheet.addAction(UIAlertAction(title: "Allow", style: .default) { [weak self] _ in
+                self?.submitSecret("secret-allow", id: id)
+            })
+            sheet.addAction(UIAlertAction(title: "Cancel request", style: .destructive) { [weak self] _ in
+                self?.submitSecret("secret-cancel", id: id)
+            })
+            sheet.addAction(UIAlertAction(title: "Back", style: .cancel))
+            sheet.popoverPresentationController?.sourceView = tableView
+            present(sheet, animated: true)
+        } else {
+            let alert = UIAlertController(title: "\(name) needs a key", message: nil, preferredStyle: .alert)
+            alert.addTextField { field in
+                field.placeholder = "Value of \(name)"
+                field.isSecureTextEntry = true
+                field.autocapitalizationType = .none
+                field.autocorrectionType = .no
+            }
+            alert.addAction(UIAlertAction(title: "Cancel request", style: .destructive) { [weak self] _ in
+                self?.submitSecret("secret-cancel", id: id)
+            })
+            alert.addAction(UIAlertAction(title: "Back", style: .cancel))
+            alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+                let entered = alert?.textFields?.first?.text ?? ""
+                guard !entered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                self?.submitSecret("secret-set", id: id, value: entered)
+            })
+            present(alert, animated: true)
+        }
+    }
+
+    private func submitSecret(_ endpoint: String, id: String, value: String? = nil) {
+        var payload: [String: JSONValue] = ["requestId": .string(id)]
+        if let value { payload["value"] = .string(value) }
+        Task {
+            do {
+                _ = try await BotAPI.call(endpoint, payload: .object(payload), on: session)
+                onChanged?()
+                dismiss(animated: true)
+            } catch { showError(error.localizedDescription) }
         }
     }
 

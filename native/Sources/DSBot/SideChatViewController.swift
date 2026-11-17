@@ -227,9 +227,16 @@ extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UI
             let entry = entries[indexPath.row]
             cell.textLabel?.text = entry["question"]?.stringValue ?? ""
             let status = entry["status"]?.stringValue
-            cell.detailTextLabel?.text = status == "answering" ? "Answering…"
+            let detail = status == "answering" ? "Answering…"
                 : status == "failed" ? entry["failure"]?.stringValue ?? "The side answer failed."
                 : status == "cancelled" ? "Cancelled" : entry["answer"]?.stringValue ?? ""
+            if status != "answering", status != "failed", status != "cancelled",
+               let markdown = try? AttributedString(markdown: detail) {
+                cell.detailTextLabel?.attributedText = NSAttributedString(markdown)
+            } else {
+                cell.detailTextLabel?.attributedText = nil
+                cell.detailTextLabel?.text = detail
+            }
             if status == "answering" {
                 let cancelButton = UIButton(type: .system)
                 cancelButton.setTitle("Cancel", for: .normal)

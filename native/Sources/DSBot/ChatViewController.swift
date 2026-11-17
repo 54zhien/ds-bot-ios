@@ -808,6 +808,13 @@ final class ChatViewController: UIViewController {
                 items.append(.approval(approval))
             }
         }
+        if let botID, case .array(let secrets)? = state["secretRequests"]?[botID] {
+            items += secrets.filter { $0["status"]?.stringValue == "pending" }.map { .secret($0) }
+        }
+        if let botID, let hold = state["browserHolds"]?[botID],
+           hold["callId"]?.stringValue != nil {
+            items.append(.handoff(botID: botID, value: hold))
+        }
         pendingItems = items
         updatePendingButton()
     }
