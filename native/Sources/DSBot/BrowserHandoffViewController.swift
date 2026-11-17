@@ -35,6 +35,10 @@ final class BrowserHandoffViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Browser handoff"
+        if navigationController?.viewControllers.first === self {
+            navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
+                                                                target: self, action: #selector(close))
+        }
         view.backgroundColor = .systemBackground
         scroll.translatesAutoresizingMaskIntoConstraints = false
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -97,6 +101,8 @@ final class BrowserHandoffViewController: UIViewController {
         stopButton.addTarget(self, action: #selector(stopBrowser), for: .touchUpInside)
     }
 
+    @objc private func close() { dismiss(animated: true) }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         refreshTask?.cancel()
@@ -150,7 +156,11 @@ final class BrowserHandoffViewController: UIViewController {
             do {
                 _ = try await BotAPI.call(endpoint, payload: .object(["botId": .string(botID)]), on: session)
                 if endpoint == "browser-stop" {
-                    navigationController?.popViewController(animated: true)
+                    if navigationController?.viewControllers.first === self {
+                        navigationController?.dismiss(animated: true)
+                    } else {
+                        navigationController?.popViewController(animated: true)
+                    }
                 } else {
                     heldByUser = !heldByUser
                     controlButton.setTitle(heldByUser ? "Give back" : "Take over", for: .normal)

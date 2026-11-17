@@ -934,14 +934,14 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private func updatePending(_ state: JSONValue, sessionID: String) {
         var items: [PendingActionsViewController.Item] = []
-        if let question = state["questions"]?[sessionID], question != .null {
-            items.append(.question(sessionID: sessionID, value: question))
-        }
         if case .array(let approvals)? = state["work"]?["approvals"] {
             for approval in approvals where approval["sessionId"]?.stringValue == sessionID
                 || (roomID != nil && approval["roomId"]?.stringValue == roomID) {
                 items.append(.approval(approval))
             }
+        }
+        if let question = state["questions"]?[sessionID], question != .null {
+            items.append(.question(sessionID: sessionID, value: question))
         }
         if let botID, case .array(let secrets)? = state["secretRequests"]?[botID] {
             items += secrets.filter { $0["status"]?.stringValue == "pending" }.map { .secret($0) }
@@ -983,6 +983,24 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func showPending(_ item: PendingActionsViewController.Item) {
+        if case .view(let sessionID, let value) = item {
+            let card = PendingViewController(sessionID: sessionID, record: value, session: session)
+            card.onChanged = { [weak self] in
+                guard let self else { return }
+                Task { await self.refreshLatest(for: self.sessionID) }
+            }
+            present(UINavigationController(rootViewController: card), animated: true)
+            return
+        }
+        if case .handoff(let botID, let value) = item {
+            let browser = BrowserHandoffViewController(botID: botID, hold: value, session: session)
+            browser.onChanged = { [weak self] in
+                guard let self else { return }
+                Task { await self.refreshLatest(for: self.sessionID) }
+            }
+            present(UINavigationController(rootViewController: browser), animated: true)
+            return
+        }
         let actions = PendingActionsViewController(items: [item], session: session)
         actions.onChanged = { [weak self] in
             guard let self else { return }

@@ -13,6 +13,7 @@ final class PendingDockView: UIScrollView {
     private var items: [Item] = []
     private var session: LinkSession?
     private var expandedKey: String?
+    private var chosenKey: String?
     private var rows: [String: UIView] = [:]
     private var selected: [String: Set<String>] = [:]
     private var busy = false
@@ -46,12 +47,11 @@ final class PendingDockView: UIScrollView {
         items = next
         language = NativeLanguage.mode
         let keys = next.enumerated().map { key(for: $0.element, index: $0.offset) }
-        if !keys.contains(expandedKey ?? "") {
-            expandedKey = next.enumerated().first { entry in
-                if case .aside = entry.element { return false }
-                return true
-            }.map { key(for: $0.element, index: $0.offset) } ?? keys.first
-        }
+        if !keys.contains(chosenKey ?? "") { chosenKey = nil }
+        expandedKey = chosenKey ?? next.enumerated().first { entry in
+            if case .aside = entry.element { return false }
+            return true
+        }.map { key(for: $0.element, index: $0.offset) } ?? keys.first
         cards.arrangedSubviews.forEach { $0.removeFromSuperview() }
         rows.removeAll()
         for (index, item) in next.enumerated() {
@@ -119,8 +119,12 @@ final class PendingDockView: UIScrollView {
     }
 
     private func toggle(_ key: String) {
-        expandedKey = key
-        for (rowKey, body) in rows { body.isHidden = rowKey != key }
+        chosenKey = chosenKey == key ? nil : key
+        expandedKey = chosenKey ?? items.enumerated().first { entry in
+            if case .aside = entry.element { return false }
+            return true
+        }.map { self.key(for: $0.element, index: $0.offset) } ?? items.indices.first.map { self.key(for: items[$0], index: $0) }
+        for (rowKey, body) in rows { body.isHidden = rowKey != expandedKey }
         onHeightChange?()
     }
 
@@ -171,6 +175,11 @@ final class PendingDockView: UIScrollView {
         case .approval(let approval):
             if let detail = approval["detail"]?["text"]?.stringValue { body.addArrangedSubview(label(detail)) }
             if let reason = approval["reason"]?.stringValue, !reason.isEmpty { body.addArrangedSubview(label(reason)) }
+            if let code = approval["detail"]?["code"]?.stringValue, !code.isEmpty {
+                let snippet = label(code)
+                snippet.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+                body.addArrangedSubview(snippet)
+            }
             if approval["answerable"] == .bool(true), let id = approval["id"]?.stringValue {
                 body.addArrangedSubview(actionRow([
                     (NativeLanguage.text("Reject"), { [weak self] in self?.run("approval-answer", ["id": .string(id), "choice": .string("reject")]) }),

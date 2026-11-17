@@ -27,6 +27,10 @@ final class PendingViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = record["title"]?.stringValue ?? "Card"
+        if navigationController?.viewControllers.first === self {
+            navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
+                                                                target: self, action: #selector(close))
+        }
         view.backgroundColor = .systemBackground
         scroll.translatesAutoresizingMaskIntoConstraints = false
         body.translatesAutoresizingMaskIntoConstraints = false
@@ -51,6 +55,8 @@ final class PendingViewController: UIViewController {
         let dismiss = button("Dismiss", prominent: false) { [weak self] in self?.dismissCard() }
         body.addArrangedSubview(dismiss)
     }
+
+    @objc private func close() { dismiss(animated: true) }
 
     private func label(_ text: String, emphasis: Bool = false) -> UILabel {
         let label = UILabel()
