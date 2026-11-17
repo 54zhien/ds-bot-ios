@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import UIKit
 
 /// N1 chat shell. Messages and composer behaviour arrive in later steps.
-final class ChatViewController: UIViewController {
+final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
@@ -53,6 +53,7 @@ final class ChatViewController: UIViewController {
     private var readAgain = false
     private var linkStatus: LinkSession.Status = .disconnected
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
+    private let drawerTransition = TeamDrawerTransition()
     private let noticeBanner = UIButton(type: .system)
     private var noticeTarget: ChatTarget?
     private var noticeGeneration = 0
@@ -221,6 +222,10 @@ final class ChatViewController: UIViewController {
         configureStatusBar()
         configureList()
         configureComposer()
+        let drawerEdge = UIPanGestureRecognizer(target: self, action: #selector(openDrawerFromEdge(_:)))
+        drawerEdge.delegate = self
+        drawerEdge.cancelsTouchesInView = false
+        view.addGestureRecognizer(drawerEdge)
         savedOffer = pairingStore.load()
         computerItem.title = tr(savedOffer == nil ? "Pair" : "Computers")
         updateEmptyState()
@@ -731,6 +736,7 @@ final class ChatViewController: UIViewController {
 
     @objc private func showTeam() {
         guard let teamState else { return }
+        view.endEditing(true)
         let team = TeamListViewController(state: teamState)
         team.onSelect = { [weak self] target in self?.selectTarget(target) }
         team.onSettings = { [weak self] in self?.showSettings() }
@@ -738,7 +744,34 @@ final class ChatViewController: UIViewController {
         team.onCreateGroup = { [weak self] in self?.showGroupEditor(id: nil) }
         team.onEditBot = { [weak self] id in self?.showBotEditor(id: id) }
         team.onEditGroup = { [weak self] id in self?.showGroupEditor(id: id) }
-        present(UINavigationController(rootViewController: team), animated: true)
+        let navigation = UINavigationController(rootViewController: team)
+        let closePan = UIPanGestureRecognizer(target: self, action: #selector(closeDrawerFromHeader(_:)))
+        closePan.cancelsTouchesInView = false
+        navigation.navigationBar.addGestureRecognizer(closePan)
+        navigation.modalPresentationStyle = .custom
+        navigation.transitioningDelegate = drawerTransition
+        present(navigation, animated: true)
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+              presentedViewController == nil, teamState != nil else { return false }
+        let movement = pan.translation(in: view)
+        let originX = pan.location(in: view).x - movement.x
+        return originX <= 24 && movement.x > 8 && abs(movement.x) > abs(movement.y)
+    }
+
+    @objc private func openDrawerFromEdge(_ pan: UIPanGestureRecognizer) {
+        guard pan.state == .ended else { return }
+        let distance = pan.translation(in: view).x
+        if distance > 80 || pan.velocity(in: view).x > 350 { showTeam() }
+    }
+
+    @objc private func closeDrawerFromHeader(_ pan: UIPanGestureRecognizer) {
+        guard pan.state == .ended else { return }
+        if pan.translation(in: pan.view).x < -60 || pan.velocity(in: pan.view).x < -350 {
+            presentedViewController?.dismiss(animated: true)
+        }
     }
 
     @objc private func showSideChat() {
