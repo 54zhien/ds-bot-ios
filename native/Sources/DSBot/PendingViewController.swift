@@ -244,7 +244,10 @@ final class PendingViewController: UIViewController {
             let field = UITextField()
             field.borderStyle = .roundedRect
             field.keyboardType = .decimalPad
-            field.text = scalar(node["value"])
+            if case .number(let value)? = node["value"] {
+                field.text = value.rounded() == value && value.magnitude < Double(Int.max)
+                    ? String(Int(value)) : String(value)
+            } else { field.text = scalar(node["value"]) }
             fields[id] = field
             numericFields.insert(id)
             field.addAction(UIAction { [weak self] _ in

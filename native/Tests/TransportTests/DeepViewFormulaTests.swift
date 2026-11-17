@@ -12,6 +12,8 @@ final class DeepViewFormulaTests: XCTestCase {
         }
         let inputs: [String: JSONValue] = ["price": .number(3), "qty": .number(4)]
         XCTAssertEqual(formula.resolve(.object(["=": .string("total")]), inputs: inputs), .number(12))
+        XCTAssertEqual(formula.resolve(.object(["=": .string("total")]),
+                                       inputs: ["price": .number(3), "qty": .number(5)]), .number(15))
         XCTAssertEqual(formula.resolve(.object(["=": .string("qty > 3 ? fixed(total, 1) : 'low'")]),
                                        inputs: inputs), .string("12.0"))
         XCTAssertNil(formula.resolve(.object(["=": .string("missing + 1")]), inputs: inputs))
