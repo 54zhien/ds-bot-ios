@@ -62,6 +62,15 @@ enum NativeLanguage {
         "Could not load diagnostics": "无法加载诊断信息",
         "Forget {name}?": "忘记 {name}？",
         "this computer": "这台电脑",
+        "Secret needed": "需要密钥",
+        "Choose an answer": "选择答案",
+        "Allow or reject this request": "允许或拒绝此请求",
+        "Enter a key or decide on access": "输入密钥或决定是否授权",
+        "Open the browser": "打开浏览器",
+        "Open and answer this card": "打开并回答此卡片",
+        "Waiting for an answer": "等待回答",
+        "Let the Bot use {name}?": "允许 Bot 使用 {name}？",
+        "Could not answer": "无法提交回答",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }

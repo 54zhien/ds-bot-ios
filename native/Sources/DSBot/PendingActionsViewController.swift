@@ -12,26 +12,26 @@ final class PendingActionsViewController: UITableViewController {
 
         var title: String {
             switch self {
-            case .question(_, let value): return value["question"]?.stringValue ?? "Question"
-            case .approval(let value): return value["tool"]?.stringValue ?? "Approval"
+            case .question(_, let value): return value["question"]?.stringValue ?? NativeLanguage.text("Question")
+            case .approval(let value): return value["tool"]?.stringValue ?? NativeLanguage.text("Approval")
             case .secret(let value):
-                return value["kind"]?.stringValue == "allow" ? "Allow a secret" : "Secret needed"
-            case .handoff: return "Browser handoff"
-            case .view(_, let value): return value["title"]?.stringValue ?? "Card"
-            case .aside(_, let value): return value["question"]?.stringValue ?? "Aside"
+                return NativeLanguage.text(value["kind"]?.stringValue == "allow" ? "Allow a secret" : "Secret needed")
+            case .handoff: return NativeLanguage.text("Browser handoff")
+            case .view(_, let value): return value["title"]?.stringValue ?? NativeLanguage.text("Card")
+            case .aside(_, let value): return value["question"]?.stringValue ?? NativeLanguage.text("Aside")
             }
         }
 
         var detail: String {
             switch self {
-            case .question(_, let value): return value["detail"]?.stringValue ?? "Choose an answer"
-            case .approval(let value): return value["reason"]?.stringValue ?? "Allow or reject this request"
-            case .secret(let value): return value["name"]?.stringValue ?? "Enter a key or decide on access"
+            case .question(_, let value): return value["detail"]?.stringValue ?? NativeLanguage.text("Choose an answer")
+            case .approval(let value): return value["reason"]?.stringValue ?? NativeLanguage.text("Allow or reject this request")
+            case .secret(let value): return value["name"]?.stringValue ?? NativeLanguage.text("Enter a key or decide on access")
             case .handoff(_, let value):
-                return value["note"]?.stringValue ?? value["reason"]?.stringValue ?? "Open the browser"
-            case .view: return "Open and answer this card"
+                return value["note"]?.stringValue ?? value["reason"]?.stringValue ?? NativeLanguage.text("Open the browser")
+            case .view: return NativeLanguage.text("Open and answer this card")
             case .aside(_, let value): return value["answer"]?.stringValue
-                ?? value["failure"]?.stringValue ?? "Waiting for an answer"
+                ?? value["failure"]?.stringValue ?? NativeLanguage.text("Waiting for an answer")
             }
         }
     }
@@ -50,7 +50,7 @@ final class PendingActionsViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Needs you"
+        title = NativeLanguage.text("Needs you")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done, target: self, action: #selector(close)
         )
@@ -70,7 +70,7 @@ final class PendingActionsViewController: UITableViewController {
         cell.accessoryType = .none
         cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         if case .approval(let value) = item, value["answerable"] != .bool(true) {
-            cell.detailTextLabel?.text = "Answer on the computer"
+            cell.detailTextLabel?.text = NativeLanguage.text("Answer on the computer")
             cell.accessoryView = nil
         }
         return cell
@@ -85,15 +85,15 @@ final class PendingActionsViewController: UITableViewController {
             navigationController?.pushViewController(answer, animated: true)
         case .approval(let value):
             guard value["answerable"] == .bool(true), let id = value["id"]?.stringValue else { return }
-            let sheet = UIAlertController(title: value["tool"]?.stringValue ?? "Approval",
+            let sheet = UIAlertController(title: value["tool"]?.stringValue ?? NativeLanguage.text("Approval"),
                                           message: value["reason"]?.stringValue, preferredStyle: .actionSheet)
             for choice in ["reject", "allow"] {
-                sheet.addAction(UIAlertAction(title: choice == "allow" ? "Allow once" : "Reject",
+                sheet.addAction(UIAlertAction(title: NativeLanguage.text(choice == "allow" ? "Allow once" : "Reject"),
                                               style: choice == "reject" ? .destructive : .default) { [weak self] _ in
                     self?.submitApproval(id: id, choice: choice)
                 })
             }
-            sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            sheet.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
             sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
             present(sheet, animated: true)
         case .secret(let value):
@@ -108,14 +108,14 @@ final class PendingActionsViewController: UITableViewController {
             navigationController?.pushViewController(card, animated: true)
         case .aside(let sessionID, let value):
             guard let cardID = value["id"]?.stringValue else { return }
-            let alert = UIAlertController(title: value["question"]?.stringValue ?? "Aside",
+            let alert = UIAlertController(title: value["question"]?.stringValue ?? NativeLanguage.text("Aside"),
                                           message: value["answer"]?.stringValue
-                                            ?? value["failure"]?.stringValue ?? "Waiting for an answer",
+                                            ?? value["failure"]?.stringValue ?? NativeLanguage.text("Waiting for an answer"),
                                           preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "Dismiss", style: .destructive) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("Dismiss"), style: .destructive) { [weak self] _ in
                 self?.dismissAside(sessionID: sessionID, cardID: cardID)
             })
-            alert.addAction(UIAlertAction(title: "Close", style: .cancel))
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("Close"), style: .cancel))
             present(alert, animated: true)
         }
     }
@@ -124,30 +124,30 @@ final class PendingActionsViewController: UITableViewController {
         guard let id = value["id"]?.stringValue else { return }
         let name = value["name"]?.stringValue ?? "key"
         if value["kind"]?.stringValue == "allow" {
-            let sheet = UIAlertController(title: "Let the Bot use \(name)?",
+            let sheet = UIAlertController(title: NativeLanguage.text("Let the Bot use {name}?", ["name": name]),
                                           message: value["scope"]?.stringValue, preferredStyle: .actionSheet)
-            sheet.addAction(UIAlertAction(title: "Allow", style: .default) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: NativeLanguage.text("Allow"), style: .default) { [weak self] _ in
                 self?.submitSecret("secret-allow", id: id)
             })
-            sheet.addAction(UIAlertAction(title: "Cancel request", style: .destructive) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: NativeLanguage.text("Cancel request"), style: .destructive) { [weak self] _ in
                 self?.submitSecret("secret-cancel", id: id)
             })
-            sheet.addAction(UIAlertAction(title: "Back", style: .cancel))
+            sheet.addAction(UIAlertAction(title: NativeLanguage.text("Back"), style: .cancel))
             sheet.popoverPresentationController?.sourceView = tableView
             present(sheet, animated: true)
         } else {
-            let alert = UIAlertController(title: "\(name) needs a key", message: nil, preferredStyle: .alert)
+            let alert = UIAlertController(title: NativeLanguage.text("{name} needs a key", ["name": name]), message: nil, preferredStyle: .alert)
             alert.addTextField { field in
-                field.placeholder = "Value of \(name)"
+                field.placeholder = NativeLanguage.text("Value of {name}", ["name": name])
                 field.isSecureTextEntry = true
                 field.autocapitalizationType = .none
                 field.autocorrectionType = .no
             }
-            alert.addAction(UIAlertAction(title: "Cancel request", style: .destructive) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("Cancel request"), style: .destructive) { [weak self] _ in
                 self?.submitSecret("secret-cancel", id: id)
             })
-            alert.addAction(UIAlertAction(title: "Back", style: .cancel))
-            alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("Back"), style: .cancel))
+            alert.addAction(UIAlertAction(title: NativeLanguage.text("Save"), style: .default) { [weak self, weak alert] _ in
                 let entered = alert?.textFields?.first?.text ?? ""
                 guard !entered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                 self?.submitSecret("secret-set", id: id, value: entered)
@@ -193,8 +193,8 @@ final class PendingActionsViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Could not answer", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Could not answer"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
@@ -223,11 +223,11 @@ private final class QuestionAnswerViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Question"
+        title = NativeLanguage.text("Question")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Submit", style: .done, target: self, action: #selector(submit)
+            title: NativeLanguage.text("Submit"), style: .done, target: self, action: #selector(submit)
         )
-        custom.placeholder = "Your answer"
+        custom.placeholder = NativeLanguage.text("Your answer")
         custom.borderStyle = .roundedRect
         custom.autocorrectionType = .no
         custom.frame = CGRect(x: 16, y: 8, width: tableView.bounds.width - 32, height: 44)
@@ -244,7 +244,7 @@ private final class QuestionAnswerViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "answer") ?? UITableViewCell(style: .subtitle, reuseIdentifier: "answer")
         if indexPath.section == 0 {
-            cell.textLabel?.text = question["question"]?.stringValue ?? "Question"
+            cell.textLabel?.text = question["question"]?.stringValue ?? NativeLanguage.text("Question")
             cell.detailTextLabel?.text = question["detail"]?.stringValue
             cell.detailTextLabel?.numberOfLines = 0
             cell.selectionStyle = .none
@@ -266,7 +266,10 @@ private final class QuestionAnswerViewController: UITableViewController {
         let option = options[indexPath.row]
         if question["multiSelect"] == .bool(true) {
             if !selected.insert(option).inserted { selected.remove(option) }
-        } else { selected = [option] }
+        } else {
+            selected = [option]
+            submit()
+        }
         tableView.reloadSections(IndexSet(integer: 1), with: .none)
     }
 
@@ -288,9 +291,9 @@ private final class QuestionAnswerViewController: UITableViewController {
             } catch {
                 busy = false
                 navigationItem.rightBarButtonItem?.isEnabled = true
-                let alert = UIAlertController(title: "Could not answer", message: error.localizedDescription,
+                let alert = UIAlertController(title: NativeLanguage.text("Could not answer"), message: error.localizedDescription,
                                               preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
                 present(alert, animated: true)
             }
         }
