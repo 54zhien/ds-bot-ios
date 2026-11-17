@@ -144,38 +144,9 @@ final class ProviderSettingsViewController: UITableViewController {
     }
 
     private func addCustom() {
-        let alert = UIAlertController(title: "Custom provider", message: "Enter at least one model ID.",
-                                      preferredStyle: .alert)
-        for (name, secure) in [("Provider ID", false), ("Name", false), ("API base URL", false),
-                               ("API key", true), ("Model IDs, comma separated", false)] {
-            alert.addTextField { field in
-                field.placeholder = name
-                field.isSecureTextEntry = secure
-                field.autocapitalizationType = .none
-                field.autocorrectionType = .no
-            }
-        }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Add", style: .default) { [weak self, weak alert] _ in
-            guard let self, let fields = alert?.textFields else { return }
-            let values = fields.map { ($0.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines) }
-            let models = values[4].split(separator: ",").map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }.filter { !$0.isEmpty }
-            guard !values[0].isEmpty, !values[2].isEmpty, !models.isEmpty else {
-                self.showError("Provider ID, API URL, and model IDs are required")
-                return
-            }
-            var payload: [String: JSONValue] = [
-                "custom": .bool(true), "provider": .string(values[0]), "name": .string(values[1]),
-                "baseURL": .string(values[2]),
-                "key": .string(values[3]),
-                "models": .array(models.map { .object(["id": .string($0)]) }),
-            ]
-            if let api = self.protocols.first { payload["api"] = .string(api) }
-            self.run("provider-add", payload: payload)
-        })
-        present(alert, animated: true)
+        let editor = CustomProviderViewController(session: session, protocols: protocols)
+        editor.onSaved = { [weak self] in Task { await self?.load() } }
+        navigationController?.pushViewController(editor, animated: true)
     }
 
     private func confirmRemoval(id: String, name: String) {
