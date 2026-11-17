@@ -16,6 +16,7 @@ final class PendingViewController: UIViewController {
     private var formula: DeepViewFormula?
     private var computedLabels: [(UILabel, JSONValue)] = []
     private var computedProgress: [(UIProgressView, JSONValue)] = []
+    private var computedData: [(UIStackView, JSONValue)] = []
     private var busy = false
 
     init(sessionID: String, record: JSONValue, session: LinkSession) {
@@ -84,6 +85,13 @@ final class PendingViewController: UIViewController {
         for (progress, node) in computedProgress {
             let percent = progressPercent(node)
             progress.progress = Float(max(0, min(100, percent))) / 100
+        }
+        for (container, node) in computedData {
+            for view in container.arrangedSubviews {
+                container.removeArrangedSubview(view)
+                view.removeFromSuperview()
+            }
+            container.addArrangedSubview(dataContent(node))
         }
     }
 
@@ -154,7 +162,7 @@ final class PendingViewController: UIViewController {
         ])
         func row(_ values: [JSONValue], heading: Bool) -> UIStackView {
             let cells = values.map { value -> UILabel in
-                let cell = boundLabel(value)
+                let cell = label(scalar(value))
                 cell.font = .preferredFont(forTextStyle: heading ? .caption1 : .subheadline)
                 cell.textColor = heading ? .secondaryLabel : .label
                 cell.numberOfLines = 0
@@ -180,6 +188,34 @@ final class PendingViewController: UIViewController {
         let visibleRows = min(6, rows.count + 1)
         scroller.heightAnchor.constraint(equalToConstant: CGFloat(visibleRows * 48)).isActive = true
         return scroller
+    }
+
+    private func dataContent(_ node: JSONValue) -> UIView {
+        switch node["type"]?.stringValue {
+        case "table": return table(node) ?? label("…")
+        case "chart":
+            guard case .object(var resolved) = node else { return label("…") }
+            for key in ["categories", "series", "kind", "unit", "caption"] {
+                if let source = node[key] {
+                    let evaluated = formula?.resolve(source, inputs: inputs)
+                    guard let value = evaluated ?? (DeepViewFormula.isFormula(source) ? nil : source) else {
+                        return label("…")
+                    }
+                    resolved[key] = value
+                }
+            }
+            guard case .array? = resolved["categories"], case .array? = resolved["series"] else {
+                return label("…")
+            }
+            return DeepViewChartView(node: .object(resolved))
+        default: return label("…")
+        }
+    }
+
+    private func dataView(_ node: JSONValue) -> UIView {
+        let container = column([dataContent(node)])
+        computedData.append((container, node))
+        return container
     }
 
     private func render(_ node: JSONValue) -> UIView? {
@@ -210,8 +246,7 @@ final class PendingViewController: UIViewController {
                 return button(source["label"]?.stringValue ?? source["title"]?.stringValue ?? link,
                               prominent: false) { UIApplication.shared.open(url) }
             })
-        case "table": return table(node)
-        case "chart": return DeepViewChartView(node: node)
+        case "table", "chart": return dataView(node)
         case "choice":
             guard case .array(let options)? = node["options"] else { return nil }
             let labels = options.map { $0["label"]?.stringValue ?? $0.stringValue ?? scalar($0["value"]) }
