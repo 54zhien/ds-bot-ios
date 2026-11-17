@@ -103,10 +103,24 @@ struct ChatRow {
         imageCount = count
         let base = !parts.isEmpty ? parts.joined(separator: "\n\n") : !body.isEmpty ? body : title
         messageText = base
+        var display = base
+        if kind == "closed" {
+            let prompt = value["question"]?["question"]?.stringValue ?? title
+            let state = value["closed"]?.stringValue == "replied" ? "Answered by message" : "Dismissed"
+            display = prompt.isEmpty ? state : "\(prompt)\n\(state)"
+        } else if kind == "answer", case .array(let answers)? = value["answers"] {
+            let responses = answers.compactMap { answer -> String? in
+                let selected = answer["selected"]?.stringArrayValue ?? []
+                let custom = answer["custom"]?.stringValue ?? ""
+                let reply = (selected + (custom.isEmpty ? [] : [custom])).joined(separator: ", ")
+                return reply.isEmpty ? nil : reply
+            }
+            if !responses.isEmpty { display = responses.joined(separator: "\n") }
+        }
         if count > 0 {
-            text = base.isEmpty ? "Photos: \(count)" : "\(base)\nPhotos: \(count)"
-        } else if !base.isEmpty {
-            text = base
+            text = display.isEmpty ? "Photos: \(count)" : "\(display)\nPhotos: \(count)"
+        } else if !display.isEmpty {
+            text = display
         } else {
             switch kind {
             case "steps": text = "Work steps"

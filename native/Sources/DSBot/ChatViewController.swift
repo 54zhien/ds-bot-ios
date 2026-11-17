@@ -9,6 +9,7 @@ final class ChatViewController: UIViewController {
     private let composer = NativeComposerView()
     private var computerItem: UIBarButtonItem!
     private var sideItem: UIBarButtonItem!
+    private let titleButton = UIButton(type: .system)
     private var composerHeight: NSLayoutConstraint!
     private let pendingButton = UIButton(type: .system)
     private var pendingHeight: NSLayoutConstraint!
@@ -156,6 +157,12 @@ final class ChatViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Chat"
+        titleButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        titleButton.setTitle("Chat", for: .normal)
+        titleButton.accessibilityLabel = "Conversation details"
+        titleButton.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
+        navigationItem.titleView = titleButton
+        updateTitleButton()
         view.backgroundColor = .systemBackground
         computerItem = UIBarButtonItem(
             title: "Pair", style: .plain, target: self, action: #selector(showPairing)
@@ -275,6 +282,7 @@ final class ChatViewController: UIViewController {
 
     private func connect(to offer: PairingOffer, pairingCode: String?) {
         let oldSession = session
+        stream.clear()
         let nextSession = LinkSession()
         session = nextSession
         let id = UUID()
@@ -329,9 +337,16 @@ final class ChatViewController: UIViewController {
 
     private func handleFeed(_ event: String, data: JSONValue, for id: UUID) {
         guard id == sessionID, linkStatus == .online else { return }
+        let hadStream = !stream.text.isEmpty
         if event == "stream", stream.receive(data, for: chatSessionID) {
             let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
-            rebuildRows()
+            if hadStream, !stream.text.isEmpty, !rows.isEmpty {
+                let last = rows.count - 1
+                rows[last] = ChatRow(.object(["kind": .string("bot"), "text": .string(stream.text)]))
+                list.reloadRows(at: [IndexPath(row: last, section: 0)], with: .none)
+            } else {
+                rebuildRows()
+            }
             if nearBottom && !rows.isEmpty {
                 list.layoutIfNeeded()
                 list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: false)
@@ -470,6 +485,8 @@ final class ChatViewController: UIViewController {
                 roomID = nil
                 chatSessionID = nil
                 stream.clear()
+                title = "Chat"
+                updateTitleButton()
                 updateSideButton()
                 pendingItems = []
                 updatePendingButton()
@@ -486,6 +503,7 @@ final class ChatViewController: UIViewController {
                 botID = target.kind == .bot ? target.id : nil
                 roomID = target.kind == .room ? target.id : nil
                 title = chosen?["name"]?.stringValue ?? target.name
+                updateTitleButton()
                 chatSessionID = nil
                 stream.clear()
                 olderRows = []
@@ -658,6 +676,24 @@ final class ChatViewController: UIViewController {
         present(UINavigationController(rootViewController: side), animated: true)
     }
 
+    private func updateTitleButton() {
+        titleButton.setTitle((title ?? "Chat") + (botID != nil || roomID != nil ? "  ⌄" : ""), for: .normal)
+        titleButton.isEnabled = teamState != nil && (botID != nil || roomID != nil)
+    }
+
+    @objc private func showDetails() {
+        guard let teamState, let id = botID ?? roomID else { return }
+        let target = ChatTarget(kind: roomID == nil ? .bot : .room, id: id, name: title ?? id)
+        let details = ConversationDetailsViewController(target: target, state: teamState, session: session)
+        details.onEdit = { [weak self, weak details] in
+            details?.dismiss(animated: true) { [weak self] in
+                if target.kind == .bot { self?.showBotEditor(id: id) }
+                else { self?.showGroupEditor(id: id) }
+            }
+        }
+        present(UINavigationController(rootViewController: details), animated: true)
+    }
+
     private func showBotEditor(id: String?) {
         guard linkStatus == .online, let teamState else { return }
         let bot: JSONValue?
@@ -708,6 +744,7 @@ final class ChatViewController: UIViewController {
         botID = nil
         roomID = nil
         chatSessionID = nil
+        stream.clear()
         updateSideButton()
         olderRows = []
         latestRows = []
@@ -715,6 +752,7 @@ final class ChatViewController: UIViewController {
         expandedSteps = []
         cursor = nil
         title = target.name
+        updateTitleButton()
         pendingItems = []
         updatePendingButton()
         list.reloadData()
@@ -1101,9 +1139,16 @@ private final class ChatMessageCell: UITableViewCell {
             : row.isUser ? tintColor.withAlphaComponent(0.12) : .secondarySystemBackground
         authorLabel.isHidden = row.isNotice || row.kind == "steps"
         authorLabel.text = row.author
-        messageLabel.text = row.stepSummary.map {
-            $0 + (stepsExpanded && !row.stepDetails.isEmpty ? "\n" + row.stepDetails.joined(separator: "\n") : "")
-        } ?? row.text
+        if let summary = row.stepSummary {
+            messageLabel.attributedText = nil
+            messageLabel.text = summary
+                + (stepsExpanded && !row.stepDetails.isEmpty ? "\n" + row.stepDetails.joined(separator: "\n") : "")
+        } else if !row.isNotice, let markdown = try? AttributedString(markdown: row.text) {
+            messageLabel.attributedText = NSAttributedString(markdown)
+        } else {
+            messageLabel.attributedText = nil
+            messageLabel.text = row.text
+        }
         for view in photoStack.arrangedSubviews { photoStack.removeArrangedSubview(view); view.removeFromSuperview() }
         for reference in row.imageRefs {
             let button = UIButton(type: .custom)
