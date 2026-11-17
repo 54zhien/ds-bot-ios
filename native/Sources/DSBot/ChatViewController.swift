@@ -12,7 +12,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var sideItem: UIBarButtonItem!
     private let titleButton = UIButton(type: .system)
     private var composerHeight: NSLayoutConstraint!
-    private let pendingButton = UIButton(type: .system)
+    private let pendingDock = PendingDockView()
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusBar = UIStackView()
@@ -899,14 +899,17 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         composer.onAddPhoto = { [weak self] in self?.pickPhotos() }
         composer.onStop = { [weak self] in self?.stopChat() }
         view.addSubview(composer)
-        pendingButton.translatesAutoresizingMaskIntoConstraints = false
-        pendingButton.backgroundColor = .secondarySystemBackground
-        pendingButton.layer.cornerRadius = 18
-        pendingButton.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
-        pendingButton.addTarget(self, action: #selector(showPending), for: .touchUpInside)
-        view.addSubview(pendingButton)
-        pendingHeight = pendingButton.heightAnchor.constraint(equalToConstant: 0)
-        pendingButton.isHidden = true
+        pendingDock.translatesAutoresizingMaskIntoConstraints = false
+        pendingDock.onHeightChange = { [weak self] in self?.resizePendingDock(animated: true) }
+        pendingDock.onChanged = { [weak self] in
+            guard let self else { return }
+            Task { await self.refreshLatest(for: self.sessionID) }
+        }
+        pendingDock.onOpen = { [weak self] item in self?.showPending(item) }
+        pendingDock.onError = { [weak self] message in self?.showActionError(message) }
+        view.addSubview(pendingDock)
+        pendingHeight = pendingDock.heightAnchor.constraint(equalToConstant: 0)
+        pendingDock.isHidden = true
         if #available(iOS 17.0, *) {
             view.keyboardLayoutGuide.usesBottomSafeArea = true
         }
@@ -915,9 +918,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             composer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             composer.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12),
             composerHeight,
-            pendingButton.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
-            pendingButton.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
-            pendingButton.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
+            pendingDock.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+            pendingDock.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
+            pendingDock.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
             pendingHeight,
         ])
     }
@@ -960,21 +963,27 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func updatePendingButton() {
-        let count = pendingItems.count
-        let needsAttention = pendingItems.contains {
-            if case .aside = $0 { return false }
-            return true
+        if pendingDock.update(pendingItems, session: session) {
+            resizePendingDock(animated: view.window != nil)
         }
-        pendingButton.isHidden = count == 0
-        let label = needsAttention ? "Needs you" : "Aside"
-        pendingButton.setTitle("\(tr(label)) · \(count) \(tr(count == 1 ? "item" : "items"))", for: .normal)
-        pendingHeight.constant = count == 0 ? 0 : 48
-        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + 22
     }
 
-    @objc private func showPending() {
-        guard !pendingItems.isEmpty else { return }
-        let actions = PendingActionsViewController(items: pendingItems, session: session)
+    private func resizePendingDock(animated: Bool) {
+        pendingDock.isHidden = pendingItems.isEmpty
+        let width = max(1, view.bounds.width - 32)
+        let maxHeight = max(1, view.bounds.height * 0.52)
+        pendingHeight.constant = min(pendingDock.requiredHeight(width: width), maxHeight)
+        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + 22
+        let updates = { self.view.layoutIfNeeded() }
+        if animated && !UIAccessibility.isReduceMotionEnabled {
+            UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.82,
+                           initialSpringVelocity: 0, options: [.beginFromCurrentState, .allowUserInteraction],
+                           animations: updates)
+        } else { updates() }
+    }
+
+    private func showPending(_ item: PendingActionsViewController.Item) {
+        let actions = PendingActionsViewController(items: [item], session: session)
         actions.onChanged = { [weak self] in
             guard let self else { return }
             Task { await self.refreshLatest(for: self.sessionID) }

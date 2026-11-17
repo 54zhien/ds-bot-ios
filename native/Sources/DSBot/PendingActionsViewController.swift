@@ -2,7 +2,7 @@ import UIKit
 
 /// The phone's actionable question and approval queue for the open chat.
 final class PendingActionsViewController: UITableViewController {
-    enum Item {
+    enum Item: Equatable {
         case question(sessionID: String, value: JSONValue)
         case approval(JSONValue)
         case secret(JSONValue)
