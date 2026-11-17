@@ -10,6 +10,7 @@ final class ConversationDetailsViewController: UITableViewController {
     private var memoryCount: Int?
     private var usageText: String?
     private var scheduleText: String?
+    private var workDirOverride: String?
 
     init(target: ChatTarget, state: JSONValue, session: LinkSession) {
         self.target = target
@@ -61,7 +62,8 @@ final class ConversationDetailsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "detail")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "detail")
-        cell.selectionStyle = target.kind == .bot && indexPath.section == 3 ? .default : .none
+        cell.selectionStyle = target.kind == .bot && (indexPath.section == 3
+            || (indexPath.section == 1 && indexPath.row == 2)) ? .default : .none
         cell.accessoryView = nil
         cell.textLabel?.font = .preferredFont(forTextStyle: .body)
         cell.detailTextLabel?.font = .preferredFont(forTextStyle: .subheadline)
@@ -70,7 +72,8 @@ final class ConversationDetailsViewController: UITableViewController {
         let pair = target.kind == .bot ? botRow(indexPath) : groupRow(indexPath)
         cell.textLabel?.text = pair.0
         cell.detailTextLabel?.text = pair.1
-        if target.kind == .bot && indexPath.section == 3 {
+        if target.kind == .bot && (indexPath.section == 3
+            || (indexPath.section == 1 && indexPath.row == 2)) {
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         }
         return cell
@@ -78,11 +81,23 @@ final class ConversationDetailsViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard target.kind == .bot && indexPath.section == 3 else { return }
-        let browser = BrowserHandoffViewController(
-            botID: target.id, hold: state["browserHolds"]?[target.id] ?? .object([:]), session: session
-        )
-        navigationController?.pushViewController(browser, animated: true)
+        guard target.kind == .bot else { return }
+        if indexPath.section == 1 && indexPath.row == 2 {
+            let folder = FolderPickerViewController(
+                current: workDirOverride ?? record?["workDir"]?.stringValue ?? "",
+                owner: .bot(target.id), session: session
+            )
+            folder.onPicked = { [weak self] path in
+                self?.workDirOverride = path
+                self?.tableView.reloadData()
+            }
+            navigationController?.pushViewController(folder, animated: true)
+        } else if indexPath.section == 3 {
+            let browser = BrowserHandoffViewController(
+                botID: target.id, hold: state["browserHolds"]?[target.id] ?? .object([:]), session: session
+            )
+            navigationController?.pushViewController(browser, animated: true)
+        }
     }
 
     private func botRow(_ path: IndexPath) -> (String, String) {
@@ -93,7 +108,7 @@ final class ConversationDetailsViewController: UITableViewController {
         case (1, 0): return ("Model", bot?["model"]?.stringValue ?? state["defaultModel"]?.stringValue ?? "Default")
         case (1, 1): return ("Permissions", bot?["permission"]?.stringValue
                              ?? state["permissions"]?["defaultPreset"]?.stringValue ?? "Default")
-        case (1, 2): return ("Working folder", bot?["workDir"]?.stringValue ?? "Team workspace")
+        case (1, 2): return ("Working folder", workDirOverride ?? bot?["workDir"]?.stringValue ?? "Team workspace")
         case (1, 3): return ("Instructions", bot?["instructions"]?.stringValue ?? "Add in Bot settings")
         case (2, 0): return ("Memory", memoryCount.map { "\($0) entries" } ?? "—")
         case (2, 1): return ("Usage", usageText ?? "—")

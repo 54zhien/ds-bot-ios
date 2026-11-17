@@ -65,7 +65,7 @@ final class PendingViewController: UIViewController {
         button.setTitle(title, for: .normal)
         button.titleLabel?.font = .preferredFont(forTextStyle: .body)
         button.layer.cornerRadius = 16
-        button.backgroundColor = prominent ? tintColor.withAlphaComponent(0.18) : .tertiarySystemBackground
+        button.backgroundColor = prominent ? view.tintColor.withAlphaComponent(0.18) : .tertiarySystemBackground
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         return button
@@ -220,8 +220,8 @@ final class PendingViewController: UIViewController {
         case "submit": return button(node["label"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
             self?.submit(action: id, values: [:])
         }
+        default: return nil
         }
-        return nil
     }
 
     private func submit(action: String, values: [String: JSONValue]) {

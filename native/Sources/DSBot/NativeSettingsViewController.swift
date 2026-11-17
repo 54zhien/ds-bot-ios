@@ -27,7 +27,7 @@ final class NativeSettingsViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        [3, 2, 1][section]
+        [3, 3, 1][section]
     }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         ["Phone", "Team", "DS Bot"][section]
@@ -53,6 +53,9 @@ final class NativeSettingsViewController: UITableViewController {
             cell.detailTextLabel?.text = nil
         case (1, 1):
             cell.textLabel?.text = "Connectors"
+            cell.detailTextLabel?.text = nil
+        case (1, 2):
+            cell.textLabel?.text = "Location"
             cell.detailTextLabel?.text = nil
         default:
             cell.textLabel?.text = "About DS Bot"
@@ -86,6 +89,8 @@ final class NativeSettingsViewController: UITableViewController {
             navigationController?.pushViewController(ProviderSettingsViewController(session: session), animated: true)
         case (1, 1):
             navigationController?.pushViewController(ConnectorSettingsViewController(session: session), animated: true)
+        case (1, 2):
+            navigationController?.pushViewController(LocationSettingsViewController(session: session), animated: true)
         default:
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
             let about = UIAlertController(title: "DS Bot", message: "iPhone app · version \(version)",
