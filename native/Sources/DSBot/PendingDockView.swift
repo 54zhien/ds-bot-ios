@@ -14,7 +14,7 @@ final class PendingDockView: UIScrollView {
     private var session: LinkSession?
     private var expandedKey: String?
     private var chosenKey: String?
-    private var rows: [String: UIView] = [:]
+    private var rows: [String: (body: UIView, header: UIButton)] = [:]
     private var selected: [String: Set<String>] = [:]
     private var busy = false
     private var language = NativeLanguage.mode
@@ -114,7 +114,7 @@ final class PendingDockView: UIScrollView {
         populate(body, item: item, key: key)
         body.isHidden = expandedKey != key
         card.addArrangedSubview(body)
-        rows[key] = body
+        rows[key] = (body, header)
         return card
     }
 
@@ -124,7 +124,11 @@ final class PendingDockView: UIScrollView {
             if case .aside = entry.element { return false }
             return true
         }.map { self.key(for: $0.element, index: $0.offset) } ?? items.indices.first.map { self.key(for: items[$0], index: $0) }
-        for (rowKey, body) in rows { body.isHidden = rowKey != expandedKey }
+        for (rowKey, row) in rows {
+            row.body.isHidden = rowKey != expandedKey
+            row.header.accessibilityValue = rowKey == expandedKey
+                ? NativeLanguage.text("Expanded") : NativeLanguage.text("Collapsed")
+        }
         onHeightChange?()
     }
 
@@ -138,7 +142,7 @@ final class PendingDockView: UIScrollView {
             } else { options = [] }
             let multi = question["multiSelect"] == .bool(true)
             for option in options {
-                let button = actionButton(option)
+                let button = actionButton((selected[key]?.contains(option) == true ? "✓  " : "") + option)
                 button.addAction(UIAction { [weak self, weak button] _ in
                     guard let self, let id = question["id"]?.stringValue else { return }
                     if multi {

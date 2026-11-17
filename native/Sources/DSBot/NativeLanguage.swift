@@ -71,6 +71,8 @@ enum NativeLanguage {
         "Waiting for an answer": "等待回答",
         "Let the Bot use {name}?": "允许 Bot 使用 {name}？",
         "Could not answer": "无法提交回答",
+        "Expanded": "已展开",
+        "Collapsed": "已收起",
         "Provider ID": "服务商 ID",
         "Provider name": "服务商名称",
         "API base URL": "API 基础地址",
