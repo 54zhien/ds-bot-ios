@@ -815,6 +815,9 @@ final class ChatViewController: UIViewController {
            hold["callId"]?.stringValue != nil {
             items.append(.handoff(botID: botID, value: hold))
         }
+        if let view = state["views"]?[sessionID], view != .null {
+            items.append(.view(sessionID: sessionID, value: view))
+        }
         pendingItems = items
         updatePendingButton()
     }

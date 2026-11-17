@@ -7,6 +7,7 @@ final class PendingActionsViewController: UITableViewController {
         case approval(JSONValue)
         case secret(JSONValue)
         case handoff(botID: String, value: JSONValue)
+        case view(sessionID: String, value: JSONValue)
 
         var title: String {
             switch self {
@@ -15,6 +16,7 @@ final class PendingActionsViewController: UITableViewController {
             case .secret(let value):
                 return value["kind"]?.stringValue == "allow" ? "Allow a secret" : "Secret needed"
             case .handoff: return "Browser handoff"
+            case .view(_, let value): return value["title"]?.stringValue ?? "Card"
             }
         }
 
@@ -25,6 +27,7 @@ final class PendingActionsViewController: UITableViewController {
             case .secret(let value): return value["name"]?.stringValue ?? "Enter a key or decide on access"
             case .handoff(_, let value):
                 return value["note"]?.stringValue ?? value["reason"]?.stringValue ?? "Open the browser"
+            case .view: return "Open and answer this card"
             }
         }
     }
@@ -95,6 +98,10 @@ final class PendingActionsViewController: UITableViewController {
             let browser = BrowserHandoffViewController(botID: botID, hold: value, session: session)
             browser.onChanged = { [weak self] in self?.onChanged?() }
             navigationController?.pushViewController(browser, animated: true)
+        case .view(let sessionID, let value):
+            let card = PendingViewController(sessionID: sessionID, record: value, session: session)
+            card.onChanged = { [weak self] in self?.onChanged?() }
+            navigationController?.pushViewController(card, animated: true)
         }
     }
 
