@@ -4,6 +4,7 @@ final class ProviderSettingsViewController: UITableViewController {
     private let session: LinkSession
     private var providers: [JSONValue] = []
     private var addable: [JSONValue] = []
+    private var protocols: [String] = []
     private var available = true
 
     init(session: LinkSession) {
@@ -29,17 +30,18 @@ final class ProviderSettingsViewController: UITableViewController {
             available = result["available"] != .bool(false)
             if case .array(let values)? = result["providers"] { providers = values } else { providers = [] }
             if case .array(let values)? = result["addable"] { addable = values } else { addable = [] }
+            protocols = result["protocols"]?.stringArrayValue ?? []
             tableView.reloadData()
         } catch { showError(error.localizedDescription) }
         refreshControl?.endRefreshing()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 2 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Model providers" : "Add a provider"
+        section == 0 ? "Model providers" : section == 1 ? "Known providers" : "Custom API"
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? max(1, providers.count) : addable.count
+        section == 0 ? max(1, providers.count) : section == 1 ? addable.count : 1
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "provider")
@@ -59,10 +61,14 @@ final class ProviderSettingsViewController: UITableViewController {
             if case .array(let models)? = item["models"] { count = models.count } else { count = 0 }
             cell.detailTextLabel?.text = "\(key) · \(count) models"
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
-        } else {
+        } else if indexPath.section == 1 {
             let item = addable[indexPath.row]
             cell.textLabel?.text = item["name"]?.stringValue ?? item["id"]?.stringValue
             cell.detailTextLabel?.text = nil
+            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+        } else {
+            cell.textLabel?.text = "Add custom provider"
+            cell.detailTextLabel?.text = "API URL and model IDs"
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         }
         return cell
@@ -73,7 +79,8 @@ final class ProviderSettingsViewController: UITableViewController {
         if indexPath.section == 0 {
             guard !providers.isEmpty else { return }
             manage(providers[indexPath.row], source: tableView.cellForRow(at: indexPath))
-        } else { add(addable[indexPath.row]) }
+        } else if indexPath.section == 1 { add(addable[indexPath.row]) }
+        else { addCustom() }
     }
 
     private func manage(_ item: JSONValue, source: UIView?) {
@@ -131,6 +138,39 @@ final class ProviderSettingsViewController: UITableViewController {
         alert.addAction(UIAlertAction(title: "Add", style: .default) { [weak self, weak alert] _ in
             self?.run("provider-add", payload: [
                 "provider": .string(id), "key": .string(alert?.textFields?.first?.text ?? ""),
+            ])
+        })
+        present(alert, animated: true)
+    }
+
+    private func addCustom() {
+        let alert = UIAlertController(title: "Custom provider", message: "Enter at least one model ID.",
+                                      preferredStyle: .alert)
+        for (name, secure) in [("Provider ID", false), ("Name", false), ("API base URL", false),
+                               ("API key", true), ("Model IDs, comma separated", false)] {
+            alert.addTextField { field in
+                field.placeholder = name
+                field.isSecureTextEntry = secure
+                field.autocapitalizationType = .none
+                field.autocorrectionType = .no
+            }
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Add", style: .default) { [weak self, weak alert] _ in
+            guard let self, let fields = alert?.textFields else { return }
+            let values = fields.map { ($0.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines) }
+            let models = values[4].split(separator: ",").map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty }
+            guard !values[0].isEmpty, !values[2].isEmpty, !models.isEmpty else {
+                self.showError("Provider ID, API URL, and model IDs are required")
+                return
+            }
+            self.run("provider-add", payload: [
+                "custom": .bool(true), "provider": .string(values[0]), "name": .string(values[1]),
+                "baseURL": .string(values[2]), "api": .string(self.protocols.first ?? ""),
+                "key": .string(values[3]),
+                "models": .array(models.map { .object(["id": .string($0)]) }),
             ])
         })
         present(alert, animated: true)
