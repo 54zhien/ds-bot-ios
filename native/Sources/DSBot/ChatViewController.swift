@@ -51,6 +51,7 @@ final class ChatViewController: UIViewController {
     private var readingLatest = false
     private var readAgain = false
     private var linkStatus: LinkSession.Status = .disconnected
+    private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
 
     private var chatKey: String? {
         guard let host = savedOffer?.hostDeviceId, let target = botID ?? roomID else { return nil }
@@ -163,6 +164,8 @@ final class ChatViewController: UIViewController {
         titleButton.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
         navigationItem.titleView = titleButton
         updateTitleButton()
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)),
+                                               name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         view.backgroundColor = .systemBackground
         computerItem = UIBarButtonItem(
             title: "Pair", style: .plain, target: self, action: #selector(showPairing)
@@ -768,7 +771,14 @@ final class ChatViewController: UIViewController {
             guard let self else { return }
             composerHeight.constant = height
             list.contentInset.bottom = height + pendingHeight.constant + 22
-            UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
+            let timing = keyboardTiming
+            keyboardTiming = nil
+            UIView.animate(
+                withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : timing?.duration ?? 0.25,
+                delay: 0,
+                options: (timing?.options ?? [.curveEaseInOut]).union([.beginFromCurrentState, .allowUserInteraction]),
+                animations: { self.view.layoutIfNeeded() }
+            )
         }
         composer.onSend = { [weak self] text, images in self?.sendMessage(text, images: images) }
         composer.onAddPhoto = { [weak self] in self?.pickPhotos() }
@@ -795,6 +805,13 @@ final class ChatViewController: UIViewController {
             pendingButton.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
             pendingHeight,
         ])
+    }
+
+    @objc private func keyboardWillChange(_ notification: Notification) {
+        guard composer.editor.isFirstResponder, let info = notification.userInfo,
+              let duration = info[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber,
+              let curve = info[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber else { return }
+        keyboardTiming = (duration.doubleValue, UIView.AnimationOptions(rawValue: UInt(curve.intValue) << 16))
     }
 
     private func updatePending(_ state: JSONValue, sessionID: String) {

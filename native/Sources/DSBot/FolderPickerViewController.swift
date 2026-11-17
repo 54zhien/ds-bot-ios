@@ -11,7 +11,7 @@ final class FolderPickerViewController: UITableViewController {
     private let owner: Owner
     private let session: LinkSession
     private var path: String
-    private var parent: String?
+    private var parentPath: String?
     private var recent: [JSONValue] = []
     private var entries: [JSONValue] = []
     private var truncated = false
@@ -47,7 +47,7 @@ final class FolderPickerViewController: UITableViewController {
                 "path": .string(next),
             ]), on: session)
             path = result["path"]?.stringValue ?? next
-            parent = result["parent"]?.stringValue
+            parentPath = result["parent"]?.stringValue
             if case .array(let values)? = result["entries"] { entries = values } else { entries = [] }
             truncated = result["truncated"] == .bool(true)
             tableView.reloadData()
@@ -59,7 +59,7 @@ final class FolderPickerViewController: UITableViewController {
         section == 0 ? "Folders" : path.isEmpty ? "/" : path
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? recent.count : (parent == nil ? 0 : 1) + entries.count + (truncated ? 1 : 0)
+        section == 0 ? recent.count : (parentPath == nil ? 0 : 1) + entries.count + (truncated ? 1 : 0)
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "folder")
@@ -69,11 +69,11 @@ final class FolderPickerViewController: UITableViewController {
             let item = recent[indexPath.row]
             cell.textLabel?.text = item["title"]?.stringValue ?? "Folder"
             cell.detailTextLabel?.text = item["path"]?.stringValue
-        } else if parent != nil && indexPath.row == 0 {
+        } else if parentPath != nil && indexPath.row == 0 {
             cell.textLabel?.text = "Up one level"
-            cell.detailTextLabel?.text = parent
+            cell.detailTextLabel?.text = parentPath
         } else {
-            let offset = indexPath.row - (parent == nil ? 0 : 1)
+            let offset = indexPath.row - (parentPath == nil ? 0 : 1)
             if offset < entries.count {
                 let item = entries[offset]
                 cell.textLabel?.text = item["name"]?.stringValue ?? "Folder"
@@ -91,9 +91,9 @@ final class FolderPickerViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         let next: String?
         if indexPath.section == 0 { next = recent[indexPath.row]["path"]?.stringValue }
-        else if parent != nil && indexPath.row == 0 { next = parent }
+        else if parentPath != nil && indexPath.row == 0 { next = parentPath }
         else {
-            let offset = indexPath.row - (parent == nil ? 0 : 1)
+            let offset = indexPath.row - (parentPath == nil ? 0 : 1)
             next = entries.indices.contains(offset) ? entries[offset]["path"]?.stringValue : nil
         }
         if let next { Task { await load(next) } }
