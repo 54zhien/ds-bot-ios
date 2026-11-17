@@ -240,6 +240,8 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         if case .array(let values)? = state["bots"] { bots = values } else { bots = [] }
         let rooms: [JSONValue]
         if case .array(let values)? = state["rooms"] { rooms = values } else { rooms = [] }
+        let approvals: [JSONValue]
+        if case .array(let values)? = state["work"]?["approvals"] { approvals = values } else { approvals = [] }
         func visible(_ value: JSONValue) -> Bool {
             let name = value["name"]?.stringValue ?? ""
             return value["hidden"] != .bool(true)
@@ -248,7 +250,41 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         func entry(_ value: JSONValue, kind: ChatTarget.Kind) -> Entry? {
             guard let id = value["id"]?.stringValue else { return nil }
             let target = ChatTarget(kind: kind, id: id, name: value["name"]?.stringValue ?? id)
-            let preview = value["preview"]?.stringValue ?? value["role"]?.stringValue ?? ""
+            let preview: String
+            if kind == .bot {
+                let session = value["sessionId"]?.stringValue ?? id
+                let hasQuestion = state["questions"]?[session] != nil || state["views"]?[session] != nil
+                let hasApproval = approvals.contains { $0["botId"]?.stringValue == id }
+                let doing = state["work"]?["bots"]?[id] ?? state["activity"]?[id]
+                let hasWaiting: Bool
+                if let waiting = state["work"]?["waiting"]?[id] {
+                    let waitingBots: [JSONValue]
+                    let waitingRooms: [JSONValue]
+                    if case .array(let values)? = waiting["bots"] { waitingBots = values } else { waitingBots = [] }
+                    if case .array(let values)? = waiting["rooms"] { waitingRooms = values } else { waitingRooms = [] }
+                    hasWaiting = !waitingBots.isEmpty || !waitingRooms.isEmpty
+                } else {
+                    hasWaiting = false
+                }
+                if hasQuestion || hasWaiting {
+                    preview = tr("Waiting for your answer")
+                } else if hasApproval {
+                    preview = tr("Waiting for your approval")
+                } else if let doing {
+                    preview = workPhrase(doing) + "…"
+                } else {
+                    preview = value["preview"]?.stringValue ?? value["role"]?.stringValue ?? ""
+                }
+            } else if approvals.contains(where: { $0["roomId"]?.stringValue == id }) {
+                preview = tr("Waiting for your approval")
+            } else if case .array(let members)? = state["work"]?["rooms"]?[id], let first = members.first {
+                let botID = first["botId"]?.stringValue
+                let name = bots.first { $0["id"]?.stringValue == botID }?["name"]?.stringValue ?? ""
+                let extra = members.count > 1 ? " +\(members.count - 1)" : ""
+                preview = "\(name) · \(workPhrase(first))…\(extra)"
+            } else {
+                preview = value["preview"]?.stringValue ?? ""
+            }
             return Entry(target: target, preview: preview, role: value["role"]?.stringValue ?? "",
                          pinned: value["pinned"] == .bool(true),
                          lastAt: value["lastAt"]?.intValue ?? value["createdAt"]?.intValue ?? 0)
@@ -266,6 +302,28 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         sections = [("Conversations", conversations)].filter { !$0.1.isEmpty }
         buildMainTiles()
         tableView.reloadData()
+    }
+
+    private func workPhrase(_ value: JSONValue) -> String {
+        let tool = value.stringValue ?? value["tool"]?.stringValue ?? ""
+        if value["switching"] == .bool(true) {
+            return tr(value["folder"] == .bool(true) ? "Switching working folder" : "Moving to a fresh conversation")
+        }
+        let said = value["said"]?.stringValue ?? value["note"]?.stringValue ?? ""
+        let own = said.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".。…")))
+        if !own.isEmpty { return own }
+        if tool.isEmpty { return tr("Thinking about it") }
+        let lower = tool.lowercased()
+        let phrase: String
+        if lower.contains("search") && lower.contains("web") { phrase = "Searching online" }
+        else if ["fetch", "browse", "browser", "web"].contains(where: lower.contains) { phrase = "Reading a page" }
+        else if ["shell", "bash", "pwsh", "powershell", "exec", "command", "terminal"].contains(where: lower.contains) { phrase = "Running shell commands" }
+        else if ["read", "view", "cat"].contains(where: lower.hasPrefix) { phrase = "Opening a file" }
+        else if ["write", "edit", "patch", "create_file"].contains(where: lower.contains) { phrase = "Writing a file" }
+        else if ["recall", "memory", "remember"].contains(where: lower.contains) { phrase = "Checking memory" }
+        else { phrase = "On it" }
+        let target = value["target"]?.stringValue ?? ""
+        return target.isEmpty ? tr(phrase) : "\(tr(phrase)) · \(target)"
     }
 
     private func buildMainTiles() {
