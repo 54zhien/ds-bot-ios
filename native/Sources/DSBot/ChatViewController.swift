@@ -1238,6 +1238,7 @@ private final class ChatMessageCell: UITableViewCell {
     private let bubble = UIView()
     private let authorLabel = UILabel()
     private let messageLabel = UILabel()
+    private let markdownView = ChatMarkdownView()
     private let photoScroll = UIScrollView()
     private let photoStack = UIStackView()
     private let fileStack = UIStackView()
@@ -1245,6 +1246,7 @@ private final class ChatMessageCell: UITableViewCell {
     private var leading: NSLayoutConstraint!
     private var trailing: NSLayoutConstraint!
     private var centered: NSLayoutConstraint!
+    private var wideWidth: NSLayoutConstraint!
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
@@ -1280,7 +1282,7 @@ private final class ChatMessageCell: UITableViewCell {
         fileStack.spacing = 6
         timeLabel.font = .preferredFont(forTextStyle: .caption2)
         timeLabel.textColor = .tertiaryLabel
-        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, photoScroll, fileStack, timeLabel])
+        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, markdownView, photoScroll, fileStack, timeLabel])
         text.translatesAutoresizingMaskIntoConstraints = false
         text.axis = .vertical
         text.spacing = 4
@@ -1288,6 +1290,7 @@ private final class ChatMessageCell: UITableViewCell {
         leading = bubble.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
         trailing = bubble.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
         centered = bubble.centerXAnchor.constraint(equalTo: contentView.centerXAnchor)
+        wideWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.86)
         NSLayoutConstraint.activate([
             bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
@@ -1307,6 +1310,7 @@ private final class ChatMessageCell: UITableViewCell {
         leading.isActive = false
         trailing.isActive = false
         centered.isActive = false
+        wideWidth.isActive = false
         if row.isNotice || row.kind == "steps" {
             centered.isActive = true
         } else if row.isUser {
@@ -1318,15 +1322,29 @@ private final class ChatMessageCell: UITableViewCell {
             : row.isUser ? tintColor.withAlphaComponent(0.12) : .secondarySystemBackground
         authorLabel.isHidden = row.isNotice || row.kind == "steps"
         authorLabel.text = row.author
+        let wideBlock = !row.isNotice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
+        wideWidth.isActive = wideBlock
         if let summary = row.stepSummary {
             messageLabel.attributedText = nil
             messageLabel.text = summary
                 + (stepsExpanded && !row.stepDetails.isEmpty ? "\n" + row.stepDetails.joined(separator: "\n") : "")
+            markdownView.isHidden = true
+            messageLabel.isHidden = false
+        } else if wideBlock {
+            messageLabel.attributedText = nil
+            messageLabel.text = nil
+            messageLabel.isHidden = true
+            markdownView.isHidden = false
+            markdownView.configure(row.text)
         } else if !row.isNotice, let markdown = try? AttributedString(markdown: row.text) {
             messageLabel.attributedText = NSAttributedString(markdown)
+            messageLabel.isHidden = false
+            markdownView.isHidden = true
         } else {
             messageLabel.attributedText = nil
             messageLabel.text = row.text
+            messageLabel.isHidden = false
+            markdownView.isHidden = true
         }
         for view in photoStack.arrangedSubviews { photoStack.removeArrangedSubview(view); view.removeFromSuperview() }
         for reference in row.imageRefs {
