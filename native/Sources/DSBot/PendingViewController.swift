@@ -220,6 +220,7 @@ final class PendingViewController: UIViewController {
         case "submit": return button(node["label"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
             self?.submit(action: id, values: [:])
         }
+        }
         return nil
     }
 

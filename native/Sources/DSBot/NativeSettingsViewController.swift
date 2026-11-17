@@ -4,10 +4,12 @@ final class NativeSettingsViewController: UITableViewController {
     var onComputers: (() -> Void)?
     var onUsage: (() -> Void)?
     private let computerName: String
+    private let session: LinkSession
     private let themes = ["System", "Light", "Dark"]
 
-    init(computerName: String) {
+    init(computerName: String, session: LinkSession) {
         self.computerName = computerName
+        self.session = session
         super.init(style: .insetGrouped)
     }
 
@@ -23,12 +25,12 @@ final class NativeSettingsViewController: UITableViewController {
 
     @objc private func close() { dismiss(animated: true) }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 2 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? 3 : 1
+        [3, 2, 1][section]
     }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Phone" : "DS Bot"
+        ["Phone", "Team", "DS Bot"][section]
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "setting")
@@ -45,6 +47,12 @@ final class NativeSettingsViewController: UITableViewController {
             cell.detailTextLabel?.text = selected
         case (0, 2):
             cell.textLabel?.text = "Usage"
+            cell.detailTextLabel?.text = nil
+        case (1, 0):
+            cell.textLabel?.text = "Model providers"
+            cell.detailTextLabel?.text = nil
+        case (1, 1):
+            cell.textLabel?.text = "Connectors"
             cell.detailTextLabel?.text = nil
         default:
             cell.textLabel?.text = "About DS Bot"
@@ -74,6 +82,10 @@ final class NativeSettingsViewController: UITableViewController {
         case (0, 2):
             let action = onUsage
             dismiss(animated: true) { action?() }
+        case (1, 0):
+            navigationController?.pushViewController(ProviderSettingsViewController(session: session), animated: true)
+        case (1, 1):
+            navigationController?.pushViewController(ConnectorSettingsViewController(session: session), animated: true)
         default:
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
             let about = UIAlertController(title: "DS Bot", message: "iPhone app · version \(version)",

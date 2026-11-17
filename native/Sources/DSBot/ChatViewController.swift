@@ -727,7 +727,7 @@ final class ChatViewController: UIViewController {
     }
 
     private func showSettings() {
-        let settings = NativeSettingsViewController(computerName: savedOffer?.name ?? "")
+        let settings = NativeSettingsViewController(computerName: savedOffer?.name ?? "", session: session)
         settings.onComputers = { [weak self] in self?.showPairing() }
         settings.onUsage = { [weak self] in self?.showUsage() }
         present(UINavigationController(rootViewController: settings), animated: true)
