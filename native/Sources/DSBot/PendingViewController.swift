@@ -81,8 +81,8 @@ final class PendingViewController: UIViewController {
 
     private func refreshFormulas() {
         for (label, source) in computedLabels { label.text = scalar(source) }
-        for (progress, source) in computedProgress {
-            let percent = numeric(formula?.resolve(source, inputs: inputs)) ?? 0
+        for (progress, node) in computedProgress {
+            let percent = progressPercent(node)
             progress.progress = Float(max(0, min(100, percent))) / 100
         }
     }
@@ -90,6 +90,14 @@ final class PendingViewController: UIViewController {
     private func numeric(_ value: JSONValue?) -> Double? {
         guard case .number(let number)? = value else { return nil }
         return number
+    }
+
+    private func progressPercent(_ node: JSONValue) -> Double {
+        func value(_ key: String) -> Double? {
+            numeric(formula?.resolve(node[key], inputs: inputs) ?? node[key])
+        }
+        if let percent = value("percent") { return percent }
+        return (value("value") ?? 0) / max(1, value("max") ?? 1) * 100
     }
 
     private func button(_ title: String, prominent: Bool, action: @escaping () -> Void) -> UIButton {
@@ -188,10 +196,10 @@ final class PendingViewController: UIViewController {
         case "progress":
             let title = boundLabel(node["label"])
             let progress = UIProgressView(progressViewStyle: .default)
-            let percent = numeric(formula?.resolve(node["percent"], inputs: inputs) ?? node["percent"]) ?? 0
+            let percent = progressPercent(node)
             progress.progress = Float(max(0, min(100, percent))) / 100
-            if let source = node["percent"], DeepViewFormula.isFormula(source) {
-                computedProgress.append((progress, source))
+            if ["percent", "value", "max"].contains(where: { DeepViewFormula.isFormula(node[$0]) }) {
+                computedProgress.append((progress, node))
             }
             return column([title, progress])
         case "sources":
