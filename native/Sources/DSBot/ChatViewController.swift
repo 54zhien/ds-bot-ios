@@ -740,6 +740,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         let team = TeamListViewController(state: teamState)
         team.onSelect = { [weak self] target in self?.selectTarget(target) }
         team.onSettings = { [weak self] in self?.showSettings() }
+        team.onNeeds = { [weak self] in self?.showNeedsYou() }
         team.onCreateBot = { [weak self] in self?.showBotEditor(id: nil) }
         team.onCreateGroup = { [weak self] in self?.showGroupEditor(id: nil) }
         team.onEditBot = { [weak self] id in self?.showBotEditor(id: id) }
@@ -751,6 +752,13 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         navigation.modalPresentationStyle = .custom
         navigation.transitioningDelegate = drawerTransition
         present(navigation, animated: true)
+    }
+
+    private func showNeedsYou() {
+        guard let teamState else { return }
+        let needs = NeedsYouViewController(state: teamState)
+        needs.onOpen = { [weak self] target in self?.selectTarget(target) }
+        present(UINavigationController(rootViewController: needs), animated: true)
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {

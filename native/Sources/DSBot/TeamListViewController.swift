@@ -146,22 +146,27 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     var onSelect: ((ChatTarget) -> Void)?
     var onSettings: (() -> Void)?
+    var onNeeds: (() -> Void)?
     var onCreateBot: (() -> Void)?
     var onCreateGroup: (() -> Void)?
     var onEditBot: ((String) -> Void)?
     var onEditGroup: ((String) -> Void)?
     private let state: JSONValue
+    private let pendingCount: Int
     private struct Entry {
         let target: ChatTarget
         let preview: String
+        let role: String
         let pinned: Bool
         let lastAt: Int
     }
     private var sections: [(String, [Entry])] = []
+    private var mainEntries: [Entry] = []
     private var query = ""
 
     init(state: JSONValue) {
         self.state = state
+        pendingCount = NeedsYouViewController.count(in: state)
         super.init(style: .insetGrouped)
     }
 
@@ -244,7 +249,8 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             guard let id = value["id"]?.stringValue else { return nil }
             let target = ChatTarget(kind: kind, id: id, name: value["name"]?.stringValue ?? id)
             let preview = value["preview"]?.stringValue ?? value["role"]?.stringValue ?? ""
-            return Entry(target: target, preview: preview, pinned: value["pinned"] == .bool(true),
+            return Entry(target: target, preview: preview, role: value["role"]?.stringValue ?? "",
+                         pinned: value["pinned"] == .bool(true),
                          lastAt: value["lastAt"]?.intValue ?? value["createdAt"]?.intValue ?? 0)
         }
         let main = bots.filter { visible($0) && mains.contains($0["id"]?.stringValue ?? "") }
@@ -256,24 +262,132 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             if $0.pinned != $1.pinned { return $0.pinned }
             return $0.lastAt > $1.lastAt
         }
-        sections = [
-            ("Main Bots", main),
-            ("Conversations", conversations),
-        ].filter { !$0.1.isEmpty }
+        mainEntries = main
+        sections = [("Conversations", conversations)].filter { !$0.1.isEmpty }
+        buildMainTiles()
         tableView.reloadData()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { sections.count }
+    private func buildMainTiles() {
+        guard !mainEntries.isEmpty else { tableView.tableHeaderView = nil; return }
+        let width = tableView.bounds.width > 0 ? tableView.bounds.width : min(view.bounds.width * 0.85, 340)
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 1))
+        let layout = UIStackView()
+        layout.axis = .vertical
+        layout.spacing = 8
+        layout.isLayoutMarginsRelativeArrangement = true
+        layout.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 10, trailing: 16)
+        layout.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(layout)
+        NSLayoutConstraint.activate([
+            layout.topAnchor.constraint(equalTo: header.topAnchor),
+            layout.bottomAnchor.constraint(equalTo: header.bottomAnchor),
+            layout.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            layout.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+        ])
+        for start in stride(from: 0, to: mainEntries.count, by: 2) {
+            let row = UIStackView()
+            row.axis = .horizontal
+            row.spacing = 8
+            row.distribution = .fillEqually
+            for entry in mainEntries[start..<min(start + 2, mainEntries.count)] {
+                row.addArrangedSubview(mainTile(entry))
+            }
+            if row.arrangedSubviews.count == 1 {
+                let spacer = UIView()
+                row.addArrangedSubview(spacer)
+            }
+            layout.addArrangedSubview(row)
+        }
+        header.setNeedsLayout()
+        header.layoutIfNeeded()
+        let height = layout.systemLayoutSizeFitting(
+            CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
+        ).height
+        header.frame.size.height = height
+        tableView.tableHeaderView = header
+    }
+
+    private func mainTile(_ entry: Entry) -> UIControl {
+        let tile = UIControl()
+        tile.backgroundColor = .tertiarySystemGroupedBackground
+        tile.layer.cornerRadius = 20
+        tile.layer.borderWidth = 0.5
+        tile.layer.borderColor = UIColor.separator.cgColor
+        tile.heightAnchor.constraint(equalToConstant: 112).isActive = true
+        tile.accessibilityLabel = "\(entry.target.name), \(tr("Main Bot"))"
+        let content = UIStackView()
+        content.axis = .vertical
+        content.alignment = .center
+        content.spacing = 4
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.isUserInteractionEnabled = false
+        tile.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
+            content.centerYAnchor.constraint(equalTo: tile.centerYAnchor),
+            content.leadingAnchor.constraint(greaterThanOrEqualTo: tile.leadingAnchor, constant: 6),
+            content.trailingAnchor.constraint(lessThanOrEqualTo: tile.trailingAnchor, constant: -6),
+        ])
+        let avatar = UILabel()
+        avatar.text = String(entry.target.name.prefix(1)).uppercased()
+        avatar.textAlignment = .center
+        avatar.textColor = .white
+        avatar.font = .systemFont(ofSize: 22, weight: .semibold)
+        avatar.backgroundColor = .systemBlue
+        avatar.layer.cornerRadius = 26
+        avatar.clipsToBounds = true
+        avatar.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        avatar.heightAnchor.constraint(equalToConstant: 52).isActive = true
+        content.addArrangedSubview(avatar)
+        let name = UILabel()
+        name.text = entry.target.name
+        name.font = .preferredFont(forTextStyle: .subheadline)
+        name.textAlignment = .center
+        name.lineBreakMode = .byTruncatingTail
+        content.addArrangedSubview(name)
+        if !entry.role.isEmpty {
+            let role = UILabel()
+            role.text = entry.role
+            role.font = .preferredFont(forTextStyle: .caption2)
+            role.textColor = .secondaryLabel
+            role.textAlignment = .center
+            role.lineBreakMode = .byTruncatingTail
+            content.addArrangedSubview(role)
+        }
+        tile.addAction(UIAction { [weak self] _ in self?.open(entry) }, for: .touchUpInside)
+        return tile
+    }
+
+    private func open(_ entry: Entry) {
+        UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1_000),
+                                  forKey: "dsbot.seen.\(entry.target.id)")
+        onSelect?(entry.target)
+        dismiss(animated: true)
+    }
+
+    private var sectionOffset: Int { pendingCount > 0 ? 1 : 0 }
+    override func numberOfSections(in tableView: UITableView) -> Int { sections.count + sectionOffset }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        sections[section].1.count
+        section < sectionOffset ? 1 : sections[section - sectionOffset].1.count
     }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        tr(sections[section].0)
+        section < sectionOffset ? nil : tr(sections[section - sectionOffset].0)
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "team")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "team")
-        let entry = sections[indexPath.section].1[indexPath.row]
+        if indexPath.section < sectionOffset {
+            cell.textLabel?.text = "\(tr("Needs you")) · \(pendingCount)"
+            cell.textLabel?.textColor = view.tintColor
+            cell.detailTextLabel?.text = nil
+            cell.accessoryType = .disclosureIndicator
+            cell.accessoryView = nil
+            return cell
+        }
+        let entry = sections[indexPath.section - sectionOffset].1[indexPath.row]
+        cell.textLabel?.textColor = .label
         cell.textLabel?.text = entry.target.name + (entry.pinned ? " · \(tr("Pinned"))" : "")
         cell.detailTextLabel?.text = entry.preview.isEmpty
             ? tr(entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview
@@ -284,16 +398,20 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         return cell
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let entry = sections[indexPath.section].1[indexPath.row]
-        UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1_000), forKey: "dsbot.seen.\(entry.target.id)")
-        onSelect?(entry.target)
-        dismiss(animated: true)
+        if indexPath.section < sectionOffset {
+            let action = onNeeds
+            dismiss(animated: true) { action?() }
+            return
+        }
+        let entry = sections[indexPath.section - sectionOffset].1[indexPath.row]
+        open(entry)
     }
 
     override func tableView(
         _ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
     ) -> UISwipeActionsConfiguration? {
-        let target = sections[indexPath.section].1[indexPath.row].target
+        guard indexPath.section >= sectionOffset else { return nil }
+        let target = sections[indexPath.section - sectionOffset].1[indexPath.row].target
         let edit = UIContextualAction(style: .normal, title: tr("Edit")) { [weak self] _, _, done in
             guard let self else { done(false); return }
             let botAction = onEditBot
