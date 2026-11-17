@@ -52,6 +52,9 @@ final class ChatViewController: UIViewController {
     private var readAgain = false
     private var linkStatus: LinkSession.Status = .disconnected
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
+    private let noticeBanner = UIButton(type: .system)
+    private var noticeTarget: ChatTarget?
+    private var noticeGeneration = 0
 
     private var chatKey: String? {
         guard let host = savedOffer?.hostDeviceId, let target = botID ?? roomID else { return nil }
@@ -167,6 +170,7 @@ final class ChatViewController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         view.backgroundColor = .systemBackground
+        configureNoticeBanner()
         computerItem = UIBarButtonItem(
             title: "Pair", style: .plain, target: self, action: #selector(showPairing)
         )
@@ -340,6 +344,7 @@ final class ChatViewController: UIViewController {
 
     private func handleFeed(_ event: String, data: JSONValue, for id: UUID) {
         guard id == sessionID, linkStatus == .online else { return }
+        if event == "notice" { showNoticeBanner(data) }
         let hadStream = !stream.text.isEmpty
         if event == "stream", stream.receive(data, for: chatSessionID) {
             let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
@@ -361,6 +366,63 @@ final class ChatViewController: UIViewController {
             || (event == "room" && data["roomId"]?.stringValue == roomID) {
             Task { await refreshLatest(for: id) }
         }
+    }
+
+    private func configureNoticeBanner() {
+        noticeBanner.translatesAutoresizingMaskIntoConstraints = false
+        noticeBanner.isHidden = true
+        noticeBanner.backgroundColor = .secondarySystemGroupedBackground
+        noticeBanner.layer.cornerRadius = 12
+        noticeBanner.layer.borderWidth = 1
+        noticeBanner.layer.borderColor = view.tintColor.cgColor
+        noticeBanner.contentHorizontalAlignment = .leading
+        noticeBanner.titleLabel?.numberOfLines = 2
+        noticeBanner.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
+        noticeBanner.setTitleColor(.label, for: .normal)
+        noticeBanner.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
+        noticeBanner.addTarget(self, action: #selector(openNotice), for: .touchUpInside)
+        view.addSubview(noticeBanner)
+        NSLayoutConstraint.activate([
+            noticeBanner.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            noticeBanner.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            noticeBanner.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+        ])
+    }
+
+    private func showNoticeBanner(_ data: JSONValue) {
+        guard UserDefaults.standard.string(forKey: "dsbot.banners") != "off",
+              let kind = data["kind"]?.stringValue, kind == "question" || kind == "approval" else { return }
+        let room = data["roomId"]?.stringValue
+        let bot = data["botId"]?.stringValue
+        guard let targetID = room ?? bot, !targetID.isEmpty else { return }
+        let targetKind: ChatTarget.Kind = room == nil ? .bot : .room
+        if selectedTarget?.kind == targetKind && selectedTarget?.id == targetID { return }
+        let records = targetKind == .bot ? teamState?["bots"] : teamState?["rooms"]
+        let name: String
+        if case .array(let values)? = records {
+            name = values.first { $0["id"]?.stringValue == targetID }?["name"]?.stringValue ?? targetID
+        } else { name = targetID }
+        noticeTarget = ChatTarget(kind: targetKind, id: targetID, name: name)
+        let title = data["title"]?.stringValue
+        let message = data["text"]?.stringValue ?? ""
+        noticeBanner.setTitle([title, message].compactMap { $0 }.filter { !$0.isEmpty }
+            .joined(separator: ": "), for: .normal)
+        noticeBanner.isHidden = false
+        view.bringSubviewToFront(noticeBanner)
+        noticeGeneration += 1
+        let generation = noticeGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard self?.noticeGeneration == generation else { return }
+            self?.noticeBanner.isHidden = true
+            self?.noticeTarget = nil
+        }
+    }
+
+    @objc private func openNotice() {
+        guard let target = noticeTarget else { return }
+        noticeBanner.isHidden = true
+        noticeTarget = nil
+        selectTarget(target)
     }
 
     private func showStatus(_ status: LinkSession.Status, for id: UUID) {
@@ -834,6 +896,11 @@ final class ChatViewController: UIViewController {
         }
         if let view = state["views"]?[sessionID], view != .null {
             items.append(.view(sessionID: sessionID, value: view))
+        }
+        if let botID, case .array(let cards)? = state["btwCards"]?[botID] {
+            items += cards.filter {
+                $0["partId"]?.stringValue == nil || $0["partId"]?.stringValue == sessionID
+            }.map { .aside(sessionID: sessionID, value: $0) }
         }
         pendingItems = items
         updatePendingButton()

@@ -55,7 +55,7 @@ final class ConversationDetailsViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        if target.kind == .bot { return [2, 4, 3, 1][section] }
+        if target.kind == .bot { return [2, 5, 3, 1][section] }
         if section == 1 { return memberIDs.count }
         return section == 0 ? 2 : state["memory"] == .bool(false) ? 2 : 3
     }
@@ -100,6 +100,10 @@ final class ConversationDetailsViewController: UITableViewController {
                 session: session
             )
             navigationController?.pushViewController(schedules, animated: true)
+        } else if target.kind == .bot && indexPath.section == 1 && indexPath.row == 4 {
+            navigationController?.pushViewController(
+                BotCapabilitiesViewController(botID: target.id, session: session), animated: true
+            )
         } else if target.kind == .bot && indexPath.section == 1 && indexPath.row == 1 {
             pickPermission(source: tableView.cellForRow(at: indexPath))
         } else if target.kind == .bot && indexPath.section == 1 && indexPath.row != 2 {
@@ -132,6 +136,7 @@ final class ConversationDetailsViewController: UITableViewController {
                              ?? state["permissions"]?["defaultPreset"]?.stringValue ?? "Default")
         case (1, 2): return ("Working folder", workDirOverride ?? bot?["workDir"]?.stringValue ?? "Team workspace")
         case (1, 3): return ("Instructions", bot?["instructions"]?.stringValue ?? "Add in Bot settings")
+        case (1, 4): return ("Capabilities", "\(bot?["capabilities"]?.stringArrayValue?.count ?? 0) attached")
         case (2, 0): return ("Memory", state["memory"] == .bool(false) ? "Unavailable"
                              : memoryCount.map { "\($0) entries" } ?? "—")
         case (2, 1): return ("Usage", usageText ?? "—")

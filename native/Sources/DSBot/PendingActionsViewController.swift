@@ -8,6 +8,7 @@ final class PendingActionsViewController: UITableViewController {
         case secret(JSONValue)
         case handoff(botID: String, value: JSONValue)
         case view(sessionID: String, value: JSONValue)
+        case aside(sessionID: String, value: JSONValue)
 
         var title: String {
             switch self {
@@ -17,6 +18,7 @@ final class PendingActionsViewController: UITableViewController {
                 return value["kind"]?.stringValue == "allow" ? "Allow a secret" : "Secret needed"
             case .handoff: return "Browser handoff"
             case .view(_, let value): return value["title"]?.stringValue ?? "Card"
+            case .aside(_, let value): return value["question"]?.stringValue ?? "Aside"
             }
         }
 
@@ -28,6 +30,8 @@ final class PendingActionsViewController: UITableViewController {
             case .handoff(_, let value):
                 return value["note"]?.stringValue ?? value["reason"]?.stringValue ?? "Open the browser"
             case .view: return "Open and answer this card"
+            case .aside(_, let value): return value["answer"]?.stringValue
+                ?? value["failure"]?.stringValue ?? "Waiting for an answer"
             }
         }
     }
@@ -102,6 +106,17 @@ final class PendingActionsViewController: UITableViewController {
             let card = PendingViewController(sessionID: sessionID, record: value, session: session)
             card.onChanged = { [weak self] in self?.onChanged?() }
             navigationController?.pushViewController(card, animated: true)
+        case .aside(let sessionID, let value):
+            guard let cardID = value["id"]?.stringValue else { return }
+            let alert = UIAlertController(title: value["question"]?.stringValue ?? "Aside",
+                                          message: value["answer"]?.stringValue
+                                            ?? value["failure"]?.stringValue ?? "Waiting for an answer",
+                                          preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Dismiss", style: .destructive) { [weak self] _ in
+                self?.dismissAside(sessionID: sessionID, cardID: cardID)
+            })
+            alert.addAction(UIAlertAction(title: "Close", style: .cancel))
+            present(alert, animated: true)
         }
     }
 
@@ -138,6 +153,18 @@ final class PendingActionsViewController: UITableViewController {
                 self?.submitSecret("secret-set", id: id, value: entered)
             })
             present(alert, animated: true)
+        }
+    }
+
+    private func dismissAside(sessionID: String, cardID: String) {
+        Task {
+            do {
+                _ = try await BotAPI.call("btw-delete", payload: .object([
+                    "sessionId": .string(sessionID), "cardId": .string(cardID),
+                ]), on: session)
+                onChanged?()
+                dismiss(animated: true)
+            } catch { showError(error.localizedDescription) }
         }
     }
 
