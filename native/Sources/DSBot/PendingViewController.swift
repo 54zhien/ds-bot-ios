@@ -13,6 +13,9 @@ final class PendingViewController: UIViewController {
     private var fields: [String: UITextField] = [:]
     private var numericFields = Set<String>()
     private var selections: [String: Set<String>] = [:]
+    private var formula: DeepViewFormula?
+    private var computedLabels: [(UILabel, JSONValue)] = []
+    private var computedProgress: [(UIProgressView, JSONValue)] = []
     private var busy = false
 
     init(sessionID: String, record: JSONValue, session: LinkSession) {
@@ -51,7 +54,11 @@ final class PendingViewController: UIViewController {
             body.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
             body.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
         ])
-        if let root = record["view"], let content = render(root) { body.addArrangedSubview(content) }
+        if let root = record["view"] {
+            formula = DeepViewFormula(root: root)
+            DeepViewFormula.collectInputs(root, into: &inputs)
+            if let content = render(root) { body.addArrangedSubview(content) }
+        }
         let dismiss = button("Dismiss", prominent: false) { [weak self] in self?.dismissCard() }
         body.addArrangedSubview(dismiss)
     }
@@ -64,6 +71,25 @@ final class PendingViewController: UIViewController {
         label.font = .preferredFont(forTextStyle: emphasis ? .headline : .body)
         label.numberOfLines = 0
         return label
+    }
+
+    private func boundLabel(_ value: JSONValue?, emphasis: Bool = false) -> UILabel {
+        let text = label(scalar(value), emphasis: emphasis)
+        if let value, DeepViewFormula.isFormula(value) { computedLabels.append((text, value)) }
+        return text
+    }
+
+    private func refreshFormulas() {
+        for (label, source) in computedLabels { label.text = scalar(source) }
+        for (progress, source) in computedProgress {
+            let percent = numeric(formula?.resolve(source, inputs: inputs)) ?? 0
+            progress.progress = Float(max(0, min(100, percent))) / 100
+        }
+    }
+
+    private func numeric(_ value: JSONValue?) -> Double? {
+        guard case .number(let number)? = value else { return nil }
+        return number
     }
 
     private func button(_ title: String, prominent: Bool, action: @escaping () -> Void) -> UIButton {
@@ -86,7 +112,10 @@ final class PendingViewController: UIViewController {
     }
 
     private func scalar(_ value: JSONValue?) -> String {
-        guard let value else { return "" }
+        guard let source = value else { return "" }
+        let evaluated = formula?.resolve(source, inputs: inputs)
+        if DeepViewFormula.isFormula(source), evaluated == nil { return "…" }
+        let value = evaluated ?? source
         switch value {
         case .string(let text): return text
         case .number(let number): return number.formatted()
@@ -101,8 +130,8 @@ final class PendingViewController: UIViewController {
     }
 
     private func table(_ node: JSONValue) -> UIView? {
-        guard case .array(let columns)? = node["columns"],
-              case .array(let rows)? = node["rows"] else { return nil }
+        guard case .array(let columns)? = formula?.resolve(node["columns"], inputs: inputs) ?? node["columns"],
+              case .array(let rows)? = formula?.resolve(node["rows"], inputs: inputs) ?? node["rows"] else { return nil }
         let scroller = UIScrollView()
         scroller.showsHorizontalScrollIndicator = true
         let content = UIStackView()
@@ -115,9 +144,9 @@ final class PendingViewController: UIViewController {
             content.leadingAnchor.constraint(equalTo: scroller.contentLayoutGuide.leadingAnchor),
             content.trailingAnchor.constraint(equalTo: scroller.contentLayoutGuide.trailingAnchor),
         ])
-        func row(_ values: [String], heading: Bool) -> UIStackView {
-            let cells = values.map { text -> UILabel in
-                let cell = label(text)
+        func row(_ values: [JSONValue], heading: Bool) -> UIStackView {
+            let cells = values.map { value -> UILabel in
+                let cell = boundLabel(value)
                 cell.font = .preferredFont(forTextStyle: heading ? .caption1 : .subheadline)
                 cell.textColor = heading ? .secondaryLabel : .label
                 cell.numberOfLines = 0
@@ -134,11 +163,11 @@ final class PendingViewController: UIViewController {
             if heading { line.backgroundColor = .tertiarySystemBackground }
             return line
         }
-        let headers = columns.map { $0["label"]?.stringValue ?? $0["key"]?.stringValue ?? scalar($0) }
+        let headers = columns.map { $0["label"] ?? $0["key"] ?? $0 }
         content.addArrangedSubview(row(headers, heading: true))
         for entry in rows {
             guard case .array(let cells) = entry else { continue }
-            content.addArrangedSubview(row(cells.map { scalar($0) }, heading: false))
+            content.addArrangedSubview(row(cells, heading: false))
         }
         let visibleRows = min(6, rows.count + 1)
         scroller.heightAnchor.constraint(equalToConstant: CGFloat(visibleRows * 48)).isActive = true
@@ -151,16 +180,19 @@ final class PendingViewController: UIViewController {
         switch type {
         case "stack": return column(children(node))
         case "row": return column(children(node), horizontal: true)
-        case "text": return label(scalar(node["text"]))
+        case "text": return boundLabel(node["text"])
         case "metric":
-            return column([label(scalar(node["label"])), label(scalar(node["value"]), emphasis: true)])
-        case "callout": return label(scalar(node["text"]))
-        case "html": return label([scalar(node["summary"]), "Open it on the computer"].filter { !$0.isEmpty }.joined(separator: "\n"))
+            return column([boundLabel(node["label"]), boundLabel(node["value"], emphasis: true)])
+        case "callout": return boundLabel(node["text"])
+        case "html": return column([boundLabel(node["summary"]), label("Open it on the computer")])
         case "progress":
-            let title = label(scalar(node["label"]))
+            let title = boundLabel(node["label"])
             let progress = UIProgressView(progressViewStyle: .default)
-            let percent = node["percent"]?.intValue ?? 0
+            let percent = numeric(formula?.resolve(node["percent"], inputs: inputs) ?? node["percent"]) ?? 0
             progress.progress = Float(max(0, min(100, percent))) / 100
+            if let source = node["percent"], DeepViewFormula.isFormula(source) {
+                computedProgress.append((progress, source))
+            }
             return column([title, progress])
         case "sources":
             guard case .array(let sources)? = node["items"] else { return nil }
@@ -184,14 +216,18 @@ final class PendingViewController: UIViewController {
                 guard let self, choice.selectedSegmentIndex >= 0 else { return }
                 let picked = options[choice.selectedSegmentIndex]
                 self.inputs[id] = picked["value"] ?? picked
+                self.refreshFormulas()
             }, for: .valueChanged)
-            return column([label(scalar(node["label"])), choice])
+            return column([boundLabel(node["label"]), choice])
         case "toggle":
             let toggle = UISwitch()
             toggle.isOn = node["value"] == .bool(true)
             inputs[id] = .bool(toggle.isOn)
-            toggle.addAction(UIAction { [weak self] _ in self?.inputs[id] = .bool(toggle.isOn) }, for: .valueChanged)
-            return column([label(scalar(node["label"])), toggle], horizontal: true)
+            toggle.addAction(UIAction { [weak self] _ in
+                self?.inputs[id] = .bool(toggle.isOn)
+                self?.refreshFormulas()
+            }, for: .valueChanged)
+            return column([boundLabel(node["label"]), toggle], horizontal: true)
         case "slider":
             let slider = UISlider()
             slider.minimumValue = Float(node["min"]?.intValue ?? 0)
@@ -201,8 +237,9 @@ final class PendingViewController: UIViewController {
             slider.addAction(UIAction { [weak self] _ in
                 let step = Float(max(1, node["step"]?.intValue ?? 1))
                 self?.inputs[id] = .number(Double((slider.value / step).rounded() * step))
+                self?.refreshFormulas()
             }, for: .valueChanged)
-            return column([label(scalar(node["label"])), slider])
+            return column([boundLabel(node["label"]), slider])
         case "number":
             let field = UITextField()
             field.borderStyle = .roundedRect
@@ -210,7 +247,11 @@ final class PendingViewController: UIViewController {
             field.text = scalar(node["value"])
             fields[id] = field
             numericFields.insert(id)
-            return column([label(scalar(node["label"])), field])
+            field.addAction(UIAction { [weak self] _ in
+                if let number = Double(field.text ?? "") { self?.inputs[id] = .number(number) }
+                self?.refreshFormulas()
+            }, for: .editingChanged)
+            return column([boundLabel(node["label"]), field])
         case "options":
             guard case .array(let options)? = node["options"] else { return nil }
             let multi = node["multi"] == .bool(true)
