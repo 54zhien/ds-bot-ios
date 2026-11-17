@@ -50,7 +50,7 @@ final class CustomProviderViewController: UITableViewController {
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Connection", "Models", nil][section].map(NativeLanguage.text)
+        ["Connection", "Models", nil][section].map { NativeLanguage.text($0) }
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
