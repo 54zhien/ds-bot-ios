@@ -94,6 +94,51 @@ final class PendingViewController: UIViewController {
         return values.compactMap(render)
     }
 
+    private func table(_ node: JSONValue) -> UIView? {
+        guard case .array(let columns)? = node["columns"],
+              case .array(let rows)? = node["rows"] else { return nil }
+        let scroller = UIScrollView()
+        scroller.showsHorizontalScrollIndicator = true
+        let content = UIStackView()
+        content.axis = .vertical
+        content.translatesAutoresizingMaskIntoConstraints = false
+        scroller.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
+            content.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: scroller.contentLayoutGuide.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: scroller.contentLayoutGuide.trailingAnchor),
+        ])
+        func row(_ values: [String], heading: Bool) -> UIStackView {
+            let cells = values.map { text -> UILabel in
+                let cell = label(text)
+                cell.font = .preferredFont(forTextStyle: heading ? .caption1 : .subheadline)
+                cell.textColor = heading ? .secondaryLabel : .label
+                cell.numberOfLines = 0
+                cell.widthAnchor.constraint(equalToConstant: 100).isActive = true
+                return cell
+            }
+            let line = UIStackView(arrangedSubviews: cells)
+            line.axis = .horizontal
+            line.alignment = .top
+            line.spacing = 10
+            line.isLayoutMarginsRelativeArrangement = true
+            line.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 7, leading: 8,
+                                                                    bottom: 7, trailing: 8)
+            if heading { line.backgroundColor = .tertiarySystemBackground }
+            return line
+        }
+        let headers = columns.map { $0["label"]?.stringValue ?? $0["key"]?.stringValue ?? scalar($0) }
+        content.addArrangedSubview(row(headers, heading: true))
+        for entry in rows {
+            guard case .array(let cells) = entry else { continue }
+            content.addArrangedSubview(row(cells.map { scalar($0) }, heading: false))
+        }
+        let visibleRows = min(6, rows.count + 1)
+        scroller.heightAnchor.constraint(equalToConstant: CGFloat(visibleRows * 48)).isActive = true
+        return scroller
+    }
+
     private func render(_ node: JSONValue) -> UIView? {
         guard let type = node["type"]?.stringValue else { return nil }
         let id = node["id"]?.stringValue ?? ""
@@ -113,14 +158,14 @@ final class PendingViewController: UIViewController {
             return column([title, progress])
         case "sources":
             guard case .array(let sources)? = node["items"] else { return nil }
-            return column(sources.map { label($0["label"]?.stringValue ?? $0["title"]?.stringValue ?? "Source") })
-        case "table":
-            guard case .array(let rows)? = node["rows"] else { return nil }
-            return column(rows.compactMap { row -> UIView? in
-                guard case .array(let cells) = row else { return nil }
-                return label(cells.map { scalar($0) }.joined(separator: "  ·  "))
+            return column(sources.compactMap { source -> UIView? in
+                guard let link = source["url"]?.stringValue, let url = URL(string: link),
+                      url.scheme == "https" || url.scheme == "http" else { return nil }
+                return button(source["label"]?.stringValue ?? source["title"]?.stringValue ?? link,
+                              prominent: false) { UIApplication.shared.open(url) }
             })
-        case "chart": return label(scalar(node["caption"]).isEmpty ? "Chart" : scalar(node["caption"]))
+        case "table": return table(node)
+        case "chart": return DeepViewChartView(node: node)
         case "choice":
             guard case .array(let options)? = node["options"] else { return nil }
             let labels = options.map { $0["label"]?.stringValue ?? $0.stringValue ?? scalar($0["value"]) }

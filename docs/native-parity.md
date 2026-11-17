@@ -7,7 +7,7 @@
 | 配对与连接 | `screens/Pair.tsx`, `team/link.ts`, `store.ts`：扫码、粘贴、多电脑、重连、feed、通知补读 | 扫码、粘贴、多电脑记录/切换/删除、重连、feed、hello 版本检查、notice 补读请求、拒绝配对停重试与错误提示已写；未真机验 | 真机扫码/重连及后台恢复 |
 | 团队导航 | `nav/ShellB.tsx`, `nav/Drawer.tsx`, `screens/TeamList.tsx`：主 Bot tile、Bot/群列表、搜索、未读、创建入口 | 主 Bot/Bot/群列表、搜索、目标切换、最近时间和置顶排序、预览、已读时间、Bot/群创建入口已写；卡片布局未齐 | 抽屉布局、主 Bot tile |
 | Bot 聊天 | `screens/Chat.tsx`：最新页、旧页、feed、流式、发送、停止、滚动保持、待发消息 | 文本最新页/旧页、feed 补读、流式回答、发送/停止、待发消息及失败重试已写；未真机验 | 消息闭环、滚动保持与同屏核对 |
-| 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 文本、系统 Markdown 富文本、步骤摘要与展开、多图预览/原图、文件文本、Deep View 基本元素、历史回答/关闭记录已写；复杂 Markdown/图表仍简化 | 复杂表格/代码、图表公式与视觉核对 |
+| 聊天内容 | `screens/chat/items.tsx`, `markdown.tsx`, `view.tsx`：文本、Markdown、步骤、图片/文件、视图、历史卡片 | 文本、系统 Markdown 富文本、步骤摘要与展开、多图预览/原图、文件文本、Deep View 常用控件、横向表格、基础图表与来源链接、历史回答/关闭记录已写；公式与复杂 Markdown 仍简化 | 公式、复杂表格/代码与视觉核对 |
 | 输入框 | `screens/chat/composer.tsx`：图片、发送/停止、展开卡片、键盘、原版图标 | 文本、照片选择/压缩/暂存/发送、发送/停止、材质、展开已写；未真机验 | 图片回显、键盘/尺寸对照 |
 | 群聊 | `screens/Chat.tsx` 的 room 分支、`TeamList.tsx` | `room-chat` 文本读取、分页、发送/停止、成员/管理入口已写，Swift CI 通过；未真机验 | 消息形态及互动 |
 | 待处理 | `screens/NeedsYou.tsx`, `screens/chat/dock.tsx`：问题、审批、密钥、卡片、浏览器交接 | 当前对话的问题/审批、密钥请求、Deep View 基本交互、浏览器交接、侧问卡入口和 RPC 已写；目前使用列表入口 | RN 的原位 dock 布局和视觉动效 |
@@ -48,6 +48,8 @@
 - `72e4b1c` 能力库、Bot 能力开关、侧问卡与应用内横幅；Swift CI 通过（run `43993375367`）。
 - `20f362f` 自定义模型提供商（手输模型 ID）；Swift CI 通过（run `43993816574`）。
 - `7f33138` 区分侧问与待处理文案；Swift CI 通过（run `43994786094`），同 SHA 未签名 IPA 打包与包检查通过（run `43994803207`）。
+- `29be00b` 修复自定义提供商协议缺失时的请求字段；Swift CI 44 项通过（run `43995392337`），同 SHA 未签名 IPA 打包与包检查通过（run `43995399934`）。
+- `ec174ae` 自定义提供商模型发现、协议/模型选择和手输 ID；Swift CI 通过（run `44006258045`）。
 - 原生真机连接、收发、键盘、分页、后台恢复：尚无证据。
 
 本表每完成一项都应更新到具体提交和验证 run，不以“页面存在”代替 RN 功能对照。
