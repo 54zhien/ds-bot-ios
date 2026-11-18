@@ -311,17 +311,13 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         guard press.state == .began else { return }
         let sheet = UIAlertController(title: tr("Diagnostics"), message: nil, preferredStyle: .actionSheet)
         sheet.addAction(UIAlertAction(title: tr("Copy diagnostics"), style: .default) { _ in
-            Task { @MainActor in
-                UIPasteboard.general.string = await Diagnostics.shared.text()
-            }
+            UIPasteboard.general.string = Diagnostics.shared.text()
         })
         sheet.addAction(UIAlertAction(title: tr("Save diagnostics"), style: .default) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                do {
-                    let url = try await Diagnostics.shared.save()
-                    self?.showSavedDiagnostics(url)
-                } catch { self?.showActionError(error.localizedDescription) }
-            }
+            do {
+                let url = try Diagnostics.shared.save()
+                self?.showSavedDiagnostics(url)
+            } catch { self?.showActionError(error.localizedDescription) }
         })
         sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         // An action sheet on iPad is a popover, and a popover needs an anchor.

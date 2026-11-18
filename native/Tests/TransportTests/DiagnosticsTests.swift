@@ -4,28 +4,28 @@ import XCTest
 /// The dump leaves the phone as text, so it is the one thing that must not carry the
 /// pairing code or a session key with it.
 final class DiagnosticsTests: XCTestCase {
-    func testAHelloIsWrittenDownWithoutItsPairingCode() async {
+    func testAHelloIsWrittenDownWithoutItsPairingCode() {
         let sent = Data("{\"name\":\"DS Bot\",\"pairingCode\":\"code-123\"}".utf8)
         let received = Data("{\"name\":\"CI Desk\"}".utf8)
-        await Diagnostics.shared.recordHandshake(sent: sent, received: received)
+        Diagnostics.shared.recordHandshake(sent: sent, received: received)
 
-        let text = await Diagnostics.shared.text()
+        let text = Diagnostics.shared.text()
         XCTAssertFalse(text.contains("code-123"), "a pairing code must never be written down")
         XCTAssertTrue(text.contains("<redacted>"))
         XCTAssertTrue(text.contains("CI Desk"), "the host name is what identifies the computer")
     }
 
-    func testAHelloThatIsNotJSONIsNotWrittenOutAtAll() async {
+    func testAHelloThatIsNotJSONIsNotWrittenOutAtAll() {
         // A broken hello could carry a code in clear text, and there would be no key to
         // redact it by.
-        await Diagnostics.shared.recordHandshake(sent: Data("code-123 is not json".utf8), received: Data())
-        let text = await Diagnostics.shared.text()
+        Diagnostics.shared.recordHandshake(sent: Data("code-123 is not json".utf8), received: Data())
+        let text = Diagnostics.shared.text()
         XCTAssertFalse(text.contains("code-123"))
         XCTAssertTrue(text.contains("not JSON"))
     }
 
-    func testTheStateSummaryNamesEveryKeyItSaw() async throws {
-        await Diagnostics.shared.recordCall(
+    func testTheStateSummaryNamesEveryKeyItSaw() throws {
+        Diagnostics.shared.recordCall(
             method: "bot", endpoint: "state", milliseconds: 12, errorCode: nil, errorMessage: nil,
             reply: .object([
                 "ok": .bool(true),
@@ -37,7 +37,7 @@ final class DiagnosticsTests: XCTestCase {
             ])
         )
 
-        let text = await Diagnostics.shared.text()
+        let text = Diagnostics.shared.text()
         let document = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]
         let keys = (document?["state"] as? [String: Any])?["keys"] as? [String: Any]
         XCTAssertEqual((keys?["bots"] as? [String: Any])?["type"] as? String, "array")

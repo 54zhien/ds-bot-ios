@@ -3,7 +3,11 @@ import Foundation
 /// What the phone saw, written down so a report from a device can be read without a
 /// debugger attached. A chat that stays empty while the status bar says online is the
 /// case this exists for: the reply itself is never shown, only what it was made of.
-actor Diagnostics {
+///
+/// A lock rather than an actor: the link writes on its own threads and the main actor
+/// reads the text, and an actor handing its result back across isolation is the shape
+/// Swift 6 refuses here.
+final class Diagnostics: @unchecked Sendable {
     static let shared = Diagnostics()
 
     private struct Call {
@@ -14,9 +18,18 @@ actor Diagnostics {
         var errorMessage: String?
     }
 
+    private struct Snapshot {
+        var calls: [Call]
+        var invalidMessages: [String]
+        var lastState: [String: Any]?
+        var lastHandshake: [String: Any]?
+        var lastLinkError: String?
+    }
+
     private static let callLimit = 20
     private static let invalidLimit = 20
 
+    private let lock = NSLock()
     private var calls: [Call] = []
     private var invalidMessages: [String] = []
     private var lastState: [String: Any]?
@@ -27,42 +40,57 @@ actor Diagnostics {
         method: String, endpoint: String?, milliseconds: Int,
         errorCode: String?, errorMessage: String?, reply: JSONValue?
     ) {
-        calls.append(Call(
-            method: method, endpoint: endpoint, milliseconds: milliseconds,
-            errorCode: errorCode, errorMessage: errorMessage
-        ))
-        if calls.count > Diagnostics.callLimit { calls.removeFirst(calls.count - Diagnostics.callLimit) }
         // The reply shape is the only way to tell a host that sent nothing from a phone
         // that could not read what it sent.
+        var state: [String: Any]?
         if endpoint == "state", let reply {
-            lastState = Diagnostics.describeFields(of: reply["value"] ?? reply)
+            state = Diagnostics.describeFields(of: reply["value"] ?? reply)
+        }
+        lock.withLock {
+            calls.append(Call(
+                method: method, endpoint: endpoint, milliseconds: milliseconds,
+                errorCode: errorCode, errorMessage: errorMessage
+            ))
+            if calls.count > Diagnostics.callLimit {
+                calls.removeFirst(calls.count - Diagnostics.callLimit)
+            }
+            if let state { lastState = state }
         }
     }
 
     func recordHandshake(sent: Data, received: Data) {
-        lastHandshake = [
+        let entry = [
             "sent": Diagnostics.jsonObject(sent),
             "received": Diagnostics.jsonObject(received),
         ]
+        lock.withLock { lastHandshake = entry }
     }
 
     func recordInvalidMessage(_ text: String) {
-        invalidMessages.append(text)
-        if invalidMessages.count > Diagnostics.invalidLimit {
-            invalidMessages.removeFirst(invalidMessages.count - Diagnostics.invalidLimit)
+        lock.withLock {
+            invalidMessages.append(text)
+            if invalidMessages.count > Diagnostics.invalidLimit {
+                invalidMessages.removeFirst(invalidMessages.count - Diagnostics.invalidLimit)
+            }
         }
     }
 
     func recordLinkError(_ message: String) {
-        lastLinkError = message
+        lock.withLock { lastLinkError = message }
     }
 
     /// The whole dump as one JSON text, small enough to paste into a chat.
     func text() -> String {
+        let snapshot = lock.withLock {
+            Snapshot(
+                calls: calls, invalidMessages: invalidMessages, lastState: lastState,
+                lastHandshake: lastHandshake, lastLinkError: lastLinkError
+            )
+        }
         var document: [String: Any] = [
             "generatedAt": ISO8601DateFormatter().string(from: Date()),
             "app": Diagnostics.appInfo(),
-            "calls": calls.map { call -> [String: Any] in
+            "calls": snapshot.calls.map { call -> [String: Any] in
                 var entry: [String: Any] = [
                     "method": call.method,
                     "ms": call.milliseconds,
@@ -74,10 +102,10 @@ actor Diagnostics {
                 return entry
             },
         ]
-        if let lastState { document["state"] = ["keys": lastState] }
-        if let lastHandshake { document["handshake"] = lastHandshake }
-        if !invalidMessages.isEmpty { document["invalidMessages"] = invalidMessages }
-        if let lastLinkError { document["linkError"] = lastLinkError }
+        if let lastState = snapshot.lastState { document["state"] = ["keys": lastState] }
+        if let lastHandshake = snapshot.lastHandshake { document["handshake"] = lastHandshake }
+        if !snapshot.invalidMessages.isEmpty { document["invalidMessages"] = snapshot.invalidMessages }
+        if let lastLinkError = snapshot.lastLinkError { document["linkError"] = lastLinkError }
         let scrubbed = Redaction.scrub(document) as? [String: Any] ?? document
         guard let data = try? JSONSerialization.data(
             withJSONObject: scrubbed, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
