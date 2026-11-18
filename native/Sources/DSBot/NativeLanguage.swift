@@ -85,6 +85,8 @@ enum NativeLanguage {
         "Could not add provider": "无法添加服务商",
         "Missing details": "缺少必要信息",
         "Provider ID, API URL and at least one model are required.": "需要服务商 ID、API 地址和至少一个模型。",
+        "Choose at least one weekday.": "至少选择一个星期日期。",
+        "Enter a positive repeat interval.": "输入大于零的重复间隔。",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }

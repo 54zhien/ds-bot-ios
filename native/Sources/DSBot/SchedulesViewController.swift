@@ -17,7 +17,7 @@ final class SchedulesViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Scheduled tasks"
+        title = NativeLanguage.text("Scheduled tasks")
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
                                                             target: self, action: #selector(add))
         refreshControl = UIRefreshControl()
@@ -47,16 +47,60 @@ final class SchedulesViewController: UITableViewController {
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "schedule")
         cell.selectionStyle = .none
         if tasks.isEmpty {
-            cell.textLabel?.text = "No scheduled tasks yet"
-            cell.detailTextLabel?.text = "Tap + to add one"
+            cell.textLabel?.text = NativeLanguage.text("No scheduled tasks yet. Add one")
+            cell.detailTextLabel?.text = nil
         } else {
             let task = tasks[indexPath.row]
-            cell.textLabel?.text = task["title"]?.stringValue ?? "Task"
-            let kind = task["kind"]?.stringValue ?? ""
-            let status = task["status"]?.stringValue ?? ""
-            cell.detailTextLabel?.text = [kind, status].filter { !$0.isEmpty }.joined(separator: " · ")
+            cell.textLabel?.text = task["title"]?.stringValue ?? NativeLanguage.text("Task")
+            cell.detailTextLabel?.text = Self.whenText(task)
         }
         return cell
+    }
+
+    private static func whenText(_ task: JSONValue) -> String {
+        let time = task["time"]?.stringValue ?? ""
+        switch task["kind"]?.stringValue {
+        case "at":
+            let timestamp = Double(task["scheduledAt"]?.intValue ?? 0) / 1000
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return NativeLanguage.text("Once, {time}", ["time": formatter.string(from: Date(timeIntervalSince1970: timestamp))])
+        case "every":
+            let seconds = task["everySeconds"]?.intValue ?? (task["minutes"]?.intValue ?? 0) * 60
+            if seconds > 0, seconds % 86400 == 0 {
+                let count = seconds / 86400
+                return count == 1 ? NativeLanguage.text("Every day")
+                    : NativeLanguage.text("Every {count} days", ["count": String(count)])
+            }
+            if seconds > 0, seconds % 3600 == 0 {
+                let count = seconds / 3600
+                return count == 1 ? NativeLanguage.text("Every hour")
+                    : NativeLanguage.text("Every {count} hours", ["count": String(count)])
+            }
+            return NativeLanguage.text("Every {count} minutes", ["count": String((seconds + 30) / 60)])
+        case "daily":
+            return NativeLanguage.text("Every day at {time}", ["time": time])
+        case "weekly":
+            guard case .array(let values)? = task["weekdays"] else { return "" }
+            let days = values.compactMap(\.intValue).sorted()
+            if days == [1, 2, 3, 4, 5] {
+                return NativeLanguage.text("Every weekday at {time}", ["time": time])
+            }
+            if days == [6, 7] {
+                return NativeLanguage.text("Every weekend at {time}", ["time": time])
+            }
+            if days == [1, 2, 3, 4, 5, 6, 7] {
+                return NativeLanguage.text("Every day at {time}", ["time": time])
+            }
+            let labels = days.map { ScheduleEditorViewController.weekdayLabel($0, withPrefix: true) }
+            return NativeLanguage.text("Every {days} at {time}", [
+                "days": labels.joined(separator: NativeLanguage.isChinese ? "、" : ", "), "time": time,
+            ])
+        case "cron":
+            return NativeLanguage.text("On the schedule {expression}", ["expression": task["expression"]?.stringValue ?? ""])
+        default: return ""
+        }
     }
 
     override func tableView(
@@ -109,11 +153,21 @@ private final class ScheduleEditorViewController: UIViewController {
     private let stack = UIStackView()
     private let name = UITextField()
     private let prompt = UITextView()
-    private let kind = UISegmentedControl(items: ["Once", "Daily", "Weekly", "Repeat"])
+    private let kind = UISegmentedControl(items: ["Once", "Every day", "Every week", "Repeat"].map { NativeLanguage.text($0) })
     private let date = UITextField()
     private let time = UITextField()
-    private let weekdays = UITextField()
+    private let weekdayRow = UIStackView()
+    private var weekdayButtons: [UIButton] = []
+    private var selectedWeekdays: Set<Int> = [1, 2, 3, 4, 5]
     private let interval = UITextField()
+    private let repeatUnit = UISegmentedControl(items: ["minutes", "hours", "days"].map { NativeLanguage.text($0) })
+
+    static func weekdayLabel(_ day: Int, withPrefix: Bool = false) -> String {
+        let chinese = ["", "一", "二", "三", "四", "五", "六", "日"]
+        let english = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        guard (1...7).contains(day) else { return String(day) }
+        return NativeLanguage.isChinese ? (withPrefix ? "周" : "") + chinese[day] : english[day]
+    }
 
     init(botID: String, session: LinkSession) {
         self.botID = botID
@@ -125,9 +179,9 @@ private final class ScheduleEditorViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "New task"
+        title = NativeLanguage.text("New task")
         view.backgroundColor = .systemBackground
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Create", style: .done,
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: NativeLanguage.text("Create task"), style: .done,
                                                             target: self, action: #selector(create))
         scroll.translatesAutoresizingMaskIntoConstraints = false
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -148,7 +202,7 @@ private final class ScheduleEditorViewController: UIViewController {
             stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
             stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
         ])
-        name.placeholder = "Morning briefing"
+        name.placeholder = NativeLanguage.text("Morning briefing")
         name.borderStyle = .roundedRect
         name.heightAnchor.constraint(equalToConstant: 44).isActive = true
         stack.addArrangedSubview(name)
@@ -167,24 +221,55 @@ private final class ScheduleEditorViewController: UIViewController {
         date.placeholder = "YYYY-MM-DD"
         time.text = "09:00"
         time.placeholder = "09:00"
-        weekdays.text = "1,2,3,4,5"
-        weekdays.placeholder = "Weekdays: 1=Mon, 7=Sun"
-        interval.text = "60"
-        interval.placeholder = "Minutes between runs"
-        for field in [date, time, weekdays, interval] {
+        weekdayRow.axis = .horizontal
+        weekdayRow.distribution = .fillEqually
+        weekdayRow.spacing = 4
+        for day in 1...7 {
+            let button = UIButton(type: .system)
+            button.setTitle(Self.weekdayLabel(day), for: .normal)
+            button.layer.cornerRadius = 12
+            button.accessibilityLabel = Self.weekdayLabel(day, withPrefix: true)
+            button.addAction(UIAction { [weak self] _ in self?.toggleWeekday(day) }, for: .touchUpInside)
+            weekdayButtons.append(button)
+            weekdayRow.addArrangedSubview(button)
+        }
+        weekdayRow.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        stack.addArrangedSubview(weekdayRow)
+        updateWeekdayButtons()
+        interval.text = "1"
+        interval.keyboardType = .numberPad
+        repeatUnit.selectedSegmentIndex = 1
+        for field in [date, time, interval] {
             field.borderStyle = .roundedRect
             field.autocapitalizationType = .none
             field.heightAnchor.constraint(equalToConstant: 44).isActive = true
             stack.addArrangedSubview(field)
         }
+        stack.addArrangedSubview(repeatUnit)
         updateFields()
+    }
+
+    private func toggleWeekday(_ day: Int) {
+        if selectedWeekdays.contains(day) { selectedWeekdays.remove(day) }
+        else { selectedWeekdays.insert(day) }
+        updateWeekdayButtons()
+    }
+
+    private func updateWeekdayButtons() {
+        for (index, button) in weekdayButtons.enumerated() {
+            let selected = selectedWeekdays.contains(index + 1)
+            button.backgroundColor = selected ? view.tintColor : .tertiarySystemBackground
+            button.setTitleColor(selected ? .white : .label, for: .normal)
+            button.accessibilityValue = selected ? "Selected" : "Not selected"
+        }
     }
 
     @objc private func updateFields() {
         date.isHidden = kind.selectedSegmentIndex != 0
         time.isHidden = kind.selectedSegmentIndex == 3
-        weekdays.isHidden = kind.selectedSegmentIndex != 2
+        weekdayRow.isHidden = kind.selectedSegmentIndex != 2
         interval.isHidden = kind.selectedSegmentIndex != 3
+        repeatUnit.isHidden = kind.selectedSegmentIndex != 3
     }
 
     @objc private func create() {
@@ -202,22 +287,22 @@ private final class ScheduleEditorViewController: UIViewController {
             }
             when = ["kind": .string("at"), "at": .string(ISO8601DateFormatter().string(from: at))]
         case 2:
-            let days = (weekdays.text ?? "").split(separator: ",").compactMap {
-                Int(String($0).trimmingCharacters(in: .whitespaces))
-            }
-            guard !days.isEmpty, days.allSatisfy({ (1...7).contains($0) }) else {
-                showError("Choose weekdays from 1 to 7.")
+            let days = selectedWeekdays.sorted()
+            guard !days.isEmpty else {
+                showError(NativeLanguage.text("Choose at least one weekday."))
                 return
             }
             when = ["kind": .string("weekly"), "time": .string(time.text ?? "09:00"),
                     "timeZone": .string(TimeZone.current.identifier),
                     "weekdays": .array(days.map { .number(Double($0)) })]
         case 3:
-            guard let minutes = Int(interval.text ?? ""), minutes > 0 else {
-                showError("Enter a positive number of minutes.")
+            let multiplier = [1, 60, 1440][repeatUnit.selectedSegmentIndex]
+            guard let count = Int(interval.text ?? ""), count > 0,
+                  count <= Int.max / multiplier else {
+                showError(NativeLanguage.text("Enter a positive repeat interval."))
                 return
             }
-            when = ["kind": .string("every"), "minutes": .number(Double(minutes))]
+            when = ["kind": .string("every"), "minutes": .number(Double(count * multiplier))]
         default:
             when = ["kind": .string("daily"), "time": .string(time.text ?? "09:00"),
                     "timeZone": .string(TimeZone.current.identifier)]
