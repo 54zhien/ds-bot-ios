@@ -22,9 +22,16 @@ final class IconTests: XCTestCase {
 
     func testHorizontalAndVertical() {
         let path = SVGPath.parse("M1 2H5V6h2v1")
-        XCTAssertEqual(path.bounds, CGRect(x: 1, y: 2, width: 7, height: 5))
+        XCTAssertEqual(path.bounds, CGRect(x: 1, y: 2, width: 6, height: 5))
         // 1,2 → 5,2 → 5,6 → 7,6 → 7,7
         XCTAssertEqual(elements(path), 5)
+    }
+
+    func testPackedNumbersSplitAndSetsRepeat() {
+        // The compact forms icons.tsx writes: no separator before a sign or a
+        // second decimal point, and argument sets that repeat under one letter.
+        let path = SVGPath.parse("M1 2c1.6.6 2.6 2 3 4.1l3.5 3.5 7.5-8")
+        XCTAssertEqual(elements(path), 4, "a move, a curve, and two lines out of four argument sets")
     }
 
     func testCurvesAndTheSmoothReflection() {
@@ -32,7 +39,7 @@ final class IconTests: XCTestCase {
         XCTAssertEqual(elements(path), 3)
         // The S command reflects the previous curve's second control: (2,1) about (3,0).
         let points = controlPoints(path)
-        XCTAssertEqual(points[1] ?? .zero, CGPoint(x: 4, y: 1))
+        XCTAssertEqual(points[2] ?? .zero, CGPoint(x: 4, y: 1))
     }
 
     func testQuadraticsAndTheTrailingReflection() {
@@ -44,9 +51,14 @@ final class IconTests: XCTestCase {
     }
 
     func testACircleClosesIntoExactBounds() {
-        // Gear's own inner ring: two arcs and a close must land on the same circle.
+        // Gear's own inner ring: two arcs under one command and a close must
+        // land on the same circle — the second arc is what a parser that stops
+        // after the first argument set loses.
         let path = SVGPath.parse("M10 7.4a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2z")
-        XCTAssertEqual(path.bounds, CGRect(x: 7.4, y: 7.4, width: 5.2, height: 5.2).insetBy(dx: -0.001, dy: -0.001))
+        XCTAssertEqual(path.bounds.minX, 7.4, accuracy: 0.001)
+        XCTAssertEqual(path.bounds.minY, 7.4, accuracy: 0.001)
+        XCTAssertEqual(path.bounds.width, 5.2, accuracy: 0.001)
+        XCTAssertEqual(path.bounds.height, 5.2, accuracy: 0.001)
     }
 
     func testTheSweepFlagPicksTheSide() {
@@ -60,10 +72,13 @@ final class IconTests: XCTestCase {
     }
 
     func testTheLargeArcFlagTakesTheLongWayRound() {
-        let small = SVGPath.parse("M0 0A5 5 0 0 1 10 0")
-        XCTAssertEqual(small.bounds.height, 5, accuracy: 0.001)
-        let large = SVGPath.parse("M0 0A5 5 0 1 1 10 0")
-        XCTAssertEqual(large.bounds.height, 15, accuracy: 0.001)
+        // A chord short of the diameter, so the two flags part ways; with the
+        // endpoints diametrically opposite both arcs are halves and the flag
+        // cannot show.
+        let small = SVGPath.parse("M0 0A5 5 0 0 1 6 0")
+        XCTAssertEqual(small.bounds.height, 1, accuracy: 0.001)
+        let large = SVGPath.parse("M0 0A5 5 0 1 1 6 0")
+        XCTAssertEqual(large.bounds.height, 9, accuracy: 0.001)
     }
 
     func testAnEllipticalArcKeepsItsOwnRadii() {

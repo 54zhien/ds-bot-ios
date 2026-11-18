@@ -2,9 +2,9 @@ import XCTest
 @testable import DSBot
 
 /// An event's row shows until the read replaces it, and never draws twice: the
-/// buffer dedups on the sourceKey, which leads with the sequence RN's own append
-/// checks. The on-device feel — another window's message appearing before the
-/// poll — is a device check.
+/// buffer dedups on the chat plus its sequence, the field RN's own append check
+/// reads (Chat.tsx:255). The on-device feel — another window's message
+/// appearing before the poll — is a device check.
 final class ChatFeedBufferTests: XCTestCase {
     private func message(seq: Int, text: String) -> JSONValue {
         .object([

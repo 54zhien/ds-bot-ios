@@ -1,9 +1,11 @@
 import UIKit
 
 /// An SVG path parser for the d-strings mobile/src/ui/icons.tsx carries: the same
-/// command set react-native-svg understands, absolute and relative, including the
-/// moveto-then-lineto repeat. The strings are fixed inputs, so the tokenizer reads
-/// the spaced form icons.tsx writes.
+/// command set react-native-svg understands, absolute and relative, with the
+/// argument sets that repeat under a command until the next letter. The strings
+/// are fixed inputs, so the tokenizer only needs the forms icons.tsx writes:
+/// spaced numbers, and the packed kind where a sign or a second decimal point
+/// starts the next number.
 enum SVGPath {
     private enum Token {
         case command(Character)
@@ -30,7 +32,8 @@ enum SVGPath {
                 quadControl = nil
                 continue
             }
-            // Extra pairs after a moveto are line-tos; every other command runs once.
+            // Extra argument sets repeat the command; after a moveto they read
+            // as line-tos, the one repeat that changes meaning.
             var firstMove = kind == "M"
             while let arguments = readArguments(kind, tokens, at: cursor) {
                 cursor += arguments.count
@@ -131,7 +134,6 @@ enum SVGPath {
                 default:
                     break
                 }
-                if kind != "M" { break }
             }
         }
         return path
@@ -151,10 +153,16 @@ enum SVGPath {
                 index = d.index(after: index)
             } else {
                 var text = String(character)
+                var seenDecimal = character == "."
                 index = d.index(after: index)
                 while index < d.endIndex {
                     let next = d[index]
                     if next.isWhitespace || next == "," || next.isLetter { break }
+                    // The packed form: a sign, or a second decimal point, starts
+                    // the next number rather than joining this one.
+                    if next == "-" || next == "+" { break }
+                    if next == "." && seenDecimal { break }
+                    if next == "." { seenDecimal = true }
                     text.append(next)
                     index = d.index(after: index)
                 }
@@ -235,18 +243,15 @@ enum SVGPath {
             y: sine * frameCenterX + cosine * frameCenterY + middleY)
         // Sampled rather than handed to addArc: UIKit's clockwise flag means the
         // opposite direction once the y axis points down, and the endpoint angles
-        // above already carry the direction the spec asks for.
+        // above already carry the direction the spec asks for. The samples join
+        // the running contour instead of opening a new one, so a later close
+        // lands on the glyph's own start point.
         let steps = max(8, Int(abs(sweepAngle) / (.pi / 128)))
-        var point = CGPoint(x: center.x + rx * cos(startAngle) * cosine
-                              - ry * sin(startAngle) * sine,
-                            y: center.y + rx * cos(startAngle) * sine
-                              + ry * sin(startAngle) * cosine)
-        path.move(to: point)
         for step in 1...steps {
             let t = startAngle + sweepAngle * CGFloat(step) / CGFloat(steps)
-            point = CGPoint(x: center.x + rx * cos(t) * cosine - ry * sin(t) * sine,
-                            y: center.y + rx * cos(t) * sine + ry * sin(t) * cosine)
-            path.addLine(to: point)
+            path.addLine(to: CGPoint(
+                x: center.x + rx * cos(t) * cosine - ry * sin(t) * sine,
+                y: center.y + rx * cos(t) * sine + ry * sin(t) * cosine))
         }
         path.addLine(to: target)
     }
