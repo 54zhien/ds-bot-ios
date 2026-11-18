@@ -109,3 +109,33 @@ final class GlassPillView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
+
+/// A plain-colour fade, the same device the drawer's bottom uses: one colour from
+/// solid to nothing over the given height, longer than the system's soft edge.
+final class FadeOverlayView: UIView {
+    private let gradient = CAGradientLayer()
+
+    init() {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        isUserInteractionEnabled = false
+        gradient.locations = [0, 1]
+        gradient.startPoint = CGPoint(x: 0.5, y: 0)
+        gradient.endPoint = CGPoint(x: 0.5, y: 1)
+        layer.addSublayer(gradient)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(color: UIColor) {
+        gradient.colors = [color.cgColor, color.withAlphaComponent(0).cgColor]
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        gradient.frame = bounds
+        CATransaction.commit()
+    }
+}
