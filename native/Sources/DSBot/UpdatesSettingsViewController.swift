@@ -25,8 +25,11 @@ final class UpdatesSettingsViewController: UITableViewController {
         title = NativeLanguage.text("Updates & diagnostics")
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
+        SettingsStyle.prepare(tableView)
         Task { await load() }
     }
+
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
 
     @objc private func refresh() { Task { await load() } }
 
@@ -43,8 +46,12 @@ final class UpdatesSettingsViewController: UITableViewController {
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int { 4 }
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        NativeLanguage.text(["DS Bot", "DSH", "Diagnostics", "Phone diagnostics"][section])
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        SettingsStyle.headerHeight
+    }
+    override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        SettingsStyle.headerView(title: NativeLanguage.text(["DS Bot", "DSH", "Diagnostics", "Phone diagnostics"][section]),
+                                 palette: palette)
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
@@ -79,6 +86,11 @@ final class UpdatesSettingsViewController: UITableViewController {
         }
         cell.textLabel?.text = pair.0
         cell.detailTextLabel?.text = pair.1
+        SettingsStyle.styleSubtitle(cell, palette: palette)
+        // The one destructive row reads as destructive.
+        if indexPath.section == 2, indexPath.row == (lastEntry == nil ? 2 : 3) {
+            cell.textLabel?.textColor = palette.danger
+        }
         if indexPath == IndexPath(row: 1, section: 0)
             || indexPath.section == 0 && indexPath.row == (hasNotes ? 3 : 2) && update?["available"] == .bool(true)
             || indexPath == IndexPath(row: 1, section: 1)
