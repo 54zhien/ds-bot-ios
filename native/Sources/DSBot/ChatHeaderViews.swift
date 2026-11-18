@@ -15,6 +15,7 @@ final class PassthroughHeader: UIView {
 /// middle and, when asked, the 8pt pending dot on the glyph's corner.
 final class GlassControlView: UIControl {
     var showsDot = false { didSet { dot.isHidden = !showsDot } }
+    private let surface: UIVisualEffectView
     private let dot = UIView()
 
     init(label: String, icon: UIView) {
@@ -24,7 +25,7 @@ final class GlassControlView: UIControl {
         accessibilityLabel = label
         accessibilityTraits = .button
 
-        let surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+        surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
         surface.translatesAutoresizingMaskIntoConstraints = false
         surface.layer.cornerRadius = Glass.control / 2
         surface.layer.borderWidth = 1
@@ -38,7 +39,6 @@ final class GlassControlView: UIControl {
         surface.contentView.addSubview(icon)
 
         dot.translatesAutoresizingMaskIntoConstraints = false
-        dot.backgroundColor = ThemeStore.palette(trait: traitCollection).accent
         dot.layer.cornerRadius = 4
         dot.isHidden = true
         surface.contentView.addSubview(dot)
@@ -64,9 +64,28 @@ final class GlassControlView: UIControl {
         addTarget(self, action: #selector(pressed), for: [.touchDown, .touchDragEnter])
         addTarget(self, action: #selector(restored), for: [.touchDragExit, .touchCancel])
         addTarget(self, action: #selector(restored), for: .touchUpInside)
+        applyPalette()
+        NotificationCenter.default.addObserver(self, selector: #selector(themeChanged),
+                                               name: ThemeStore.changed, object: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    // CGColor snapshots follow neither traits nor theme switches, so repaint on both.
+    private func applyPalette() {
+        let p = ThemeStore.palette(trait: traitCollection)
+        surface.layer.borderColor = p.line.cgColor
+        dot.backgroundColor = p.accent
+    }
+
+    @objc private func themeChanged() { applyPalette() }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            applyPalette()
+        }
+    }
 
     @objc private func pressed() { alpha = 0.7 }
     @objc private func restored() { alpha = 1 }
@@ -76,9 +95,10 @@ final class GlassControlView: UIControl {
 /// horizontal content, and the 1pt rim the phone design uses.
 final class GlassPillView: UIView {
     let content: UIStackView
+    private let surface: UIVisualEffectView
 
     init(height: CGFloat) {
-        let surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+        surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
         surface.layer.cornerRadius = height / 2
         surface.layer.borderWidth = 1
         surface.layer.masksToBounds = true
@@ -105,9 +125,26 @@ final class GlassPillView: UIView {
             content.leadingAnchor.constraint(equalTo: surface.contentView.leadingAnchor),
             content.trailingAnchor.constraint(equalTo: surface.contentView.trailingAnchor),
         ])
+        applyPalette()
+        NotificationCenter.default.addObserver(self, selector: #selector(themeChanged),
+                                               name: ThemeStore.changed, object: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    // The rim is a CGColor snapshot; repaint it when traits or the theme move.
+    private func applyPalette() {
+        surface.layer.borderColor = ThemeStore.palette(trait: traitCollection).line.cgColor
+    }
+
+    @objc private func themeChanged() { applyPalette() }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            applyPalette()
+        }
+    }
 }
 
 /// A plain-colour fade, the same device the drawer's bottom uses: one colour from
