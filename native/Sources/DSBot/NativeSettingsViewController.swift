@@ -138,11 +138,9 @@ final class NativeSettingsViewController: UITableViewController {
         case (1, 6):
             navigationController?.pushViewController(UpdatesSettingsViewController(session: session), animated: true)
         default:
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-            let about = UIAlertController(title: "DS Bot", message: "iPhone app · version \(version)",
-                                          preferredStyle: .alert)
-            about.addAction(UIAlertAction(title: "OK", style: .default))
-            present(about, animated: true)
+            navigationController?.pushViewController(
+                AboutViewController(computerName: computerName, session: session), animated: true
+            )
         }
     }
 

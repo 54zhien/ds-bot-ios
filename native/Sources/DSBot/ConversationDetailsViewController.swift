@@ -3,6 +3,7 @@ import UIKit
 /// The details reached from the chat title, following the RN BotDetails/GroupDetails entry.
 final class ConversationDetailsViewController: UITableViewController {
     var onEdit: (() -> Void)?
+    var onEditBot: ((String) -> Void)?
 
     private let target: ChatTarget
     private let state: JSONValue
@@ -68,7 +69,7 @@ final class ConversationDetailsViewController: UITableViewController {
                 || indexPath.section == 2 && indexPath.row == 0 && state["memory"] != .bool(false)
                 || indexPath.section == 2 && indexPath.row == 1
                 || indexPath.section == 2 && indexPath.row == 2
-            : indexPath.section == 2 && indexPath.row == 2
+            : indexPath.section == 1 || indexPath.section == 2 && indexPath.row == 2
         cell.selectionStyle = selectable ? .default : .none
         cell.accessoryView = nil
         cell.textLabel?.font = .preferredFont(forTextStyle: .body)
@@ -90,6 +91,18 @@ final class ConversationDetailsViewController: UITableViewController {
             navigationController?.pushViewController(
                 MemoryViewController(owner: .room(target.id), session: session), animated: true
             )
+        } else if target.kind == .room && indexPath.section == 1 {
+            let id = memberIDs[indexPath.row]
+            let name: String
+            if case .array(let bots)? = state["bots"] {
+                name = bots.first { $0["id"]?.stringValue == id }?["name"]?.stringValue ?? id
+            } else { name = id }
+            let details = ConversationDetailsViewController(
+                target: ChatTarget(kind: .bot, id: id, name: name), state: state, session: session
+            )
+            details.onEdit = { [weak self] in self?.onEditBot?(id) }
+            details.onEditBot = onEditBot
+            navigationController?.pushViewController(details, animated: true)
         } else if target.kind == .bot && indexPath.section == 2 && indexPath.row == 0
                     && state["memory"] != .bool(false) {
             navigationController?.pushViewController(

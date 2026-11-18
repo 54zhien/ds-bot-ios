@@ -246,6 +246,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         if selectedTarget == nil { title = tr("Chat") }
         computerItem?.title = tr(savedOffer == nil ? "Pair" : "Computers")
         retryButton.setTitle(tr("Retry"), for: .normal)
+        retryLoadButton.setTitle(tr("Retry"), for: .normal)
+        latestButton.setTitle(tr("Latest messages"), for: .normal)
         updateTitleButton()
         updateEmptyState()
         updatePendingButton()
@@ -898,6 +900,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 if target.kind == .bot { self?.showBotEditor(id: id) }
                 else { self?.showGroupEditor(id: id) }
             }
+        }
+        details.onEditBot = { [weak self, weak details] id in
+            details?.dismiss(animated: true) { [weak self] in self?.showBotEditor(id: id) }
         }
         present(UINavigationController(rootViewController: details), animated: true)
     }
