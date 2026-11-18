@@ -27,7 +27,7 @@ final class PassthroughHeader: UIView {
 /// middle and, when asked, the 8pt pending dot on the glyph's corner.
 final class GlassControlView: UIControl {
     var showsDot = false { didSet { dot.isHidden = !showsDot } }
-    private let surface: UIVisualEffectView
+    private let surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
     private let dot = UIView()
 
     init(label: String, icon: UIView) {
@@ -37,7 +37,6 @@ final class GlassControlView: UIControl {
         accessibilityLabel = label
         accessibilityTraits = .button
 
-        surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
         surface.translatesAutoresizingMaskIntoConstraints = false
         surface.layer.cornerRadius = Glass.control / 2
         surface.layer.borderWidth = 1
