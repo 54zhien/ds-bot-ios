@@ -174,6 +174,11 @@ enum NativeLanguage {
         "The computer did not answer.": "电脑没有回应。",
         "Something went wrong ({code}).": "出了点问题（{code}）。",
         "Something went wrong.": "出了点问题。",
+        "This is not a DS Bot pairing link.": "这不是 DS Bot 的配对链接。",
+        "The pairing link speaks version {version}; this app speaks version 1.": "配对链接是第 {version} 版；本应用只认第 1 版。",
+        "The pairing link has no {name}.": "配对链接缺少 {name}。",
+        "The pairing link names a Server that is not ws:// or wss://.": "配对链接里的服务器地址不是 ws:// 或 wss:// 开头。",
+        "The pairing link does not match the computer it names.": "配对链接和它指向的电脑不匹配。",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }

@@ -40,8 +40,22 @@ public enum PairingLinkError: Error, Equatable, CustomStringConvertible {
         }
     }
 
-    /// What a person can act on, shown next to the field they pasted into.
-    public var explanation: String { description }
+    /// What a person can act on, shown next to the field they pasted into. The raw
+    /// description stays English for the diagnostics dump and the tests.
+    public var explanation: String {
+        switch self {
+        case .notAPairingLink:
+            return NativeLanguage.text("This is not a DS Bot pairing link.")
+        case .unsupportedVersion(let version):
+            return NativeLanguage.text("The pairing link speaks version {version}; this app speaks version 1.", ["version": version])
+        case .missingField(let name):
+            return NativeLanguage.text("The pairing link has no {name}.", ["name": name])
+        case .invalidServer:
+            return NativeLanguage.text("The pairing link names a Server that is not ws:// or wss://.")
+        case .keyMismatch:
+            return NativeLanguage.text("The pairing link does not match the computer it names.")
+        }
+    }
 }
 
 /// dsbot://pair?v=1&server=…&host=…&key=…&code=…&name=…
