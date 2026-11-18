@@ -279,6 +279,32 @@ enum Glass {
     static let margin: CGFloat = 16
 }
 
+/// One place that turns the team's saved theme into a palette, so every screen
+/// agrees on the colours the user picked on the computer.
+@MainActor enum ThemeStore {
+    static let changed = Notification.Name("DSBotThemeChanged")
+    private static var themeId: String?
+    private static var accentHex: String?
+
+    /// prefs.theme is a preset id, or system/absent to follow the appearance.
+    static func update(from state: JSONValue) {
+        let nextTheme = state["prefs"]?["theme"]?.stringValue
+        let nextAccent = state["prefs"]?["accent"]?.stringValue
+        guard nextTheme != themeId || nextAccent != accentHex else { return }
+        themeId = nextTheme == "system" ? nil : nextTheme
+        accentHex = nextAccent
+        NotificationCenter.default.post(name: changed, object: nil)
+    }
+
+    static func palette(trait: UITraitCollection) -> Palette {
+        palette(dark: trait.userInterfaceStyle == .dark)
+    }
+
+    static func palette(dark: Bool) -> Palette {
+        Palette.make(dark: dark, themeId: themeId, accent: accentHex)
+    }
+}
+
 enum Metrics {
     /// The floating chat header is the status bar plus the 44pt bar plus 8 below it.
     static func headerHeight(insetTop: CGFloat) -> CGFloat { insetTop + Glass.control + 8 }

@@ -124,7 +124,7 @@ final class NeedsYouViewController: UITableViewController {
             empty.translatesAutoresizingMaskIntoConstraints = false
             empty.text = NativeLanguage.text("Nothing needs you")
             empty.font = TypeScale.small.font
-            empty.textColor = Palette.make(dark: traitCollection.userInterfaceStyle == .dark).ink3
+            empty.textColor = ThemeStore.palette(trait: traitCollection).ink3
             empty.textAlignment = .center
             holder.addSubview(empty)
             NSLayoutConstraint.activate([

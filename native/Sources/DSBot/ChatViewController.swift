@@ -38,7 +38,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let pillAction = UIButton(type: .system)
 
     /// The palette follows the appearance, so no token values are copied here.
-    private var palette: Palette { Palette.make(dark: traitCollection.userInterfaceStyle == .dark) }
+    private var palette: Palette { ThemeStore.palette(trait: traitCollection) }
     private let roomGoalView = RoomGoalView()
     private var goalHiddenHeight: NSLayoutConstraint!
     private var goalShown: NSLayoutConstraint!
@@ -227,6 +227,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         // The chat has no navigation bar: the header floats, pushed screens get it back.
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(themeChanged),
+                                               name: ThemeStore.changed, object: nil)
         view.backgroundColor = palette.main
         configureNoticeBanner()
         configureHeader()
@@ -261,6 +263,19 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updateEmptyState()
         updatePendingButton()
         refreshStatusPill()
+    }
+
+    /// The team theme changed: repaint what the screen already shows.
+    @objc private func themeChanged() {
+        view.backgroundColor = palette.main
+        headerTitle.textColor = palette.ink
+        pillName.textColor = palette.ink
+        pillLabel.textColor = palette.ink3
+        pillSpinner.color = palette.ink3
+        pillAction.setTitleColor(palette.accent, for: .normal)
+        updateTitleButton()
+        refreshStatusPill()
+        list.reloadData()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -900,6 +915,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             }
             loadError = nil
             teamState = state
+            ThemeStore.update(from: state)
             let selected = state["mainBotId"]?.stringValue
             let bots: [JSONValue]
             if case .array(let values)? = state["bots"] { bots = values } else { bots = [] }

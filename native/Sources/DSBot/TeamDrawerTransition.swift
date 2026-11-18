@@ -46,7 +46,7 @@ private final class TeamDrawerPresentationController: UIPresentationController, 
             pan.isEnabled = false
             panel.addGestureRecognizer(pan)
             let dark = panel.traitCollection.userInterfaceStyle == .dark
-            let sidebar = Palette.make(dark: dark).sidebar
+            let sidebar = ThemeStore.palette(dark: dark).sidebar
             fade.colors = [sidebar.withAlphaComponent(0).cgColor, sidebar.cgColor]
             fade.locations = [0, 1]
             panel.layer.addSublayer(fade)

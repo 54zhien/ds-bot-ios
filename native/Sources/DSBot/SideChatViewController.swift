@@ -35,7 +35,7 @@ final class SideChatViewController: UIViewController {
         backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         backButton.accessibilityLabel = NativeLanguage.text("Back")
         backButton.addTarget(self, action: #selector(back), for: .touchUpInside)
-        let sidePalette = Palette.make(dark: traitCollection.userInterfaceStyle == .dark)
+        let sidePalette = ThemeStore.palette(trait: traitCollection)
         let backIcon = IconView(icon: .chevronLeft, size: 28, color: sidePalette.ink2)
         backIcon.frame.origin = CGPoint(x: 8, y: 8)
         backButton.addSubview(backIcon)
@@ -57,7 +57,7 @@ final class SideChatViewController: UIViewController {
         // the composer below is already the way forward.
         emptyLabel.text = NativeLanguage.text("Ask about the work so far")
         emptyLabel.font = TypeScale.small.font
-        emptyLabel.textColor = Palette.make(dark: traitCollection.userInterfaceStyle == .dark).ink3
+        emptyLabel.textColor = ThemeStore.palette(trait: traitCollection).ink3
         emptyLabel.textAlignment = .center
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(emptyLabel)

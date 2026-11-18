@@ -38,7 +38,7 @@ final class GlassControlView: UIControl {
         surface.contentView.addSubview(icon)
 
         dot.translatesAutoresizingMaskIntoConstraints = false
-        dot.backgroundColor = Palette.make(dark: traitCollection.userInterfaceStyle == .dark).accent
+        dot.backgroundColor = ThemeStore.palette(trait: traitCollection).accent
         dot.layer.cornerRadius = 4
         dot.isHidden = true
         surface.contentView.addSubview(dot)

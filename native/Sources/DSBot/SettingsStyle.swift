@@ -7,7 +7,7 @@ enum SettingsStyle {
     static let rowHeight: CGFloat = 50
 
     static func palette(of trait: UITraitCollection) -> Palette {
-        Palette.make(dark: trait.userInterfaceStyle == .dark)
+        ThemeStore.palette(trait: trait)
     }
 
     static func prepare(_ table: UITableView) {

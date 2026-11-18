@@ -25,7 +25,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     private var photos: [(UIImage, String)] = []
     private var railHeight: NSLayoutConstraint!
     private var expanded = false
-    private var palette = Palette.make(dark: false)
+    private var palette = ThemeStore.palette(trait: traitCollection)
 
     // Mirrors composer.tsx. LINE, TEXT_TOP, MEDIA and the 52pt rail are the reference
     // file's own layout constants; everything else is derived from DesignTokens.
@@ -128,9 +128,13 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         applyPalette()
         updateShape()
         updateAction()
+        NotificationCenter.default.addObserver(self, selector: #selector(themeChanged),
+                                               name: ThemeStore.changed, object: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    @objc private func themeChanged() { applyPalette() }
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
@@ -146,7 +150,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     private var dark: Bool { traitCollection.userInterfaceStyle == .dark }
 
     private func applyPalette() {
-        palette = Palette.make(dark: dark)
+        palette = ThemeStore.palette(dark: dark)
         surface.effect = UIBlurEffect(style: dark ? .systemThickMaterial : .systemUltraThinMaterial)
         layer.borderColor = palette.line.cgColor
         editor.textColor = palette.ink

@@ -116,14 +116,14 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     private var sections: [(String, [Entry])] = []
     private var mainEntries: [Entry] = []
     private var query = ""
-    private var palette = Palette.make(dark: false)
+    private var palette = ThemeStore.palette(trait: traitCollection)
     private let gearButtonIcon = IconView(icon: .gear, size: Glass.iconXL)
     private let plusButtonIcon = IconView(icon: .plus, size: Glass.iconXL)
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         guard traitCollection.hasDifferentColorAppearance(comparedTo: previous) else { return }
-        palette = Palette.make(dark: traitCollection.userInterfaceStyle == .dark)
+        palette = ThemeStore.palette(trait: traitCollection)
         gearButtonIcon.color = palette.ink2
         plusButtonIcon.color = palette.ink2
         tableView.backgroundColor = palette.sidebar

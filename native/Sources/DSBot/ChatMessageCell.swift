@@ -66,7 +66,7 @@ final class ChatMessageCell: UITableViewCell {
     private var wideWidth: NSLayoutConstraint!
 
     /// items.tsx reads every colour and size from the palette and the type scale.
-    private var palette: Palette { Palette.make(dark: traitCollection.userInterfaceStyle == .dark) }
+    private var palette: Palette { ThemeStore.palette(trait: traitCollection) }
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short

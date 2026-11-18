@@ -192,7 +192,7 @@ final class ChatMarkdownView: UIStackView {
 
     /// mobile/src/screens/chat/markdown.tsx draws every block on the bubble type and
     /// tints from the palette, so the same values are read here instead of copied.
-    private var palette: Palette { Palette.make(dark: traitCollection.userInterfaceStyle == .dark) }
+    private var palette: Palette { ThemeStore.palette(trait: traitCollection) }
 
     override init(frame: CGRect) {
         super.init(frame: frame)

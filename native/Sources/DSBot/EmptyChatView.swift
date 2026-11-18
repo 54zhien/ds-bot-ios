@@ -17,8 +17,7 @@ final class EmptyChatView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        let dark = traitCollection.userInterfaceStyle == .dark
-        let palette = Palette.make(dark: dark)
+        let palette = ThemeStore.palette(trait: traitCollection)
 
         let column = UIStackView(arrangedSubviews: [avatar, nameLabel, roleLabel, captionLabel, action])
         column.axis = .vertical
@@ -77,9 +76,8 @@ final class EmptyChatView: UIView {
 
     func configure(name: String, role: String, color: String?, caption: String,
                    actionTitle: String? = nil, onAction: (() -> Void)? = nil) {
-        let dark = traitCollection.userInterfaceStyle == .dark
-        let palette = Palette.make(dark: dark)
-        avatar.backgroundColor = Inks.bot(color, dark: dark)
+        let palette = ThemeStore.palette(trait: traitCollection)
+        avatar.backgroundColor = Inks.bot(color, dark: traitCollection.userInterfaceStyle == .dark)
         avatar.layer.borderColor = palette.main.cgColor
         avatar.text = name.isEmpty ? "" : String(name.prefix(1)).uppercased()
         nameLabel.text = name
