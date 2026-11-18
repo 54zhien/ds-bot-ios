@@ -234,18 +234,20 @@ enum SVGPath {
             x: cosine * frameCenterX - sine * frameCenterY + middleX,
             y: sine * frameCenterX + cosine * frameCenterY + middleY)
         if rx == ry && phi == 0 {
-            path.appendArc(withCenter: center, radius: rx, startAngle: startAngle,
-                           endAngle: startAngle + sweepAngle, clockwise: !sweep)
+            path.addArc(withCenter: center, radius: rx, startAngle: startAngle,
+                        endAngle: startAngle + sweepAngle, clockwise: !sweep)
             return
         }
-        // An ellipse, or a tilted one: draw the unit arc and hand it the transform.
+        // An ellipse, or a tilted one: draw the unit arc and carry the transform
+        // on the path itself, the only form UIBezierPath accepts.
         let unit = UIBezierPath()
-        unit.appendArc(withCenter: .zero, radius: 1, startAngle: startAngle,
-                       endAngle: startAngle + sweepAngle, clockwise: !sweep)
+        unit.addArc(withCenter: .zero, radius: 1, startAngle: startAngle,
+                    endAngle: startAngle + sweepAngle, clockwise: !sweep)
         var transform = CGAffineTransform(translationX: center.x, y: center.y)
         transform = transform.rotated(by: phi)
         transform = transform.scaledBy(x: rx, y: ry)
-        path.append(unit.cgPath.transformed(by: transform))
+        unit.apply(transform)
+        path.append(unit)
     }
 
     private static func angle(ux: CGFloat, uy: CGFloat, vx: CGFloat, vy: CGFloat) -> CGFloat {
