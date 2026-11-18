@@ -1,6 +1,6 @@
 # 原生行为对照：RN mobile → native（聊天）
 
-基线 commit：`f7f3283`（main）。只读清单，未改任何代码。
+基线 commit：`f7f3283`（main）。写成时只读；已修复的条目在条目尾部标了「状态」与提交号。
 范围：`mobile/src/screens/Chat.tsx`、`mobile/src/screens/chat/*`、`mobile/src/team/link.ts`、`chat-cache.ts`、`optimistic.ts`、`seen.ts`、`nav/ShellB.tsx` 对照 `native/Sources/DSBot/ChatViewController.swift`、`ChatStream.swift`、`ChatTimeline.swift`、`LinkSession.swift`。
 不在范围：视觉、材质、动效（见 `native-ui-gap.md`）。
 
@@ -25,6 +25,7 @@
 - **原生**：全页只有一个 `NativeComposerView` 实例（`ChatViewController.swift:1123` 起），`selectTarget`（`ChatViewController.swift:1093-1119`）只清列表与选中态，**不碰输入框**；全仓没有 `composer.clear()`，`restoreDraft` 只在发送失败时用（`:1299`、`:1302`）。
 - **影响**：在 A 里打了一半的话，切到 B 还留在输入框里，按发送就发给了 B。
 - **优先级**：P0
+- **状态**：已修复 — `9b2473f`：`NativeComposerView.clear()`，`selectTarget` / `connect(to:)` / 忘记电脑三处先清后切，断线重试同路径。
 
 ### G-02 回到前台不探活，半开连接要等 RPC 超时才失败
 
@@ -32,6 +33,7 @@
 - **原生**：没有任何前后台观察者——`Sources/DSBot` 里 `willEnterForeground` / `didBecomeActive` / `probe` 均无命中；链路只在 socket 关闭时才转 offline（`LinkSession.swift:216-238`）。`RpcClient` 的默认超时 30 000 ms（`RpcClient.swift:9`），轮询 15 s（`ChatViewController.swift:695-703`）。
 - **影响**：切出去再回来发消息，气泡停在「Sending…」最长 30 秒才变红，期间状态条仍显示「在线」。
 - **优先级**：P0
+- **状态**：已修复 — `6b241b2`：`LinkSession` 挂 `didBecomeActive` 观察者，醒来发 relay `ping`（任何回帧即答），1.5 s 无回包关链走重连阶梯；`LinkSessionTests` +4、`RelayTransportTests` +2。
 
 ---
 
@@ -57,6 +59,7 @@
 - **原生**：状态条直接 `showLinkError(error.localizedDescription)`（`:657-662`），空态也直接 `loadError = error.localizedDescription`（`:855`）；`TransportError.description` 是 `code: message`（`Frames.swift:55-58`），即 `invalidFrame: …`、`notPaired: …`。
 - **影响**：断线、未配对、宿主离线时，用户看到的是英文错误码而不是下一步该做什么。
 - **优先级**：P1
+- **状态**：已修复 — `7481ed4`：`TransportError` 增语义码与 `wireCode`，`errorDescription` 统一走 `userText`（新增 `ErrorText.swift`，40+ 处 `localizedDescription` 展示点零改动受益）；未配对时重试按钮变「配对」入口；宿主码只进诊断；`ErrorTextTests` +6、`RpcClientTests` 升级 3 条。房间时间戳由 `36cd508`（cell 拆 `stateLabel`）+ `9d0f9c6`（两处 `ChatPage` 传 `inRoom`）一并对齐 RN。
 
 ### G-06 hello 版本检查失败时直接断链，用户看不出「去更新电脑」
 
