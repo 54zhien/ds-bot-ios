@@ -53,7 +53,7 @@ final class PendingViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = record["title"]?.stringValue ?? "Card"
+        title = record["title"]?.stringValue ?? NativeLanguage.text("Card")
         if navigationController?.viewControllers.first === self {
             navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
                                                                 target: self, action: #selector(close))
@@ -388,10 +388,10 @@ final class PendingViewController: UIViewController {
             }
             return column(controls)
         case "confirm":
-            let cancel = button(node["cancelLabel"]?.stringValue ?? "Cancel", prominent: false) { [weak self] in
+            let cancel = button(node["cancelLabel"]?.stringValue ?? NativeLanguage.text("Cancel"), prominent: false) { [weak self] in
                 self?.submit(action: id, values: ["confirmed": .bool(false)])
             }
-            let confirm = button(node["confirmLabel"]?.stringValue ?? "Confirm", prominent: true) { [weak self] in
+            let confirm = button(node["confirmLabel"]?.stringValue ?? NativeLanguage.text("Confirm"), prominent: true) { [weak self] in
                 self?.submit(action: id, values: ["confirmed": .bool(true)])
             }
             cancel.isEnabled = !readOnly
@@ -419,7 +419,7 @@ final class PendingViewController: UIViewController {
                 fields[key] = input
                 return column([label(field["label"]?.stringValue ?? key), input])
             }
-            let submit = button(node["submitLabel"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
+            let submit = button(node["submitLabel"]?.stringValue ?? NativeLanguage.text("Submit"), prominent: true) { [weak self] in
                 guard let self else { return }
                 var answers: [String: JSONValue] = [:]
                 for (index, definition) in definitions.enumerated() {
@@ -432,7 +432,7 @@ final class PendingViewController: UIViewController {
             controls.append(submit)
             return column(controls)
         case "submit":
-            let submit = button(node["label"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
+            let submit = button(node["label"]?.stringValue ?? NativeLanguage.text("Submit"), prominent: true) { [weak self] in
                 self?.submit(action: id, values: [:])
             }
             submit.isEnabled = !readOnly
@@ -484,8 +484,8 @@ final class PendingViewController: UIViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Card action failed", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Card action failed"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }

@@ -189,7 +189,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         title = tr("Chat")
         titleButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
         titleButton.setTitle(tr("Chat"), for: .normal)
-        titleButton.accessibilityLabel = "Conversation details"
+        titleButton.accessibilityLabel = tr("Conversation details")
         titleButton.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
         navigationItem.titleView = titleButton
         updateTitleButton()
@@ -198,7 +198,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         view.backgroundColor = .systemBackground
         configureNoticeBanner()
         computerItem = UIBarButtonItem(
-            title: "Pair", style: .plain, target: self, action: #selector(showPairing)
+            title: tr("Pair"), style: .plain, target: self, action: #selector(showPairing)
         )
         let sideButton = UIButton(type: .system)
         sideButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
@@ -206,7 +206,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             sideButton.widthAnchor.constraint(equalToConstant: 44),
             sideButton.heightAnchor.constraint(equalToConstant: 44),
         ])
-        sideButton.accessibilityLabel = "Side chat"
+        sideButton.accessibilityLabel = tr("Side chat")
         sideButton.addTarget(self, action: #selector(showSideChat), for: .touchUpInside)
         let sideIcon = OriginalSideIcon()
         sideIcon.translatesAutoresizingMaskIntoConstraints = false
@@ -228,7 +228,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             teamButton.widthAnchor.constraint(equalToConstant: 44),
             teamButton.heightAnchor.constraint(equalToConstant: 44),
         ])
-        teamButton.accessibilityLabel = "Team"
+        teamButton.accessibilityLabel = tr("Team")
         teamButton.addTarget(self, action: #selector(showTeam), for: .touchUpInside)
         let teamIcon = OriginalSidebarIcon()
         teamIcon.translatesAutoresizingMaskIntoConstraints = false
@@ -737,7 +737,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 roomID = nil
                 chatSessionID = nil
                 stream.clear()
-                title = "Chat"
+                title = tr("Chat")
                 updateTitleButton()
                 updateSideButton()
                 pendingItems = []
@@ -982,7 +982,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         let name: String
         if case .array(let bots)? = teamState?["bots"],
            let bot = bots.first(where: { $0["id"]?.stringValue == botID }) {
-            name = bot["name"]?.stringValue ?? "Bot"
+            name = bot["name"]?.stringValue ?? tr("Bot")
         } else { name = "Bot" }
         let side = SideChatViewController(botID: botID, botName: name,
                                           sessionID: chatSessionID, session: session)
@@ -1369,8 +1369,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func showActionError(_ message: String) {
-        let alert = UIAlertController(title: "Could not complete the action", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: tr("Could not complete the action"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("OK"), style: .default))
         present(alert, animated: true)
     }
 }
@@ -1428,19 +1428,19 @@ extension ChatViewController: UITableViewDelegate {
         guard let localID = rows[indexPath.row].localID,
               rows[indexPath.row].failed, let key = chatKey,
               let entry = outbox[key]?.first(where: { $0.id == localID }) else { return }
-        let sheet = UIAlertController(title: "Message not sent", message: entry.failureReason,
+        let sheet = UIAlertController(title: tr("Message not sent"), message: entry.failureReason,
                                       preferredStyle: .actionSheet)
-        sheet.addAction(UIAlertAction(title: "Retry", style: .default) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: tr("Retry"), style: .default) { [weak self] _ in
             guard let self, let index = self.outbox[key]?.firstIndex(where: { $0.id == localID }) else { return }
             self.outbox[key]?[index].failureReason = nil
             self.rebuildRows()
             self.deliver(entry, key: key)
         })
-        sheet.addAction(UIAlertAction(title: "Discard", style: .destructive) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: tr("Discard"), style: .destructive) { [weak self] _ in
             self?.outbox[key]?.removeAll(where: { $0.id == localID })
             self?.rebuildRows()
         })
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = tableView.cellForRow(at: indexPath)
         present(sheet, animated: true)
     }

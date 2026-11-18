@@ -8,21 +8,21 @@ final class PairingViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Pair with computer"
+        title = NativeLanguage.text("Pair with computer")
         view.backgroundColor = .systemBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel, target: self, action: #selector(close)
         )
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Connect", style: .done, target: self, action: #selector(submit)
+            title: NativeLanguage.text("Connect"), style: .done, target: self, action: #selector(submit)
         )
         let instructions = UILabel()
-        instructions.text = "On your computer, open DS Bot → Settings → Phone, then copy the pairing link."
+        instructions.text = NativeLanguage.text("On your computer, open DS Bot → Settings → Phone, then copy the pairing link.")
         instructions.numberOfLines = 0
         instructions.font = .preferredFont(forTextStyle: .body)
         instructions.textColor = .secondaryLabel
         field.placeholder = "dsbot://pair?…"
-        field.accessibilityLabel = "Pairing link"
+        field.accessibilityLabel = NativeLanguage.text("Pairing link")
         field.borderStyle = .roundedRect
         field.autocapitalizationType = .none
         field.autocorrectionType = .no
@@ -34,7 +34,7 @@ final class PairingViewController: UIViewController {
         progressLabel.font = .preferredFont(forTextStyle: .subheadline)
         progressLabel.textColor = .secondaryLabel
         let scanButton = UIButton(type: .system)
-        scanButton.setTitle("Scan QR code", for: .normal)
+        scanButton.setTitle(NativeLanguage.text("Scan QR code"), for: .normal)
         scanButton.addTarget(self, action: #selector(scanCode), for: .touchUpInside)
         scanButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         let stack = UIStackView(arrangedSubviews: [instructions, scanButton, field, errorLabel, progressLabel])
@@ -65,13 +65,13 @@ final class PairingViewController: UIViewController {
     func showStatus(_ status: LinkSession.Status) {
         switch status {
         case .connecting:
-            progressLabel.text = "Connecting…"
+            progressLabel.text = NativeLanguage.text("Connecting…")
         case .offline:
-            progressLabel.text = "Waiting for computer…"
+            progressLabel.text = NativeLanguage.text("Waiting for computer…")
         case .online:
-            progressLabel.text = "Connected"
+            progressLabel.text = NativeLanguage.text("Connected")
         case .disconnected:
-            progressLabel.text = "Could not connect. Check the link and try again."
+            progressLabel.text = NativeLanguage.text("Could not connect. Check the link and try again.")
             navigationItem.rightBarButtonItem?.isEnabled = true
         }
     }

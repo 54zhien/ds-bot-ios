@@ -10,13 +10,13 @@ final class PairingScannerViewController: UIViewController, AVCaptureMetadataOut
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Scan pairing code"
+        title = NativeLanguage.text("Scan pairing code")
         view.backgroundColor = .black
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel, target: self, action: #selector(close)
         )
         message.translatesAutoresizingMaskIntoConstraints = false
-        message.text = "Point the camera at the QR code in DS Bot → Settings → Phone."
+        message.text = NativeLanguage.text("Point the camera at the QR code in DS Bot → Settings → Phone.")
         message.textColor = .white
         message.textAlignment = .center
         message.numberOfLines = 0
@@ -30,7 +30,7 @@ final class PairingScannerViewController: UIViewController, AVCaptureMetadataOut
         Task {
             let allowed = await AVCaptureDevice.requestAccess(for: .video)
             if allowed { configureCamera() }
-            else { message.text = "Camera access is off. Paste the pairing link instead." }
+            else { message.text = NativeLanguage.text("Camera access is off. Paste the pairing link instead.") }
         }
     }
 
@@ -49,13 +49,13 @@ final class PairingScannerViewController: UIViewController, AVCaptureMetadataOut
               let input = try? AVCaptureDeviceInput(device: camera),
               capture.canAddInput(input)
         else {
-            message.text = "The camera is unavailable. Paste the pairing link instead."
+            message.text = NativeLanguage.text("The camera is unavailable. Paste the pairing link instead.")
             return
         }
         capture.addInput(input)
         let output = AVCaptureMetadataOutput()
         guard capture.canAddOutput(output) else {
-            message.text = "QR scanning is unavailable. Paste the pairing link instead."
+            message.text = NativeLanguage.text("QR scanning is unavailable. Paste the pairing link instead.")
             return
         }
         capture.addOutput(output)

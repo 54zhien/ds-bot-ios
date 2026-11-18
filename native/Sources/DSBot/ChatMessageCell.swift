@@ -122,7 +122,7 @@ final class ChatMessageCell: UITableViewCell {
             button.backgroundColor = .tertiarySystemBackground
             button.imageView?.contentMode = .scaleAspectFill
             button.setImage(images[reference], for: .normal)
-            button.accessibilityLabel = "Open photo"
+            button.accessibilityLabel = NativeLanguage.text("Open photo")
             button.widthAnchor.constraint(equalToConstant: 150).isActive = true
             button.addAction(UIAction { [weak self] _ in self?.onOpenPhoto?(reference) }, for: .touchUpInside)
             photoStack.addArrangedSubview(button)

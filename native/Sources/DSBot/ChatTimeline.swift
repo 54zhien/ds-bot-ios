@@ -10,7 +10,7 @@ enum BotAPI {
             "payload": payload,
         ]))
         guard reply["ok"] == .bool(true), let value = reply["value"] else {
-            let message = reply["error"]?["message"]?.stringValue ?? "The computer could not load this chat."
+            let message = reply["error"]?["message"]?.stringValue ?? NativeLanguage.text("The computer could not load this chat.")
             let code = reply["error"]?["code"]?.stringValue
             let reason = code.map { "\($0): \(message)" } ?? message
             throw NSError(domain: "DSBot", code: 1, userInfo: [NSLocalizedDescriptionKey: reason])
@@ -128,7 +128,7 @@ struct ChatRow {
         let direct = value["file"]
         let whole = direct?["attachmentId"]?.stringValue != nil ? direct : value["whole"]?["file"]
         if let whole, whole["attachmentId"]?.stringValue != nil {
-            attached.append(ChatFile(title: "Read full message", value: whole))
+            attached.append(ChatFile(title: NativeLanguage.text("Read full message"), value: whole))
         }
         files = attached
         if kind == "view", let root = value["view"], root != .null {
@@ -142,7 +142,7 @@ struct ChatRow {
             stepSummary = "Used \(count) \(count == 1 ? "tool" : "tools")"
                 + (seconds > 0 ? " · thought for \(seconds)s" : "")
             stepDetails = tools.map { tool in
-                let label = tool["label"]?.stringValue ?? tool["name"]?.stringValue ?? "Tool"
+                let label = tool["label"]?.stringValue ?? tool["name"]?.stringValue ?? NativeLanguage.text("Tool")
                 return label + (tool["ok"] == .bool(false) ? " — failed" : "")
             }
         } else {

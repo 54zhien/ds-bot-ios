@@ -89,6 +89,48 @@ enum NativeLanguage {
         "Enter a positive repeat interval.": "输入大于零的重复间隔。",
         "Hidden": "已隐藏",
         "Visible": "已显示",
+        "OK": "好",
+        "Open photo": "打开照片",
+        "The computer could not load this chat.": "这台电脑无法加载此对话。",
+        "Tool": "工具",
+        "Not paired": "未配对",
+        "Copy diagnostics": "复制诊断信息",
+        "Save diagnostics": "保存诊断信息",
+        "The dump could not be written.": "诊断信息写入失败。",
+        "Diagnostics saved": "诊断信息已保存",
+        "Copy path": "复制路径",
+        "Could not complete the action": "操作未能完成",
+        "Message not sent": "消息未发出",
+        "Could not connect": "无法连接",
+        "Connect {name}": "连接 {name}",
+        "Token": "令牌",
+        "Scan pairing code": "扫描配对码",
+        "Point the camera at the QR code in DS Bot → Settings → Phone.": "把摄像头对准 DS Bot → 设置 → 手机 中显示的二维码。",
+        "Camera access is off. Paste the pairing link instead.": "相机权限已关闭，请改为粘贴配对链接。",
+        "The camera is unavailable. Paste the pairing link instead.": "相机不可用，请改为粘贴配对链接。",
+        "QR scanning is unavailable. Paste the pairing link instead.": "无法扫码，请改为粘贴配对链接。",
+        "Pair with computer": "与电脑配对",
+        "On your computer, open DS Bot → Settings → Phone, then copy the pairing link.": "在电脑上打开 DS Bot → 设置 → 手机，复制配对链接。",
+        "Scan QR code": "扫描二维码",
+        "Waiting for computer…": "正在等待电脑…",
+        "Could not connect. Check the link and try again.": "无法连接，请检查链接后重试。",
+        "Answer on the computer": "在电脑上回答",
+        "Cancel request": "取消请求",
+        "Card action failed": "卡片操作失败",
+        "Add custom provider": "添加自定义服务商",
+        "API URL and model IDs": "API 地址和模型 ID",
+        "Replace API key": "替换 API 密钥",
+        "Set API key": "设置 API 密钥",
+        "Paste API key": "粘贴 API 密钥",
+        "Enter an API key if you have one.": "有 API 密钥就填进来。",
+        "Bots using this provider need another model.": "使用这个服务商的 Bot 需要换一个模型。",
+        "Task": "任务",
+        "Latest dump": "最新诊断文件",
+        "None yet": "暂无",
+        "Diagnostics folder": "诊断文件夹",
+        "Installing…": "正在安装…",
+        "Update failed": "更新失败",
+        "There is no dump yet. Long-press the chat title to save one.": "还没有诊断文件。长按聊天标题即可保存一份。",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }
@@ -103,6 +145,15 @@ enum NativeLanguage {
         UserDefaults.standard.set(mode, forKey: preference)
         NotificationCenter.default.post(name: changed, object: nil)
     }
+
+    /// Whether a key has a Chinese entry, whichever table carries it. The guard test asks
+    /// this so a call site cannot reach the screen without a translation.
+    static func hasEntry(_ key: String) -> Bool {
+        nativeChinese[key] != nil || chinese[key] != nil
+    }
+
+    /// The keys written in this file, for the other half of the guard: entries nothing uses.
+    static var nativeKeys: Set<String> { Set(nativeChinese.keys) }
 
     static func text(_ english: String, _ values: [String: String] = [:]) -> String {
         var result = isChinese ? nativeChinese[english] ?? chinese[english] ?? english : english
