@@ -96,6 +96,8 @@ struct ChatRow {
     let localImageData: [Data]
     let files: [ChatFile]
     let viewRecord: JSONValue?
+    /// The settled card this item draws, when it draws one; items.tsx's own branch.
+    let settled: SettledCard?
     let stepSummary: String?
     let stepDetails: [String]
     let time: Date?
@@ -141,6 +143,7 @@ struct ChatRow {
         if kind == "view", let root = value["view"], root != .null {
             viewRecord = .object(["title": .string(title), "view": root])
         } else { viewRecord = nil }
+        settled = SettledCard(item: value)
         if kind == "steps" {
             let tools: [JSONValue]
             if case .array(let entries)? = value["tools"] { tools = entries } else { tools = [] }
@@ -236,6 +239,7 @@ struct ChatRow {
         self.localImageData = localImageData
         files = []
         viewRecord = nil
+        settled = nil
         stepSummary = nil
         stepDetails = []
         self.text = text
