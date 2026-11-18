@@ -1,6 +1,7 @@
 import UIKit
 
 final class CapabilitiesViewController: UITableViewController {
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
     private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let session: LinkSession
     private var items: [JSONValue] = []
@@ -20,6 +21,7 @@ final class CapabilitiesViewController: UITableViewController {
                                                             action: #selector(add))
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
+        SettingsStyle.prepare(tableView)
         Task { await load() }
     }
 
@@ -43,9 +45,11 @@ final class CapabilitiesViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "capability")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "capability")
         cell.detailTextLabel?.numberOfLines = 2
+        SettingsStyle.styleSubtitle(cell, palette: palette)
         if items.isEmpty {
             cell.textLabel?.text = tr("No capabilities")
             cell.detailTextLabel?.text = tr("Tap + to add an MCP server, skill, or pack")
+            cell.detailTextLabel?.textColor = palette.ink3
             cell.accessoryType = .none
         } else {
             let item = items[indexPath.row]
