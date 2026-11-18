@@ -14,9 +14,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var composerHeight: NSLayoutConstraint!
     private let pendingDock = PendingDockView()
     private let blockedView = BotBlockedView()
+    private let computerUseView = ComputerUseView()
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusBar = UIStackView()
+    private let roomGoalView = RoomGoalView()
+    private var goalHiddenHeight: NSLayoutConstraint!
     private let statusLabel = UILabel()
     private let retryButton = UIButton(type: .system)
     private let pairingStore = PairingStore()
@@ -221,6 +224,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         ])
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: teamButton)
         configureStatusBar()
+        configureRoomGoal()
         configureList()
         configureComposer()
         let drawerEdge = UIPanGestureRecognizer(target: self, action: #selector(openDrawerFromEdge(_:)))
@@ -269,6 +273,23 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         ])
     }
 
+    private func configureRoomGoal() {
+        roomGoalView.translatesAutoresizingMaskIntoConstraints = false
+        goalHiddenHeight = roomGoalView.heightAnchor.constraint(equalToConstant: 0)
+        goalHiddenHeight.isActive = true
+        roomGoalView.onHeightChange = { [weak self] in
+            guard let self else { return }
+            goalHiddenHeight.isActive = roomGoalView.isHidden
+            view.setNeedsLayout()
+        }
+        view.addSubview(roomGoalView)
+        NSLayoutConstraint.activate([
+            roomGoalView.topAnchor.constraint(equalTo: statusBar.bottomAnchor),
+            roomGoalView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            roomGoalView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+        ])
+    }
+
     private func configureList() {
         list.translatesAutoresizingMaskIntoConstraints = false
         list.dataSource = self
@@ -286,7 +307,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         emptyState.font = .preferredFont(forTextStyle: .subheadline)
         view.addSubview(emptyState)
         NSLayoutConstraint.activate([
-            list.topAnchor.constraint(equalTo: statusBar.bottomAnchor),
+            list.topAnchor.constraint(equalTo: roomGoalView.bottomAnchor),
             list.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             list.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             list.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -323,6 +344,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         selectedTarget = nil
         teamState = nil
         blockedView.configure(nil)
+        computerUseView.configure(nil)
+        roomGoalView.configure(nil)
         pendingItems = []
         updatePendingButton()
         chatSessionID = nil
@@ -575,6 +598,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 pendingItems = []
                 updatePendingButton()
                 blockedView.configure(nil)
+                computerUseView.configure(nil)
+                roomGoalView.configure(nil)
                 updateBottomInset()
                 rows = []
                 list.reloadData()
@@ -602,6 +627,13 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 if case .array(let values)? = state["models"] { models = values } else { models = [] }
                 blockedView.configure(BotBlockedPresentation(bot: chosen ?? .null, models: models))
             } else { blockedView.configure(nil) }
+            if target.kind == .bot {
+                computerUseView.configure(ComputerUsePresentation(bot: chosen ?? .null,
+                                                                   live: state["computerLive"]))
+            } else { computerUseView.configure(nil) }
+            if target.kind == .room, let goal = chosen?["goal"], goal != .null {
+                roomGoalView.configure(RoomGoalPresentation(goal: goal))
+            } else { roomGoalView.configure(nil) }
             updateBottomInset()
             if target.kind == .bot {
                 let work = state["work"]?["bots"]?[target.id]
@@ -891,6 +923,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         pendingItems = []
         updatePendingButton()
         blockedView.configure(nil)
+        computerUseView.configure(nil)
+        roomGoalView.configure(nil)
         updateBottomInset()
         list.reloadData()
         updateEmptyState()
@@ -940,6 +974,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             }
         }
         view.addSubview(blockedView)
+        computerUseView.translatesAutoresizingMaskIntoConstraints = false
+        computerUseView.onAnswer = { [weak self] askID, answer in
+            self?.answerComputerUse(askID: askID, answer: answer)
+        }
+        computerUseView.onStop = { [weak self] botID in self?.stopComputerUse(botID: botID) }
+        view.addSubview(computerUseView)
         if #available(iOS 17.0, *) {
             view.keyboardLayoutGuide.usesBottomSafeArea = true
         }
@@ -955,6 +995,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             blockedView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
             blockedView.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
             blockedView.bottomAnchor.constraint(equalTo: pendingDock.topAnchor, constant: -8),
+            computerUseView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+            computerUseView.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
+            computerUseView.bottomAnchor.constraint(equalTo: blockedView.topAnchor, constant: -8),
         ])
     }
 
@@ -963,7 +1006,11 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             CGSize(width: max(1, view.bounds.width - 32), height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
         ).height + 8
-        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + blockedHeight + 22
+        let computerHeight = computerUseView.isHidden ? 0 : computerUseView.systemLayoutSizeFitting(
+            CGSize(width: max(1, view.bounds.width - 32), height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
+        ).height + 8
+        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + blockedHeight + computerHeight + 22
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {
@@ -1125,6 +1172,31 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             } catch {
                 showActionError(error.localizedDescription)
             }
+        }
+    }
+
+    private func answerComputerUse(askID: String, answer: String) {
+        guard linkStatus == .online, botID != nil,
+              ["deny", "once", "always"].contains(answer) else { return }
+        let connectionID = sessionID
+        Task {
+            do {
+                _ = try await BotAPI.call("computer-app-answer",
+                                          payload: ComputerUsePresentation.answerPayload(id: askID, answer: answer),
+                                          on: session)
+                await refreshLatest(for: connectionID)
+            } catch { showActionError(error.localizedDescription) }
+        }
+    }
+
+    private func stopComputerUse(botID targetID: String) {
+        guard linkStatus == .online, botID == targetID else { return }
+        let connectionID = sessionID
+        Task {
+            do {
+                _ = try await BotAPI.call("computer-stop", payload: .object(["botId": .string(targetID)]), on: session)
+                await refreshLatest(for: connectionID)
+            } catch { showActionError(error.localizedDescription) }
         }
     }
 

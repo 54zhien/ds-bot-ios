@@ -66,6 +66,7 @@ final class ConversationDetailsViewController: UITableViewController {
         let selectable = target.kind == .bot
             ? indexPath.section == 3 || indexPath.section == 1
                 || indexPath.section == 2 && indexPath.row == 0 && state["memory"] != .bool(false)
+                || indexPath.section == 2 && indexPath.row == 1
                 || indexPath.section == 2 && indexPath.row == 2
             : indexPath.section == 2 && indexPath.row == 2
         cell.selectionStyle = selectable ? .default : .none
@@ -100,6 +101,10 @@ final class ConversationDetailsViewController: UITableViewController {
                 session: session
             )
             navigationController?.pushViewController(schedules, animated: true)
+        } else if target.kind == .bot && indexPath.section == 2 && indexPath.row == 1 {
+            navigationController?.pushViewController(
+                BotUsageViewController(botID: target.id, name: target.name, session: session), animated: true
+            )
         } else if target.kind == .bot && indexPath.section == 1 && indexPath.row == 4 {
             navigationController?.pushViewController(
                 BotCapabilitiesViewController(botID: target.id, session: session), animated: true

@@ -15,9 +15,12 @@ final class BotEditorViewController: UIViewController {
     private let colorButton = UIButton(type: .system)
     private let shapeButton = UIButton(type: .system)
     private let modelButton = UIButton(type: .system)
+    private let effortButton = UIButton(type: .system)
     private var color: String
     private var shape: String
     private var model: String?
+    private var effort: String?
+    private var efforts: [(id: String, name: String)] = []
     private var busy = false
 
     private static let colors = ["black", "brown", "red", "orange", "yellow", "green",
@@ -32,6 +35,7 @@ final class BotEditorViewController: UIViewController {
         color = bot?["color"]?.stringValue ?? "blue"
         shape = bot?["avatar"]?["shape"]?.stringValue ?? "star"
         model = bot?["model"]?.stringValue ?? state["defaultModel"]?.stringValue
+        effort = bot?["effort"]?.stringValue
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -86,6 +90,9 @@ final class BotEditorViewController: UIViewController {
         addPicker(shapeButton, label: "Character shape", value: shape, action: #selector(pickShape))
         if case .array(let models)? = state["models"], !models.isEmpty {
             addPicker(modelButton, label: "Model", value: model ?? "Default", action: #selector(pickModel))
+            addPicker(effortButton, label: "Thinking level", value: effort ?? "Default", action: #selector(pickEffort))
+            effortButton.isHidden = true
+            loadEfforts()
         }
         if bot != nil {
             privateSwitch.isOn = bot?["private"] == .bool(true)
@@ -168,7 +175,52 @@ final class BotEditorViewController: UIViewController {
         choose("Model", values: refs, from: modelButton) { [weak self] value in
             self?.model = value
             self?.modelButton.setTitle("Model · \(value)", for: .normal)
+            self?.effort = nil
+            self?.loadEfforts()
         }
+    }
+
+    private func loadEfforts() {
+        guard let model else { effortButton.isHidden = true; return }
+        let served: JSONValue?
+        if case .array(let models)? = state["models"] {
+            served = models.first { $0["ref"]?.stringValue == model }?["reasoning"]
+        } else { served = nil }
+        if let served { showEfforts(served); return }
+        Task {
+            guard let response = try? await BotAPI.call("efforts", payload: .object(["ref": .string(model)]), on: session),
+                  self.model == model else { return }
+            showEfforts(response)
+        }
+    }
+
+    private func showEfforts(_ reasoning: JSONValue) {
+        if case .array(let values)? = reasoning["efforts"] {
+            efforts = values.compactMap { item in
+                guard let id = item["id"]?.stringValue else { return nil }
+                return (id, item["name"]?.stringValue ?? id)
+            }
+        } else { efforts = [] }
+        effortButton.isHidden = efforts.isEmpty
+        let name = efforts.first { $0.id == effort }?.name ?? "Default"
+        effortButton.setTitle("Thinking level · \(name)", for: .normal)
+    }
+
+    @objc private func pickEffort() {
+        let sheet = UIAlertController(title: "Thinking level", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Default", style: .default) { [weak self] _ in
+            self?.effort = nil
+            self?.effortButton.setTitle("Thinking level · Default", for: .normal)
+        })
+        for item in efforts {
+            sheet.addAction(UIAlertAction(title: item.name, style: .default) { [weak self] _ in
+                self?.effort = item.id
+                self?.effortButton.setTitle("Thinking level · \(item.name)", for: .normal)
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.popoverPresentationController?.sourceView = effortButton
+        present(sheet, animated: true)
     }
 
     @objc private func close() { dismiss(animated: true) }
@@ -199,6 +251,7 @@ final class BotEditorViewController: UIViewController {
                         patch["avatar"] = .object(avatar)
                     }
                     if model != bot["model"]?.stringValue, let model { patch["model"] = .string(model) }
+                    if effort != bot["effort"]?.stringValue { patch["effort"] = effort.map(JSONValue.string) ?? .null }
                     if privateSwitch.isOn != (bot["private"] == .bool(true)) {
                         patch["private"] = .bool(privateSwitch.isOn)
                     }
@@ -218,6 +271,7 @@ final class BotEditorViewController: UIViewController {
                         "avatar": .object(["shape": .string(shape)]),
                     ]
                     if let model { payload["model"] = .string(model) }
+                    if let effort { payload["effort"] = .string(effort) }
                     let created = try await BotAPI.call("create-bot", payload: .object(payload), on: session)
                     guard let id = created["id"]?.stringValue else { throw NSError(
                         domain: "DSBot", code: 3,
