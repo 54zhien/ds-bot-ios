@@ -55,7 +55,10 @@ final class CustomProviderViewController: UITableViewController {
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
-    private var headerTitles: [String?] { ["Connection", "Models", nil].map { $0.map(NativeLanguage.text) } }
+    private var headerTitles: [String?] {
+        let names: [String?] = ["Connection", "Models", nil]
+        return names.map { $0.map { NativeLanguage.text($0) } }
+    }
     override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
         headerTitles[section] == nil ? SettingsStyle.gapHeaderHeight : SettingsStyle.headerHeight
     }
