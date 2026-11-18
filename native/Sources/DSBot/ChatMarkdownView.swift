@@ -190,10 +190,14 @@ enum ChatMarkdownBlock: Equatable {
 final class ChatMarkdownView: UIStackView {
     private var source = ""
 
+    /// mobile/src/screens/chat/markdown.tsx draws every block on the bubble type and
+    /// tints from the palette, so the same values are read here instead of copied.
+    private var palette: Palette { Palette.make(dark: traitCollection.userInterfaceStyle == .dark) }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         axis = .vertical
-        spacing = 8
+        spacing = Glass.gap
     }
 
     required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -216,30 +220,51 @@ final class ChatMarkdownView: UIStackView {
             case .code(let value): addArrangedSubview(codeView(value))
             case .table(let rows): addArrangedSubview(tableView(rows))
             case .heading(let depth, let value):
-                let label = markdownLabel(value, font: .preferredFont(forTextStyle: depth == 1 ? .title3 : .headline))
+                let scale = depth == 1 ? TypeScale.largeTitle : TypeScale.headerTitle
+                let label = markdownLabel(value, font: scale.font, lineHeight: scale.lineHeight)
                 addArrangedSubview(label)
             case .list(let items): addArrangedSubview(listView(items))
             case .quote(let value): addArrangedSubview(quoteView(value))
             case .rule:
                 let separator = UIView()
-                separator.backgroundColor = UIColor.label.withAlphaComponent(0.14)
+                separator.backgroundColor = palette.line
                 separator.heightAnchor.constraint(equalToConstant: 1).isActive = true
                 addArrangedSubview(separator)
             }
         }
     }
 
-    private func markdownLabel(_ value: String, font: UIFont? = nil) -> UILabel {
+    private func markdownLabel(_ value: String, font: UIFont? = nil, lineHeight: CGFloat? = nil) -> UILabel {
         let label = MarkdownLinkLabel()
         label.numberOfLines = 0
-        label.font = font ?? .preferredFont(forTextStyle: .body)
+        let ink = palette.ink
+        let type = font ?? TypeScale.bubble.font
+        let lead = lineHeight ?? TypeScale.bubble.lineHeight
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = lead
+        paragraph.maximumLineHeight = lead
         if let markdown = try? AttributedString(markdown: value) {
             let rendered = NSMutableAttributedString(attributedString: NSAttributedString(markdown))
-            if let font { rendered.addAttribute(.font, value: font,
-                                                range: NSRange(location: 0, length: rendered.length)) }
+            rendered.addAttributes([.font: type, .foregroundColor: ink, .paragraphStyle: paragraph],
+                                   range: NSRange(location: 0, length: rendered.length))
+            // Links read as links: the accent, underlined, like markdown.tsx.
+            let text = rendered.string as NSString
+            for match in matches(in: text, pattern: "\\[([^\\]]+)\\]\\(([^)]+)\\)") {
+                rendered.addAttributes([.foregroundColor: palette.accent, .underlineStyle: NSUnderlineStyle.single.rawValue],
+                                       range: match)
+            }
             label.attributedText = rendered
-        } else { label.text = value }
+        } else {
+            label.attributedText = NSAttributedString(string: value, attributes: [
+                .font: type, .foregroundColor: ink, .paragraphStyle: paragraph,
+            ])
+        }
         return label
+    }
+
+    private func matches(in text: NSString, pattern: String) -> [NSRange] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        return regex.matches(in: text as String, range: NSRange(location: 0, length: text.length)).map(\.range)
     }
 
     private func listView(_ items: [ChatMarkdownListItem]) -> UIView {
@@ -249,8 +274,8 @@ final class ChatMarkdownView: UIStackView {
         for item in items {
             let marker = UILabel()
             marker.text = item.marker
-            marker.textColor = .secondaryLabel
-            marker.font = .preferredFont(forTextStyle: .body)
+            marker.textColor = palette.ink3
+            marker.font = TypeScale.bubble.font
             marker.textAlignment = .right
             marker.widthAnchor.constraint(equalToConstant: item.marker == "•" ? 18 : 30).isActive = true
             let body = ChatMarkdownView()
@@ -273,7 +298,7 @@ final class ChatMarkdownView: UIStackView {
 
     private func quoteView(_ value: String) -> UIView {
         let stripe = UIView()
-        stripe.backgroundColor = UIColor.label.withAlphaComponent(0.14)
+        stripe.backgroundColor = palette.line
         stripe.widthAnchor.constraint(equalToConstant: 3).isActive = true
         let body = ChatMarkdownView()
         body.configure(value)
@@ -286,11 +311,11 @@ final class ChatMarkdownView: UIStackView {
     private func codeView(_ code: String) -> UIView {
         let scroll = UIScrollView()
         scroll.showsHorizontalScrollIndicator = true
-        scroll.layer.cornerRadius = 10
-        scroll.layer.borderWidth = 0.5
-        scroll.layer.borderColor = UIColor.separator.cgColor
-        scroll.backgroundColor = UIColor.label.withAlphaComponent(0.06)
-        let font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        scroll.layer.cornerRadius = Radius.input
+        scroll.layer.borderWidth = 1
+        scroll.layer.borderColor = palette.line.cgColor
+        scroll.backgroundColor = palette.hover
+        let font = TypeScale.mono(13)
         let width = code.components(separatedBy: "\n").map {
             ($0 as NSString).size(withAttributes: [.font: font]).width
         }.max() ?? 0
@@ -316,9 +341,9 @@ final class ChatMarkdownView: UIStackView {
     private func tableView(_ rows: [[String]]) -> UIView {
         let scroll = UIScrollView()
         scroll.showsHorizontalScrollIndicator = true
-        scroll.layer.cornerRadius = 10
-        scroll.layer.borderWidth = 0.5
-        scroll.layer.borderColor = UIColor.separator.cgColor
+        scroll.layer.cornerRadius = Radius.input
+        scroll.layer.borderWidth = 1
+        scroll.layer.borderColor = palette.line.cgColor
         let content = UIStackView()
         content.translatesAutoresizingMaskIntoConstraints = false
         content.axis = .vertical
@@ -328,14 +353,15 @@ final class ChatMarkdownView: UIStackView {
             let row = UIStackView()
             row.axis = .horizontal
             row.alignment = .fill
-            row.backgroundColor = rowIndex == 0 ? UIColor.label.withAlphaComponent(0.06) : .clear
+            row.backgroundColor = rowIndex == 0 ? palette.hover : .clear
             for index in 0..<columnCount {
                 let value = index < values.count ? values[index] : ""
                 let label = UILabel()
                 if let markdown = try? AttributedString(markdown: value) {
                     label.attributedText = NSAttributedString(markdown)
                 } else { label.text = value }
-                label.font = .systemFont(ofSize: 14, weight: rowIndex == 0 ? .semibold : .regular)
+                label.font = .systemFont(ofSize: TypeScale.bubble.size - 1, weight: rowIndex == 0 ? .semibold : .regular)
+                label.textColor = palette.ink
                 label.numberOfLines = 2
                 label.textAlignment = .left
                 label.widthAnchor.constraint(equalToConstant: 150).isActive = true
