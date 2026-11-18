@@ -233,21 +233,22 @@ enum SVGPath {
         let center = CGPoint(
             x: cosine * frameCenterX - sine * frameCenterY + middleX,
             y: sine * frameCenterX + cosine * frameCenterY + middleY)
-        if rx == ry && phi == 0 {
-            path.addArc(withCenter: center, radius: rx, startAngle: startAngle,
-                        endAngle: startAngle + sweepAngle, clockwise: !sweep)
-            return
+        // Sampled rather than handed to addArc: UIKit's clockwise flag means the
+        // opposite direction once the y axis points down, and the endpoint angles
+        // above already carry the direction the spec asks for.
+        let steps = max(8, Int(abs(sweepAngle) / (.pi / 128)))
+        var point = CGPoint(x: center.x + rx * cos(startAngle) * cosine
+                              - ry * sin(startAngle) * sine,
+                            y: center.y + rx * cos(startAngle) * sine
+                              + ry * sin(startAngle) * cosine)
+        path.move(to: point)
+        for step in 1...steps {
+            let t = startAngle + sweepAngle * CGFloat(step) / CGFloat(steps)
+            point = CGPoint(x: center.x + rx * cos(t) * cosine - ry * sin(t) * sine,
+                            y: center.y + rx * cos(t) * sine + ry * sin(t) * cosine)
+            path.addLine(to: point)
         }
-        // An ellipse, or a tilted one: draw the unit arc and carry the transform
-        // on the path itself, the only form UIBezierPath accepts.
-        let unit = UIBezierPath()
-        unit.addArc(withCenter: .zero, radius: 1, startAngle: startAngle,
-                    endAngle: startAngle + sweepAngle, clockwise: !sweep)
-        var transform = CGAffineTransform(translationX: center.x, y: center.y)
-        transform = transform.rotated(by: phi)
-        transform = transform.scaledBy(x: rx, y: ry)
-        unit.apply(transform)
-        path.append(unit)
+        path.addLine(to: target)
     }
 
     private static func angle(ux: CGFloat, uy: CGFloat, vx: CGFloat, vy: CGFloat) -> CGFloat {
