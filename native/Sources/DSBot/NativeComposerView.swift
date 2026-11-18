@@ -25,7 +25,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     private var photos: [(UIImage, String)] = []
     private var railHeight: NSLayoutConstraint!
     private var expanded = false
-    private var palette = ThemeStore.palette(dark: false)
+    private var palette = Palette.make(dark: false)
 
     // Mirrors composer.tsx. LINE, TEXT_TOP, MEDIA and the 52pt rail are the reference
     // file's own layout constants; everything else is derived from DesignTokens.
