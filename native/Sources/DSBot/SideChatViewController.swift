@@ -35,16 +35,16 @@ final class SideChatViewController: UIViewController {
         backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         backButton.accessibilityLabel = NativeLanguage.text("Back")
         backButton.addTarget(self, action: #selector(back), for: .touchUpInside)
-        let backIcon = OriginalChevronRightIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
-        backIcon.transform = CGAffineTransform(rotationAngle: .pi)
-        backIcon.isUserInteractionEnabled = false
+        let sidePalette = Palette.make(dark: traitCollection.userInterfaceStyle == .dark)
+        let backIcon = IconView(icon: .chevronLeft, size: 28, color: sidePalette.ink2)
+        backIcon.frame.origin = CGPoint(x: 8, y: 8)
         backButton.addSubview(backIcon)
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: backButton)
         closeChatButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         closeChatButton.accessibilityLabel = NativeLanguage.text("Close side chat")
         closeChatButton.addTarget(self, action: #selector(closeChat), for: .touchUpInside)
-        let closeIcon = OriginalCloseIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
-        closeIcon.isUserInteractionEnabled = false
+        let closeIcon = IconView(icon: .close, size: 28, color: sidePalette.ink2)
+        closeIcon.frame.origin = CGPoint(x: 8, y: 8)
         closeChatButton.addSubview(closeIcon)
         navigationItem.rightBarButtonItem = UIBarButtonItem(customView: closeChatButton)
         table.translatesAutoresizingMaskIntoConstraints = false
@@ -80,8 +80,8 @@ final class SideChatViewController: UIViewController {
         field.delegate = self
         field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         composer.addArrangedSubview(field)
-        let arrow = OriginalActionIcon(frame: CGRect(x: 9, y: 9, width: 26, height: 26))
-        arrow.isUserInteractionEnabled = false
+        let arrow = IconView(icon: .arrowUp, size: 26, color: sidePalette.accentInk)
+        arrow.frame.origin = CGPoint(x: 9, y: 9)
         sendButton.addSubview(arrow)
         sendButton.accessibilityLabel = NativeLanguage.text("Send side question")
         sendButton.backgroundColor = view.tintColor
@@ -239,7 +239,7 @@ extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UI
             if case .array(let values)? = chat["entries"] { history = values } else { history = [] }
             cell.textLabel?.text = history.last?["question"]?.stringValue ?? NativeLanguage.text("New side chat")
             cell.detailTextLabel?.text = NativeLanguage.text("{count} questions", ["count": String(history.count)])
-            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+            cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         } else {
             let entry = entries[indexPath.row]
             cell.textLabel?.text = entry["question"]?.stringValue ?? ""

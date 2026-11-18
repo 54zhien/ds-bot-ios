@@ -82,7 +82,7 @@ final class ConversationDetailsViewController: UITableViewController {
         cell.textLabel?.text = pair.0
         cell.detailTextLabel?.text = pair.1
         if selectable {
-            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+            cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         }
         return cell
     }

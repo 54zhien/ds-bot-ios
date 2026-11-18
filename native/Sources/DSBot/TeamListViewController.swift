@@ -7,7 +7,8 @@ struct ChatTarget: Equatable {
     let name: String
 }
 
-/// SidebarIcon from mobile/src/ui/icons.tsx, 20×20 viewBox.
+/// The interim home of the two glyphs the chat screen still references directly;
+/// Icons.swift owns every other one. It goes away when that file is rewired.
 class OriginalIconView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -36,38 +37,8 @@ final class OriginalSidebarIcon: OriginalIconView {
     }
 }
 
-/// GearIcon path from mobile/src/ui/icons.tsx.
-final class OriginalGearIcon: OriginalIconView {
-    override func draw(_ rect: CGRect) {
-        let context = UIGraphicsGetCurrentContext()
-        context?.saveGState()
-        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
-        tintColor.setStroke()
-        let ring = UIBezierPath(ovalIn: CGRect(x: 7.4, y: 7.4, width: 5.2, height: 5.2))
-        ring.lineWidth = 1.8
-        ring.stroke()
-        let outline = UIBezierPath()
-        let points = [
-            CGPoint(x: 7.85, y: 4.4), CGPoint(x: 8.14, y: 2.53), CGPoint(x: 11.86, y: 2.53),
-            CGPoint(x: 12.15, y: 4.4), CGPoint(x: 13.78, y: 5.34), CGPoint(x: 15.54, y: 4.65),
-            CGPoint(x: 17.4, y: 7.88), CGPoint(x: 15.93, y: 9.06), CGPoint(x: 15.93, y: 10.94),
-            CGPoint(x: 17.4, y: 12.12), CGPoint(x: 15.54, y: 15.35), CGPoint(x: 13.78, y: 14.66),
-            CGPoint(x: 12.15, y: 15.6), CGPoint(x: 11.86, y: 17.47), CGPoint(x: 8.14, y: 17.47),
-            CGPoint(x: 7.85, y: 15.6), CGPoint(x: 6.22, y: 14.66), CGPoint(x: 4.46, y: 15.35),
-            CGPoint(x: 2.6, y: 12.12), CGPoint(x: 4.07, y: 10.94), CGPoint(x: 4.07, y: 9.06),
-            CGPoint(x: 2.6, y: 7.88), CGPoint(x: 4.46, y: 4.65), CGPoint(x: 6.22, y: 5.34),
-        ]
-        outline.move(to: points[0])
-        for point in points.dropFirst() { outline.addLine(to: point) }
-        outline.close()
-        outline.lineWidth = 1.8
-        outline.lineJoinStyle = .round
-        outline.stroke()
-        context?.restoreGState()
-    }
-}
-
-/// ChevronRightIcon path from mobile/src/ui/icons.tsx.
+/// ChevronRightIcon path from mobile/src/ui/icons.tsx. Interim: three settings
+/// screens still reference this class while their restyle is in flight.
 final class OriginalChevronRightIcon: OriginalIconView {
     override func draw(_ rect: CGRect) {
         let context = UIGraphicsGetCurrentContext()
@@ -121,25 +92,6 @@ final class OriginalSideIcon: OriginalIconView {
     }
 }
 
-/// CloseIcon path from mobile/src/ui/icons.tsx.
-final class OriginalCloseIcon: OriginalIconView {
-    override func draw(_ rect: CGRect) {
-        let context = UIGraphicsGetCurrentContext()
-        context?.saveGState()
-        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
-        tintColor.setStroke()
-        let path = UIBezierPath()
-        path.move(to: CGPoint(x: 5, y: 5))
-        path.addLine(to: CGPoint(x: 15, y: 15))
-        path.move(to: CGPoint(x: 15, y: 5))
-        path.addLine(to: CGPoint(x: 5, y: 15))
-        path.lineWidth = 1.8
-        path.lineCapStyle = .round
-        path.stroke()
-        context?.restoreGState()
-    }
-}
-
 /// The mobile team's navigation data, in the same main/bot/room order as
 /// mobile/src/screens/TeamList.tsx.
 final class TeamListViewController: UITableViewController, UISearchResultsUpdating {
@@ -165,11 +117,15 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     private var mainEntries: [Entry] = []
     private var query = ""
     private var palette = Palette.make(dark: false)
+    private let gearButtonIcon = IconView(icon: .gear, size: Glass.iconXL)
+    private let plusButtonIcon = IconView(icon: .plus, size: Glass.iconXL)
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         guard traitCollection.hasDifferentColorAppearance(comparedTo: previous) else { return }
         palette = Palette.make(dark: traitCollection.userInterfaceStyle == .dark)
+        gearButtonIcon.color = palette.ink2
+        plusButtonIcon.color = palette.ink2
         tableView.backgroundColor = palette.sidebar
         tableView.reloadData()
     }
@@ -196,16 +152,16 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         settings.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         settings.accessibilityLabel = tr("Settings")
         settings.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
-        let icon = OriginalGearIcon(frame: CGRect(x: 9, y: 9, width: Glass.iconXL, height: Glass.iconXL))
-        icon.isUserInteractionEnabled = false
-        settings.addSubview(icon)
+        gearButtonIcon.color = palette.ink2
+        gearButtonIcon.frame.origin = CGPoint(x: 9, y: 9)
+        settings.addSubview(gearButtonIcon)
         let create = UIButton(type: .system)
         create.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         create.accessibilityLabel = tr("Create")
         create.addTarget(self, action: #selector(showCreate), for: .touchUpInside)
-        let plus = OriginalPlusIcon(frame: CGRect(x: 9, y: 9, width: Glass.iconXL, height: Glass.iconXL))
-        plus.isUserInteractionEnabled = false
-        create.addSubview(plus)
+        plusButtonIcon.color = palette.ink2
+        plusButtonIcon.frame.origin = CGPoint(x: 9, y: 9)
+        create.addSubview(plusButtonIcon)
         navigationItem.rightBarButtonItems = [
             UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close)),
             UIBarButtonItem(customView: settings),

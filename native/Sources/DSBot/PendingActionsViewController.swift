@@ -68,7 +68,7 @@ final class PendingActionsViewController: UITableViewController {
         cell.detailTextLabel?.text = item.detail
         cell.detailTextLabel?.numberOfLines = 2
         cell.accessoryType = .none
-        cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+        cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         if case .approval(let value) = item, value["answerable"] != .bool(true) {
             cell.detailTextLabel?.text = NativeLanguage.text("Answer on the computer")
             cell.accessoryView = nil

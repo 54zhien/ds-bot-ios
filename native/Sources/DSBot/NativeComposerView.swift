@@ -15,8 +15,9 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     private let placeholder = UILabel()
     private let action = UIButton(type: .system)
     private let addPhotoButton = UIButton(type: .system)
-    private let actionIcon = OriginalActionIcon()
+    private let actionIcon = IconView(icon: .arrowUp, size: Glass.iconXL)
     private let surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+    private let plusIcon = IconView(icon: .plus, size: Glass.iconLarge)
     private let rail = UIView()
     private let photoScroller = UIScrollView()
     private let photoStrip = UIStackView()
@@ -74,10 +75,8 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         addPhotoButton.translatesAutoresizingMaskIntoConstraints = false
         addPhotoButton.accessibilityLabel = tr("Add photos")
         addPhotoButton.addTarget(self, action: #selector(addPhotos), for: .touchUpInside)
-        let plus = OriginalPlusIcon()
-        plus.translatesAutoresizingMaskIntoConstraints = false
-        plus.isUserInteractionEnabled = false
-        addPhotoButton.addSubview(plus)
+        plusIcon.translatesAutoresizingMaskIntoConstraints = false
+        addPhotoButton.addSubview(plusIcon)
 
         action.translatesAutoresizingMaskIntoConstraints = false
         action.layer.cornerRadius = Glass.control / 2
@@ -115,10 +114,8 @@ final class NativeComposerView: UIView, UITextViewDelegate {
             addPhotoButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9),
             addPhotoButton.widthAnchor.constraint(equalToConstant: Glass.control),
             addPhotoButton.heightAnchor.constraint(equalToConstant: Glass.control),
-            plus.centerXAnchor.constraint(equalTo: addPhotoButton.centerXAnchor),
-            plus.centerYAnchor.constraint(equalTo: addPhotoButton.centerYAnchor),
-            plus.widthAnchor.constraint(equalToConstant: Glass.iconLarge),
-            plus.heightAnchor.constraint(equalToConstant: Glass.iconLarge),
+            plusIcon.centerXAnchor.constraint(equalTo: addPhotoButton.centerXAnchor),
+            plusIcon.centerYAnchor.constraint(equalTo: addPhotoButton.centerYAnchor),
             action.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
             action.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9),
             action.widthAnchor.constraint(equalToConstant: Glass.control),
@@ -155,7 +152,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         editor.textColor = palette.ink
         editor.tintColor = palette.accent
         placeholder.textColor = palette.ink3
-        addPhotoButton.tintColor = palette.ink2
+        plusIcon.color = palette.ink2
         updateAction()
     }
 
@@ -251,7 +248,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     private func updateAction() {
         let ready = canSend && (!editor.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !photos.isEmpty)
         let stop = running && !ready
-        actionIcon.showsStop = stop
+        actionIcon.icon = stop ? .stop : .arrowUp
         actionIcon.color = stop ? palette.ink : (ready ? palette.accentInk : palette.ink3)
         action.backgroundColor = stop ? palette.line2 : (ready ? palette.accent : palette.line)
         action.isEnabled = stop || ready
@@ -334,53 +331,5 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         } else if running {
             onStop?()
         }
-    }
-}
-
-/// ArrowUpIcon and StopIcon paths from mobile/src/ui/icons.tsx.
-final class OriginalActionIcon: OriginalIconView {
-    var showsStop = false { didSet { setNeedsDisplay() } }
-    var color: UIColor = .white { didSet { setNeedsDisplay() } }
-
-    override func draw(_ rect: CGRect) {
-        let context = UIGraphicsGetCurrentContext()
-        context?.saveGState()
-        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
-        color.setStroke()
-        color.setFill()
-        if showsStop {
-            UIBezierPath(roundedRect: CGRect(x: 3.5, y: 3.5, width: 13, height: 13), cornerRadius: 3).fill()
-        } else {
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: 10, y: 16))
-            path.addLine(to: CGPoint(x: 10, y: 4))
-            path.move(to: CGPoint(x: 5, y: 9))
-            path.addLine(to: CGPoint(x: 10, y: 4))
-            path.addLine(to: CGPoint(x: 15, y: 9))
-            path.lineWidth = 1.9
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            path.stroke()
-        }
-        context?.restoreGState()
-    }
-}
-
-/// PlusIcon path from mobile/src/ui/icons.tsx.
-final class OriginalPlusIcon: OriginalIconView {
-    override func draw(_ rect: CGRect) {
-        let context = UIGraphicsGetCurrentContext()
-        context?.saveGState()
-        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
-        tintColor.setStroke()
-        let path = UIBezierPath()
-        path.move(to: CGPoint(x: 10, y: 4))
-        path.addLine(to: CGPoint(x: 10, y: 16))
-        path.move(to: CGPoint(x: 4, y: 10))
-        path.addLine(to: CGPoint(x: 16, y: 10))
-        path.lineWidth = 1.8
-        path.lineCapStyle = .round
-        path.stroke()
-        context?.restoreGState()
     }
 }

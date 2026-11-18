@@ -42,7 +42,7 @@ final class NativeSettingsViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "setting")
             ?? UITableViewCell(style: .value1, reuseIdentifier: "setting")
         cell.accessoryType = .none
-        cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+        cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         SettingsStyle.style(cell, palette: palette)
         switch (indexPath.section, indexPath.row) {
         case (0, 0):

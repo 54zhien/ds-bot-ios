@@ -72,7 +72,7 @@ final class MemoryViewController: UITableViewController {
             cell.textLabel?.text = NativeLanguage.text("Ask memory")
             cell.detailTextLabel?.text = nil
             cell.selectionStyle = .default
-            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+            cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         default:
             if entries.isEmpty {
                 cell.textLabel?.text = NativeLanguage.text(loaded ? "Nothing saved yet" : "Loading…")
@@ -83,7 +83,7 @@ final class MemoryViewController: UITableViewController {
                 cell.textLabel?.text = entry["topic"]?.stringValue ?? NativeLanguage.text("Memory")
                 cell.detailTextLabel?.text = entry["text"]?.stringValue
                 cell.selectionStyle = .default
-                cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+                cell.accessoryView = IconView(icon: .chevronRight, size: 16)
             }
         }
         return cell

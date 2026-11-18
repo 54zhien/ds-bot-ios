@@ -54,7 +54,9 @@ enum SettingsStyle {
         cell.textLabel?.textColor = danger ? palette.danger : palette.ink
         cell.detailTextLabel?.font = TypeScale.settingsRow.font
         cell.detailTextLabel?.textColor = palette.ink2
-        if let chevron = cell.accessoryView as? OriginalIconView {
+        if let chevron = cell.accessoryView as? IconView {
+            chevron.color = palette.ink3
+        } else if let chevron = cell.accessoryView as? OriginalIconView {
             chevron.tintColor = palette.ink3
         }
     }

@@ -69,16 +69,16 @@ final class ProviderSettingsViewController: UITableViewController {
             let count: Int
             if case .array(let models)? = item["models"] { count = models.count } else { count = 0 }
             cell.detailTextLabel?.text = NativeLanguage.text("{key} · {count} models", ["key": key, "count": String(count)])
-            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+            cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         } else if indexPath.section == 1 {
             let item = addable[indexPath.row]
             cell.textLabel?.text = item["name"]?.stringValue ?? item["id"]?.stringValue
             cell.detailTextLabel?.text = nil
-            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+            cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         } else {
             cell.textLabel?.text = tr("Add custom provider")
             cell.detailTextLabel?.text = tr("API URL and model IDs")
-            cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+            cell.accessoryView = IconView(icon: .chevronRight, size: 16)
         }
         return cell
     }

@@ -93,7 +93,7 @@ final class PendingDockView: UIScrollView {
         let header = UIButton(type: .system)
         var configuration = UIButton.Configuration.plain()
         configuration.title = item.title
-        configuration.image = UIImage(systemName: "chevron.right")
+        configuration.image = Icon.chevronRight.image(size: 16, color: .label, template: true)
         configuration.imagePlacement = .trailing
         configuration.imagePadding = 8
         configuration.baseForegroundColor = .label
