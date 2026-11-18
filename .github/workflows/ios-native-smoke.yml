@@ -1,0 +1,115 @@
+name: iOS native smoke
+
+# Compiling proves nothing about launching: the scene manifest, a bad class name or a
+# crash on first frame all pass the compile job. This boots the app in a simulator,
+# waits, and fails when the process is gone.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: macOS runner
+        default: macos-26
+        type: choice
+        options: [macos-26, macos-15]
+      xcode_version:
+        description: Xcode version to select, e.g. 26.6
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-native-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the native project exists
+        run: |
+          test -f native/project.yml || { echo "::error::native/project.yml is missing"; exit 1; }
+
+      - name: Select Xcode
+        env:
+          WANTED: ${{ inputs.xcode_version }}
+        run: |
+          if [ -n "$WANTED" ]; then
+            selected="/Applications/Xcode_$WANTED.app"
+            test -d "$selected" || { echo "::error::$selected is not on this image"; ls -d /Applications/Xcode*.app; exit 1; }
+          else
+            selected="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          fi
+          sudo xcode-select -s "$selected"
+          xcodebuild -version
+          major="$(xcodebuild -version | awk '/^Xcode /{split($2,p,"."); print p[1]}')"
+          [ "${major:-0}" -ge 26 ] || { echo "::error::Xcode $major has no iOS 26 SDK"; exit 1; }
+
+      - name: Install XcodeGen
+        run: |
+          command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcodegen --version
+
+      - name: Generate the Xcode project
+        working-directory: native
+        run: xcodegen generate
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          udid="$(xcrun simctl list devices available | grep -m1 'iPhone' | sed -nE 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/p')"
+          if [ -z "$udid" ]; then echo "::error::no iPhone simulator on this image"; exit 1; fi
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "simulator $udid"
+
+      - name: Build for the simulator
+        run: |
+          xcodebuild build \
+            -project native/DSBot.xcodeproj \
+            -scheme DSBot \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build.log
+          test -d "build/Build/Products/Debug-iphonesimulator/DSBot.app" || { echo "::error::no .app was built"; tail -40 build.log; exit 1; }
+
+      - name: Launch it and watch
+        id: run
+        run: |
+          udid="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl install "$udid" build/Build/Products/Debug-iphonesimulator/DSBot.app
+          echo "launching io.github.fei2411.dsbot.native"
+          xcrun simctl launch "$udid" io.github.fei2411.dsbot.native || { echo "::error::the app refused to launch"; exit 1; }
+          sleep 6
+          # The process list is the only cheap proof it is still alive after the first frame.
+          if xcrun simctl spawn "$udid" launchctl list | grep -q "io.github.fei2411.dsbot.native"; then
+            echo "still running after 6s"
+          else
+            echo "::error::the app exited within 6s of launch (crash on start)"
+            xcrun simctl spawn "$udid" log show --last 2m --predicate 'process == "DSBot"' --style compact | tail -60 || true
+            exit 1
+          fi
+          xcrun simctl io "$udid" screenshot screen.png
+
+      - name: Keep the screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-smoke-screen
+          path: |
+            screen.png
+            build.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Shut the simulator down
+        if: always()
+        run: xcrun simctl shutdown "${{ steps.sim.outputs.udid }}" || true
