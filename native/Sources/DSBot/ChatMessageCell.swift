@@ -63,7 +63,11 @@ final class ChatMessageCell: UITableViewCell {
     private var leading: NSLayoutConstraint!
     private var trailing: NSLayoutConstraint!
     private var centered: NSLayoutConstraint!
+    private var botWidth: NSLayoutConstraint!
+    private var userWidth: NSLayoutConstraint!
+    private var noticeWidth: NSLayoutConstraint!
     private var wideWidth: NSLayoutConstraint!
+    private var wideUserWidth: NSLayoutConstraint!
 
     /// items.tsx reads every colour and size from the palette and the type scale.
     private var palette: Palette { ThemeStore.palette(trait: traitCollection) }
@@ -99,13 +103,21 @@ final class ChatMessageCell: UITableViewCell {
         leading = bubble.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
         trailing = bubble.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
         centered = bubble.centerXAnchor.constraint(equalTo: contentView.centerXAnchor)
-        wideWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.86)
+        // Chat.tsx:267-271 caps each kind on its own, and a phone is always the
+        // narrow branch there: a user bubble at 86% of the chat width, a Bot or
+        // post row at 93%, a notice at 92%; the 100% - 40 form belongs to the
+        // desktop's column window.
+        botWidth = bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.93)
+        userWidth = bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.86)
+        noticeWidth = bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.92)
+        // A wide block pins the row to its cap rather than merely capping it.
+        wideWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.93)
+        wideUserWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.86)
         NSLayoutConstraint.activate([
             bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
             bubble.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 16),
             bubble.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -16),
-            bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.86),
             text.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 9),
             text.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -9),
             text.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 14),
@@ -116,23 +128,26 @@ final class ChatMessageCell: UITableViewCell {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func configure(_ row: ChatRow, images: [String: UIImage] = [:], stepsExpanded: Bool = false) {
-        leading.isActive = false
-        trailing.isActive = false
-        centered.isActive = false
-        wideWidth.isActive = false
-        if row.isNotice || row.kind == "steps" {
+        for constraint in [leading, trailing, centered, botWidth, userWidth, noticeWidth, wideWidth, wideUserWidth] {
+            constraint.isActive = false
+        }
+        let notice = row.isNotice || row.kind == "steps"
+        if notice {
             centered.isActive = true
+            noticeWidth.isActive = true
         } else if row.isUser {
             trailing.isActive = true
+            userWidth.isActive = true
         } else {
             leading.isActive = true
+            botWidth.isActive = true
         }
         // The asymmetry is deliberate: a user message is a bubble, a Bot message is text.
         bubble.backgroundColor = row.isUser ? palette.user : .clear
-        authorLabel.isHidden = row.isNotice || row.kind == "steps"
+        authorLabel.isHidden = notice
         authorLabel.text = row.author
-        let wideBlock = !row.isNotice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
-        wideWidth.isActive = wideBlock
+        let wideBlock = !notice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
+        if wideBlock { (row.isUser ? wideUserWidth : wideWidth).isActive = true }
         if let summary = row.stepSummary {
             messageLabel.attributedText = nil
             messageLabel.text = summary
