@@ -69,6 +69,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var readingLatest = false
     private var readAgain = false
     private var linkStatus: LinkSession.Status = .disconnected
+    /// Set when the Server refused this phone's identity: retrying the dead offer
+    /// cannot work, so the retry button becomes the way back into pairing.
+    private var linkNeedsPairing = false
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
     private let drawerTransition = TeamDrawerTransition()
     private let noticeBanner = UIButton(type: .system)
@@ -494,6 +497,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         let id = UUID()
         sessionID = id
         linkStatus = .connecting
+        linkNeedsPairing = false
         composer.canSend = false
         composer.running = false
         composer.clear()
@@ -537,8 +541,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             await nextSession.setStatusHandler { [weak self] status in
                 Task { @MainActor [weak self] in self?.showStatus(status, for: id) }
             }
-            await nextSession.setErrorHandler { [weak self] message in
-                Task { @MainActor [weak self] in self?.showLinkError(message, for: id) }
+            await nextSession.setErrorHandler { [weak self] error in
+                Task { @MainActor [weak self] in
+                    self?.showLinkError(error.userText, pairing: error.needsPairing, for: id)
+                }
             }
             await nextSession.setEventHandler { [weak self] event, data in
                 Task { @MainActor [weak self] in self?.handleFeed(event, data: data, for: id) }
@@ -654,8 +660,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             stream.clear()
             rebuildRows()
         case .disconnected:
-            setStatus(tr(savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"))
-            retryButton.isHidden = savedOffer == nil && pendingOffer == nil
+            if linkNeedsPairing {
+                // The saved offer is dead until a new pairing link says otherwise.
+                setStatus(tr("This phone is not paired with the computer yet."))
+                retryButton.setTitle(tr("Pair"), for: .normal)
+                retryButton.isHidden = false
+            } else {
+                setStatus(tr(savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"))
+                retryButton.setTitle(tr("Retry"), for: .normal)
+                retryButton.isHidden = savedOffer == nil && pendingOffer == nil
+            }
             composer.canSend = false
             composer.running = false
             polling?.cancel()
@@ -665,8 +679,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
     }
 
-    private func showLinkError(_ message: String, for id: UUID) {
+    private func showLinkError(_ message: String, pairing: Bool = false, for id: UUID) {
         guard id == sessionID else { return }
+        if pairing { linkNeedsPairing = true }
         setStatus(message)
         let sheet = (presentedViewController as? UINavigationController)?.topViewController as? PairingViewController
         sheet?.showError(message)
@@ -677,7 +692,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             let hello = try await BotAPI.call("hello", on: session)
             guard id == sessionID, linkStatus == .online else { return }
             guard hello["api"]?.intValue != nil else {
-                showLinkError("Update DS Bot on the computer to use this phone.", for: id)
+                showLinkError(tr("Update DS Bot on the computer to use this phone."), for: id)
                 await session.disconnect()
                 return
             }
@@ -698,7 +713,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             ]), on: session)
         } catch {
             guard id == sessionID, linkStatus == .online else { return }
-            showLinkError(error.localizedDescription, for: id)
+            showLinkError(error.userText, for: id)
             await session.disconnect()
         }
     }
@@ -900,6 +915,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     @objc private func retryConnection() {
+        if linkNeedsPairing {
+            // Reconnecting the refused offer cannot succeed; the pairing sheet is
+            // the way back in.
+            presentPairingSheet()
+            return
+        }
         if let offer = pendingOffer ?? savedOffer {
             connect(to: offer, pairingCode: pendingOffer == nil ? nil : offer.code)
         }

@@ -26,7 +26,7 @@ final class RpcClientTests: XCTestCase {
             _ = try await client.call("state")
             XCTFail("the call should have timed out")
         } catch {
-            XCTAssertTrue(error is TransportError)
+            XCTAssertEqual((error as? TransportError)?.code, .timeout)
         }
         try await waitForSent(channel, count: 1)
     }
@@ -41,7 +41,7 @@ final class RpcClientTests: XCTestCase {
             _ = try await call.value
             XCTFail("the call should have failed with the channel")
         } catch {
-            XCTAssertTrue(error is TransportError)
+            XCTAssertEqual((error as? TransportError)?.code, .notConnected)
         }
     }
 
@@ -56,7 +56,9 @@ final class RpcClientTests: XCTestCase {
             _ = try await call.value
             XCTFail("an rpc.error reply must fail the call")
         } catch {
-            XCTAssertTrue((error as? TransportError)?.message.contains("HOST_OFFLINE") == true)
+            let transport = error as? TransportError
+            XCTAssertEqual(transport?.code, .hostOffline)
+            XCTAssertEqual(transport?.wireCode, "HOST_OFFLINE")
         }
     }
 

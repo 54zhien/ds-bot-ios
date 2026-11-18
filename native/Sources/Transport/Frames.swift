@@ -42,20 +42,40 @@ public struct TransportError: Error, Equatable, CustomStringConvertible, Localiz
         case invalidBase64
         case notPaired
         case pairingRejected
+        case timeout
+        case notConnected
+        case hostOffline
+        case serverUnreachable
     }
 
     public let code: Code
     public let message: String
+    /// The code the host or the Server actually sent, kept apart from the message so
+    /// the screen can show words while the diagnostics keep the exact wire value.
+    public let wireCode: String?
 
-    public init(_ code: Code, _ message: String) {
+    public init(_ code: Code, _ message: String, wireCode: String? = nil) {
         self.code = code
         self.message = message
+        self.wireCode = wireCode
+    }
+
+    /// The wire names both error paths send, mapped once: RelayTransport rejection
+    /// frames and RpcClient error replies share it.
+    public static func code(forWire wire: String?) -> Code {
+        switch wire {
+        case "NOT_PAIRED": return .notPaired
+        case "PAIRING_REJECTED": return .pairingRejected
+        case "HOST_OFFLINE": return .hostOffline
+        case "SERVER_UNREACHABLE": return .serverUnreachable
+        default: return .invalidFrame
+        }
     }
 
     public var description: String { "\(code.rawValue): \(message)" }
-    // Without this the UI only ever shows "The operation couldn't be completed.",
-    // which hid the host's own error code from the screen.
-    public var errorDescription: String? { description }
+    // The screen reads errorDescription, and it reads words; the raw code and message
+    // stay in the diagnostics dump, which is the only place they are useful.
+    public var errorDescription: String? { userText }
 }
 
 /// Payloads are JSON literals on the wire; unknown fields are kept so a newer host

@@ -110,7 +110,7 @@ public actor LinkSession {
     private var channel: Channel?
     private var dropWaiter: CheckedContinuation<Void, Never>?
     private var onStatus: (@Sendable (Status) -> Void)?
-    private var onError: (@Sendable (String) -> Void)?
+    private var onError: (@Sendable (Error) -> Void)?
     private var onEvent: (@Sendable (String, JSONValue) -> Void)?
     /// Bumped with every channel, so a probe that outlives its channel cannot take
     /// down the one that replaced it.
@@ -136,7 +136,7 @@ public actor LinkSession {
         handler(status)
     }
 
-    public func setErrorHandler(_ handler: @escaping @Sendable (String) -> Void) {
+    public func setErrorHandler(_ handler: @escaping @Sendable (Error) -> Void) {
         onError = handler
     }
 
@@ -166,7 +166,7 @@ public actor LinkSession {
 
     public func call(_ method: String, params: JSONValue = .object([:])) async throws -> JSONValue {
         guard let channel else {
-            throw TransportError(.invalidFrame, "The link is not connected.")
+            throw TransportError(.notConnected, "The link is not connected.")
         }
         // Every call is timed and kept, because a chat that never fills is otherwise a
         // screen with nothing to read on it.
@@ -209,9 +209,12 @@ public actor LinkSession {
         Int((DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
     }
 
-    /// The dump carries strings, not error objects, so an actor can hold them.
+    /// The dump carries strings, not error objects, so an actor can hold them. The
+    /// wire code names the failure the way the host did; the enum name is the fallback.
     private static func failure(_ error: Error) -> (code: String?, message: String) {
-        if let transport = error as? TransportError { return (transport.code.rawValue, transport.message) }
+        if let transport = error as? TransportError {
+            return (transport.wireCode ?? transport.code.rawValue, transport.message)
+        }
         let nsError = error as NSError
         return ("\(nsError.domain)#\(nsError.code)", nsError.localizedDescription)
     }
@@ -243,8 +246,9 @@ public actor LinkSession {
             } catch {
                 channel = nil
                 guard wanted else { break }
-                onError?(String(describing: error))
-                Diagnostics.shared.recordLinkError(String(describing: error))
+                let failure = LinkSession.failure(error)
+                onError?(error)
+                Diagnostics.shared.recordLinkError("\(failure.code ?? "unknown"): \(failure.message)")
                 if let rejected = error as? TransportError,
                    rejected.code == .notPaired || rejected.code == .pairingRejected {
                     wanted = false

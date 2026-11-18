@@ -270,8 +270,7 @@ public actor RelayTransport {
         case .connectRejected, .error:
             let message = frame.payload["message"]?.stringValue ?? "The Server rejected the relay connection."
             let code = frame.payload["code"]?.stringValue
-            throw TransportError(code == "NOT_PAIRED" ? .notPaired
-                : code == "PAIRING_REJECTED" ? .pairingRejected : .invalidFrame, message)
+            throw TransportError(TransportError.code(forWire: code), message, wireCode: code)
 
         case .relay:
             guard let payloadId = frame.payload["connectionId"]?.stringValue, payloadId == connectionId,

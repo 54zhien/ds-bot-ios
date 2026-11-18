@@ -37,7 +37,7 @@ public actor RpcClient {
     /// Sends one request and waits for its reply or its deadline.
     public func call(_ method: String, params: JSONValue = .object([:])) async throws -> JSONValue {
         guard !closed else {
-            throw TransportError(.invalidFrame, "The RPC channel is closed.")
+            throw TransportError(.notConnected, "The RPC channel is closed.")
         }
         let id = UUID().uuidString
         let text = RpcClient.requestText(id: id, method: method, params: params)
@@ -85,8 +85,8 @@ public actor RpcClient {
             finish(requestId, with: RpcClient.jsonValue(result))
         case MessageType.rpcError.rawValue:
             let message = payload["message"] as? String ?? "The call failed."
-            let code = payload["code"] as? String
-            finish(requestId, with: nil, error: TransportError(.invalidFrame, code.map { "\($0): \(message)" } ?? message))
+            let wire = payload["code"] as? String
+            finish(requestId, with: nil, error: TransportError(TransportError.code(forWire: wire), message, wireCode: wire))
         default:
             break
         }
@@ -99,7 +99,7 @@ public actor RpcClient {
         waiting.removeAll()
         for (id, continuation) in pending {
             deadlines.removeValue(forKey: id)?.cancel()
-            continuation.resume(throwing: TransportError(.invalidFrame, "The RPC channel closed."))
+            continuation.resume(throwing: TransportError(.notConnected, "The RPC channel closed."))
         }
     }
 
@@ -108,7 +108,7 @@ public actor RpcClient {
     private func expire(_ id: String) {
         guard let continuation = waiting.removeValue(forKey: id) else { return }
         deadlines.removeValue(forKey: id)?.cancel()
-        continuation.resume(throwing: TransportError(.invalidFrame, "The call timed out."))
+        continuation.resume(throwing: TransportError(.timeout, "The call timed out."))
     }
 
     private func fail(_ id: String, _ error: Error) {

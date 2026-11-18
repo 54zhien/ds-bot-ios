@@ -11,9 +11,8 @@ enum BotAPI {
         ]))
         guard reply["ok"] == .bool(true), let value = reply["value"] else {
             let message = reply["error"]?["message"]?.stringValue ?? NativeLanguage.text("The computer could not load this chat.")
-            let code = reply["error"]?["code"]?.stringValue
-            let reason = code.map { "\($0): \(message)" } ?? message
-            throw NSError(domain: "DSBot", code: 1, userInfo: [NSLocalizedDescriptionKey: reason])
+            let wire = reply["error"]?["code"]?.stringValue
+            throw TransportError(TransportError.code(forWire: wire), message, wireCode: wire)
         }
         return value
     }

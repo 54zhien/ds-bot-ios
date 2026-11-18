@@ -169,6 +169,11 @@ enum NativeLanguage {
         "Answer": "回答",
         "Answered": "已回答",
         "Earlier conversation": "更早的对话",
+        "This phone is not paired with the computer yet.": "这台手机还没和电脑配对。",
+        "Could not reach your computer.": "连不上你的电脑。",
+        "The computer did not answer.": "电脑没有回应。",
+        "Something went wrong ({code}).": "出了点问题（{code}）。",
+        "Something went wrong.": "出了点问题。",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }
