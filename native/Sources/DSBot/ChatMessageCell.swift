@@ -106,10 +106,10 @@ final class ChatMessageCell: UITableViewCell {
             bubble.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 16),
             bubble.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -16),
             bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.86),
-            text.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
-            text.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
-            text.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-            text.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
+            text.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 9),
+            text.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -9),
+            text.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 14),
+            text.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -14),
         ])
     }
 
