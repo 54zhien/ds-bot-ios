@@ -319,6 +319,12 @@ enum Metrics {
     /// A sheet header: the grabber's 14pt lead plus the 52pt row.
     static let sheetHead: CGFloat = 66
 
+    /// The chat's top fade: the header's height plus this much run-out, so messages
+    /// dissolve past the glass instead of meeting a line. 24 reads clearly longer than
+    /// the system's soft edge; the number lives here so one look can retune it.
+    static let headerFadeRun: CGFloat = 24
+    static func headerFade(insetTop: CGFloat) -> CGFloat { headerHeight(insetTop: insetTop) + headerFadeRun }
+
 
     /// The drawer footer fade: the 44pt control, its 16pt lead and 36pt of run-out.
     static let gearFade: CGFloat = Glass.control + 16 + 36
@@ -344,11 +350,16 @@ enum Metrics {
         /// ask for the same number instead of keeping its own copy.
         static let resting: CGFloat = max(50, 22 + 20) + 12
 
-        /// Left inset of the composer: the standard margin while editing, the concentric
-        /// one at rest.
+        /// True concentric rest: the capsule's corner centre sits on the display
+        /// corner's centre, not an approximation clamped into a range.
+        static func restInset(screenR: CGFloat) -> CGFloat {
+            screenR == 0 ? Glass.margin : screenR - resting / 2
+        }
+
+        /// Left inset of the composer: concentric at rest, the margin while editing.
         static func inset(screenR: CGFloat, screenWidth: CGFloat, expanded: Bool) -> CGFloat {
             if expanded { return Glass.margin }
-            let tight = Metrics.concentricInset(screenR: screenR, height: resting)
+            let tight = restInset(screenR: screenR)
             return screenWidth - 2 * tight - 88 >= 120 ? tight : Glass.margin
         }
     }

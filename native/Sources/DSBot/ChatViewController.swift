@@ -26,6 +26,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let pillAvatar = UILabel()
     private let pillName = UILabel()
     private var composerHeight: NSLayoutConstraint!
+    private var composerLeading: NSLayoutConstraint!
+    private var composerTrailing: NSLayoutConstraint!
+    private var composerBottom: NSLayoutConstraint!
+    private var keyboardUp = false
     private let pendingDock = PendingDockView()
     private let blockedView = BotBlockedView()
     private let computerUseView = ComputerUseView()
@@ -33,6 +37,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusPill = GlassPillView(height: 30)
+    private let headerFade = FadeOverlayView()
+    private var headerFadeHeight: NSLayoutConstraint!
     private let pillSpinner = UIActivityIndicatorView(style: .medium)
     private let pillLabel = UILabel()
     private let pillAction = UIButton(type: .system)
@@ -268,6 +274,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// The team theme changed: repaint what the screen already shows.
     @objc private func themeChanged() {
         view.backgroundColor = palette.main
+        headerFade.configure(color: palette.main)
         headerTitle.textColor = palette.ink
         pillName.textColor = palette.ink
         pillLabel.textColor = palette.ink3
@@ -461,6 +468,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
         updateTopInset()
+        updateComposerSide()
+        headerFadeHeight?.constant = Metrics.headerFade(insetTop: view.safeAreaInsets.top)
     }
 
     private func configureRoomGoal() {
@@ -533,7 +542,17 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             NSLayoutConstraint(item: emptyChatView, attribute: .top, relatedBy: .equal,
                                toItem: view, attribute: .height, multiplier: EmptyChatView.topPercent, constant: 0),
         ])
-        // The header and its pill float over the list, so they must be the frontmost.
+        headerFade.configure(color: palette.main)
+        view.addSubview(headerFade)
+        headerFadeHeight = headerFade.heightAnchor.constraint(
+            equalToConstant: Metrics.headerFade(insetTop: view.safeAreaInsets.top))
+        NSLayoutConstraint.activate([
+            headerFade.topAnchor.constraint(equalTo: view.topAnchor),
+            headerFade.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerFade.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerFadeHeight,
+        ])
+        // The header and its pill float over the list and the fade, so they stay frontmost.
         view.bringSubviewToFront(header)
         view.bringSubviewToFront(statusPill)
     }
@@ -1396,6 +1415,15 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private func configureComposer() {
         composer.translatesAutoresizingMaskIntoConstraints = false
         composerHeight = composer.heightAnchor.constraint(equalToConstant: 62)
+        composer.onExpandedChange = { [weak self] _ in
+            guard let self else { return }
+            self.updateComposerSide()
+            let spring = Springs.shape
+            UIView.animate(withDuration: spring.settling, delay: 0, usingSpringWithDamping: spring.dampingRatio,
+                           initialSpringVelocity: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+                self.view.layoutIfNeeded()
+            }
+        }
         composer.onHeightChange = { [weak self] height in
             guard let self else { return }
             composerHeight.constant = height
@@ -1446,10 +1474,13 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         if #available(iOS 17.0, *) {
             view.keyboardLayoutGuide.usesBottomSafeArea = true
         }
+        composerLeading = composer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Glass.margin)
+        composerTrailing = composer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Glass.margin)
+        composerBottom = composer.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12)
         NSLayoutConstraint.activate([
-            composer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            composer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            composer.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12),
+            composerLeading,
+            composerTrailing,
+            composerBottom,
             composerHeight,
             pendingDock.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
             pendingDock.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
@@ -1465,6 +1496,18 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             workStatusView.trailingAnchor.constraint(lessThanOrEqualTo: composer.trailingAnchor),
             workStatusView.bottomAnchor.constraint(equalTo: computerUseView.topAnchor, constant: -8),
         ])
+        updateComposerSide()
+    }
+
+    /// The composer's sides follow the display corner's centre at rest and take the
+    /// standard margin while editing; 12 above the keyboard either way.
+    private func updateComposerSide() {
+        let screenR = Metrics.screenRadius(bottomInset: window?.safeAreaInsets.bottom ?? 0,
+                                           bounds: window?.bounds ?? view.bounds)
+        let side = composer.isExpanded ? Glass.margin : Metrics.Composer.restInset(screenR: screenR)
+        composerLeading.constant = side
+        composerTrailing.constant = -side
+        composerBottom.constant = keyboardUp ? -12 : -side
     }
 
     private func updateBottomInset() {
@@ -1489,6 +1532,14 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
               let duration = info[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber,
               let curve = info[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber else { return }
         keyboardTiming = (duration.doubleValue, UIView.AnimationOptions(rawValue: UInt(curve.intValue) << 16))
+        if let frame = info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue,
+           let height = window?.bounds.height {
+            let up = frame.cgRectValue.minY < height - 1
+            if up != keyboardUp {
+                keyboardUp = up
+                updateComposerSide()
+            }
+        }
     }
 
     private func updatePending(_ state: JSONValue, sessionID: String) {

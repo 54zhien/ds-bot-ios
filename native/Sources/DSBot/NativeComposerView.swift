@@ -8,6 +8,8 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     var onStop: (() -> Void)?
     var onAddPhoto: (() -> Void)?
     var onHeightChange: ((CGFloat) -> Void)?
+    var onExpandedChange: ((Bool) -> Void)?
+    var isExpanded: Bool { expanded }
     var canSend = false { didSet { updateAction() } }
     var running = false { didSet { updateAction() } }
 
@@ -46,7 +48,6 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         super.init(frame: frame)
         backgroundColor = .clear
         layer.cornerRadius = Metrics.Composer.resting / 2
-        layer.borderWidth = 1
         layer.masksToBounds = true
         surface.translatesAutoresizingMaskIntoConstraints = false
 
@@ -149,10 +150,22 @@ final class NativeComposerView: UIView, UITextViewDelegate {
 
     private var dark: Bool { traitCollection.userInterfaceStyle == .dark }
 
+    /// Liquid glass carries its own highlight and refraction, so it takes no rim;
+    /// the material fallback keeps the 1pt line the phone design uses.
+    private func applySurface() {
+        if #available(iOS 26.0, *) {
+            surface.effect = UIGlassEffect()
+            layer.borderWidth = 0
+        } else {
+            surface.effect = UIBlurEffect(style: dark ? .systemThickMaterial : .systemUltraThinMaterial)
+            layer.borderWidth = 1
+            layer.borderColor = palette.line.cgColor
+        }
+    }
+
     private func applyPalette() {
         palette = ThemeStore.palette(dark: dark)
-        surface.effect = UIBlurEffect(style: dark ? .systemThickMaterial : .systemUltraThinMaterial)
-        layer.borderColor = palette.line.cgColor
+        applySurface()
         editor.textColor = palette.ink
         editor.tintColor = palette.accent
         placeholder.textColor = palette.ink3
@@ -222,6 +235,7 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         editor.isScrollEnabled = editing && textHeight > room
         if expanded != editing {
             expanded = editing
+            onExpandedChange?(editing)
             railHeight.constant = editing ? Layout.bar : 0
             editor.textContainerInset = textInset(editing: editing)
             animate { self.layer.cornerRadius = corner }
