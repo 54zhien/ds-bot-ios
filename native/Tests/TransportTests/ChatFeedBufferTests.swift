@@ -45,7 +45,7 @@ final class ChatFeedBufferTests: XCTestCase {
 
     func testAnotherChatsEventIsIgnored() {
         var buffer = ChatFeedBuffer()
-        let other = ChatFeedBufferTests.message(seq: 7, text: "hi")
+        let other = message(seq: 7, text: "hi")
         let row = buffer.feed(other, for: "s-2")
         XCTAssertNil(row)
         XCTAssertTrue(buffer.rows.isEmpty)
