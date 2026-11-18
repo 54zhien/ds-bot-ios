@@ -131,6 +131,21 @@ enum NativeLanguage {
         "Installing…": "正在安装…",
         "Update failed": "更新失败",
         "There is no dump yet. Long-press the chat title to save one.": "还没有诊断文件。长按聊天标题即可保存一份。",
+        "Role": "角色",
+        "Add in Bot settings": "在 Bot 设置里填写",
+        "{count} attached": "已挂 {count} 个",
+        "Unavailable": "不可用",
+        "See the current page and hand it back to the Bot": "查看当前页面，然后交还给 Bot",
+        "Could not change permissions": "无法更改权限",
+        "Member": "成员",
+        "Add in group settings": "在群组设置里填写",
+        "Manage group memory": "管理群组记忆",
+        "Some folders are not shown": "部分文件夹未显示",
+        "Folder unavailable": "文件夹不可用",
+        "{name} · Side chat": "{name} · 侧边对话",
+        "Send side question": "发送侧问",
+        "The side chat has no ID.": "侧边对话没有 ID。",
+        "Side chat failed": "侧边对话失败",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }

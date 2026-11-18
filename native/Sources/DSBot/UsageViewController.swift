@@ -60,14 +60,14 @@ final class UsageViewController: UITableViewController {
                 owners = entries.enumerated().compactMap { index, owner in
                     let count = total { ownerIndex, _ in ownerIndex == index }.combined
                     guard count > 0 else { return nil }
-                    return (owner["name"]?.stringValue ?? "Bot", count)
+                    return (owner["name"]?.stringValue ?? NativeLanguage.text("Bot"), count)
                 }
             } else { owners = [] }
             if case .array(let entries)? = result["models"] {
                 models = entries.enumerated().compactMap { index, model in
                     let count = total { _, modelIndex in modelIndex == index }.combined
                     guard count > 0 else { return nil }
-                    return (model["name"]?.stringValue ?? "Model", count)
+                    return (model["name"]?.stringValue ?? NativeLanguage.text("Model"), count)
                 }
             } else { models = [] }
             loaded = true

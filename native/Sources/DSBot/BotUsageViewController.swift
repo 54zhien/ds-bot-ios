@@ -56,21 +56,21 @@ final class BotUsageViewController: UITableViewController {
             ?? UITableViewCell(style: .value1, reuseIdentifier: "bot-usage")
         let item: (String, String)
         switch (indexPath.section, indexPath.row) {
-        case (0, 0): item = ("Day", total(summary?["day"]))
-        case (0, 1): item = ("Week", total(summary?["week"]))
-        case (0, _): item = ("Month", total(summary?["month"]))
+        case (0, 0): item = (NativeLanguage.text("Day"), total(summary?["day"]))
+        case (0, 1): item = (NativeLanguage.text("Week"), total(summary?["week"]))
+        case (0, _): item = (NativeLanguage.text("Month"), total(summary?["month"]))
         case (1, _):
             if case .array(let models)? = summary?["models"], models.indices.contains(indexPath.row) {
                 let model = models[indexPath.row]
-                item = (model["name"]?.stringValue ?? "Model", total(model))
-            } else { item = ("Model", "—") }
-        case (2, 0): item = ("Turns", stats?["sessionStats"]?["turns"]?.intValue.map { String($0) } ?? "—")
-        case (2, 1): item = ("Steps", stats?["sessionStats"]?["steps"]?.intValue.map { String($0) } ?? "—")
+                item = (model["name"]?.stringValue ?? NativeLanguage.text("Model"), total(model))
+            } else { item = (NativeLanguage.text("Model"), "—") }
+        case (2, 0): item = (NativeLanguage.text("Turns"), stats?["sessionStats"]?["turns"]?.intValue.map { String($0) } ?? "—")
+        case (2, 1): item = (NativeLanguage.text("Steps"), stats?["sessionStats"]?["steps"]?.intValue.map { String($0) } ?? "—")
         default:
             if let used = stats?["contextPressure"]?["pressureTokens"]?.intValue,
                let window = stats?["contextPressure"]?["contextWindow"]?.intValue, window > 0 {
-                item = ("Context used", "\(Int((Double(used) / Double(window) * 100).rounded()))%")
-            } else { item = ("Context used", "—") }
+                item = (NativeLanguage.text("Context used"), "\(Int((Double(used) / Double(window) * 100).rounded()))%")
+            } else { item = (NativeLanguage.text("Context used"), "—") }
         }
         cell.textLabel?.text = NativeLanguage.text(item.0)
         cell.detailTextLabel?.text = item.1

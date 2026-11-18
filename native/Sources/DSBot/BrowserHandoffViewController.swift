@@ -34,7 +34,7 @@ final class BrowserHandoffViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Browser handoff"
+        title = NativeLanguage.text("Browser handoff")
         if navigationController?.viewControllers.first === self {
             navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
                                                                 target: self, action: #selector(close))
@@ -83,8 +83,8 @@ final class BrowserHandoffViewController: UIViewController {
         actions.distribution = .fillEqually
         actions.spacing = 12
         stack.addArrangedSubview(actions)
-        for (button, title) in [(skipButton, "Skip"), (doneButton, "Done"),
-                                (controlButton, "Take over"), (stopButton, "Stop")] {
+        for (button, title) in [(skipButton, NativeLanguage.text("Skip")), (doneButton, NativeLanguage.text("Done")),
+                                (controlButton, NativeLanguage.text("Take over")), (stopButton, NativeLanguage.text("Stop"))] {
             button.setTitle(title, for: .normal)
             button.layer.cornerRadius = 22
             button.backgroundColor = .tertiarySystemBackground
@@ -94,7 +94,7 @@ final class BrowserHandoffViewController: UIViewController {
         skipButton.isHidden = !isHandoff
         doneButton.isHidden = !isHandoff
         controlButton.isHidden = isHandoff
-        controlButton.setTitle(heldByUser ? "Give back" : "Take over", for: .normal)
+        controlButton.setTitle(heldByUser ? NativeLanguage.text("Give back") : NativeLanguage.text("Take over"), for: .normal)
         doneButton.addTarget(self, action: #selector(done), for: .touchUpInside)
         skipButton.addTarget(self, action: #selector(skip), for: .touchUpInside)
         controlButton.addTarget(self, action: #selector(changeControl), for: .touchUpInside)
@@ -163,7 +163,7 @@ final class BrowserHandoffViewController: UIViewController {
                     }
                 } else {
                     heldByUser = !heldByUser
-                    controlButton.setTitle(heldByUser ? "Give back" : "Take over", for: .normal)
+                    controlButton.setTitle(heldByUser ? NativeLanguage.text("Give back") : NativeLanguage.text("Take over"), for: .normal)
                     await refresh()
                 }
                 onChanged?()

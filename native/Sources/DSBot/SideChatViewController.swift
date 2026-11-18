@@ -29,10 +29,10 @@ final class SideChatViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "\(botName) · Side chat"
+        title = NativeLanguage.text("{name} · Side chat", ["name": botName])
         view.backgroundColor = .systemBackground
         backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        backButton.accessibilityLabel = "Back"
+        backButton.accessibilityLabel = NativeLanguage.text("Back")
         backButton.addTarget(self, action: #selector(back), for: .touchUpInside)
         let backIcon = OriginalChevronRightIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
         backIcon.transform = CGAffineTransform(rotationAngle: .pi)
@@ -40,7 +40,7 @@ final class SideChatViewController: UIViewController {
         backButton.addSubview(backIcon)
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: backButton)
         closeChatButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        closeChatButton.accessibilityLabel = "Close side chat"
+        closeChatButton.accessibilityLabel = NativeLanguage.text("Close side chat")
         closeChatButton.addTarget(self, action: #selector(closeChat), for: .touchUpInside)
         let closeIcon = OriginalCloseIcon(frame: CGRect(x: 8, y: 8, width: 28, height: 28))
         closeIcon.isUserInteractionEnabled = false
@@ -61,7 +61,7 @@ final class SideChatViewController: UIViewController {
         composer.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
         view.addSubview(composer)
         field.borderStyle = .roundedRect
-        field.placeholder = "Ask about the work so far"
+        field.placeholder = NativeLanguage.text("Ask about the work so far")
         field.returnKeyType = .send
         field.delegate = self
         field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
@@ -69,7 +69,7 @@ final class SideChatViewController: UIViewController {
         let arrow = OriginalActionIcon(frame: CGRect(x: 9, y: 9, width: 26, height: 26))
         arrow.isUserInteractionEnabled = false
         sendButton.addSubview(arrow)
-        sendButton.accessibilityLabel = "Send side question"
+        sendButton.accessibilityLabel = NativeLanguage.text("Send side question")
         sendButton.backgroundColor = view.tintColor
         sendButton.layer.cornerRadius = 22
         sendButton.addTarget(self, action: #selector(send), for: .touchUpInside)
@@ -170,7 +170,7 @@ final class SideChatViewController: UIViewController {
                     openID = target
                 }
                 guard let target else { throw NSError(domain: "DSBot", code: 5,
-                    userInfo: [NSLocalizedDescriptionKey: "The side chat has no ID."]) }
+                    userInfo: [NSLocalizedDescriptionKey: NativeLanguage.text("The side chat has no ID.")]) }
                 _ = try await BotAPI.call("side-ask", payload: .object([
                     "sessionId": .string(sessionID), "chatId": .string(target),
                     "recent": .bool(true), "text": .string(text),
@@ -196,15 +196,17 @@ final class SideChatViewController: UIViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Side chat failed", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Side chat failed"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
 
 extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        openID == nil ? "Ask about the work so far" : "Answered from progress so far; nothing was run"
+        openID == nil
+            ? NativeLanguage.text("Ask about the work so far")
+            : NativeLanguage.text("Answered from progress so far; nothing was run")
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -220,16 +222,16 @@ extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UI
             let chat = chats[indexPath.row]
             let history: [JSONValue]
             if case .array(let values)? = chat["entries"] { history = values } else { history = [] }
-            cell.textLabel?.text = history.last?["question"]?.stringValue ?? "New side chat"
-            cell.detailTextLabel?.text = "\(history.count) questions"
+            cell.textLabel?.text = history.last?["question"]?.stringValue ?? NativeLanguage.text("New side chat")
+            cell.detailTextLabel?.text = NativeLanguage.text("{count} questions", ["count": String(history.count)])
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         } else {
             let entry = entries[indexPath.row]
             cell.textLabel?.text = entry["question"]?.stringValue ?? ""
             let status = entry["status"]?.stringValue
-            let detail = status == "answering" ? "Answering…"
-                : status == "failed" ? entry["failure"]?.stringValue ?? "The side answer failed."
-                : status == "cancelled" ? "Cancelled" : entry["answer"]?.stringValue ?? ""
+            let detail = status == "answering" ? NativeLanguage.text("Answering…")
+                : status == "failed" ? entry["failure"]?.stringValue ?? NativeLanguage.text("The side answer failed.")
+                : status == "cancelled" ? NativeLanguage.text("Cancelled") : entry["answer"]?.stringValue ?? ""
             if status != "answering", status != "failed", status != "cancelled",
                let markdown = try? AttributedString(markdown: detail) {
                 cell.detailTextLabel?.attributedText = NSAttributedString(markdown)
@@ -239,8 +241,8 @@ extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UI
             }
             if status == "answering" {
                 let cancelButton = UIButton(type: .system)
-                cancelButton.setTitle("Cancel", for: .normal)
-                cancelButton.accessibilityLabel = "Cancel this side question"
+                cancelButton.setTitle(NativeLanguage.text("Cancel"), for: .normal)
+                cancelButton.accessibilityLabel = NativeLanguage.text("Cancel this side question")
                 cancelButton.frame = CGRect(x: 0, y: 0, width: 70, height: 44)
                 cancelButton.addAction(UIAction { [weak self] _ in self?.cancel(entry) }, for: .touchUpInside)
                 cell.accessoryView = cancelButton
@@ -263,7 +265,7 @@ extension SideChatViewController: UITableViewDataSource, UITableViewDelegate, UI
     ) -> UISwipeActionsConfiguration? {
         guard openID != nil, entries[indexPath.row]["status"]?.stringValue == "answering" else { return nil }
         let entry = entries[indexPath.row]
-        let action = UIContextualAction(style: .normal, title: "Cancel") { [weak self] _, _, done in
+        let action = UIContextualAction(style: .normal, title: NativeLanguage.text("Cancel")) { [weak self] _, _, done in
             self?.cancel(entry)
             done(true)
         }

@@ -38,14 +38,14 @@ final class AboutViewController: UITableViewController {
         let entry: (String, String)
         if indexPath.section == 1 {
             entry = indexPath.row == 0 ? ("DS Bot", "Apache License 2.0")
-                : ("Repository", "github.com/Fei2411/DS-Bot")
+                : (NativeLanguage.text("Repository"), "github.com/Fei2411/DS-Bot")
             cell.accessoryType = .disclosureIndicator
             cell.selectionStyle = .default
         } else {
             var values: [(String, String)] = [("DS Bot", versions?["current"]?.stringValue ?? "—")]
             if let dsh = versions?["dsh"]?["current"]?.stringValue { values.append(("DSH", dsh)) }
-            values.append(("Phone app", Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
-            values.append(("Computer", computerName.isEmpty ? "—" : computerName))
+            values.append((NativeLanguage.text("Phone app"), Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
+            values.append((NativeLanguage.text("Computer"), computerName.isEmpty ? "—" : computerName))
             entry = values[indexPath.row]
             cell.accessoryType = .none
             cell.selectionStyle = .none

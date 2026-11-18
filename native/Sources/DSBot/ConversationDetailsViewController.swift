@@ -33,7 +33,7 @@ final class ConversationDetailsViewController: UITableViewController {
         super.viewDidLoad()
         title = target.name
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Edit", style: .plain, target: self, action: #selector(editDetails)
+            title: NativeLanguage.text("Edit"), style: .plain, target: self, action: #selector(editDetails)
         )
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done, target: self, action: #selector(close)
@@ -51,8 +51,10 @@ final class ConversationDetailsViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        if target.kind == .bot { return ["Bot", "Work", "Activity", "Browser"][section] }
-        return ["Group", "Members", "Conversation"][section]
+        if target.kind == .bot {
+            return ["Bot", "Work", "Activity", "Browser"].map { NativeLanguage.text($0) }[section]
+        }
+        return ["Group", "Members", "Conversation"].map { NativeLanguage.text($0) }[section]
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -147,19 +149,19 @@ final class ConversationDetailsViewController: UITableViewController {
     private func botRow(_ path: IndexPath) -> (String, String) {
         let bot = record
         switch (path.section, path.row) {
-        case (0, 0): return ("Name", bot?["name"]?.stringValue ?? target.name)
-        case (0, 1): return ("Role", bot?["role"]?.stringValue ?? "—")
-        case (1, 0): return ("Model", bot?["model"]?.stringValue ?? state["defaultModel"]?.stringValue ?? "Default")
-        case (1, 1): return ("Permissions", permissionOverride ?? bot?["permission"]?.stringValue
-                             ?? state["permissions"]?["defaultPreset"]?.stringValue ?? "Default")
-        case (1, 2): return ("Working folder", workDirOverride ?? bot?["workDir"]?.stringValue ?? "Team workspace")
-        case (1, 3): return ("Instructions", bot?["instructions"]?.stringValue ?? "Add in Bot settings")
-        case (1, 4): return ("Capabilities", "\(bot?["capabilities"]?.stringArrayValue?.count ?? 0) attached")
-        case (2, 0): return ("Memory", state["memory"] == .bool(false) ? "Unavailable"
-                             : memoryCount.map { "\($0) entries" } ?? "—")
-        case (2, 1): return ("Usage", usageText ?? "—")
-        case (3, 0): return ("Open browser", "See the current page and hand it back to the Bot")
-        default: return ("Scheduled tasks", scheduleText ?? "—")
+        case (0, 0): return (NativeLanguage.text("Name"), bot?["name"]?.stringValue ?? target.name)
+        case (0, 1): return (NativeLanguage.text("Role"), bot?["role"]?.stringValue ?? "—")
+        case (1, 0): return (NativeLanguage.text("Model"), bot?["model"]?.stringValue ?? state["defaultModel"]?.stringValue ?? NativeLanguage.text("Default"))
+        case (1, 1): return (NativeLanguage.text("Permissions"), permissionOverride ?? bot?["permission"]?.stringValue
+                             ?? state["permissions"]?["defaultPreset"]?.stringValue ?? NativeLanguage.text("Default"))
+        case (1, 2): return (NativeLanguage.text("Working folder"), workDirOverride ?? bot?["workDir"]?.stringValue ?? NativeLanguage.text("Team workspace"))
+        case (1, 3): return (NativeLanguage.text("Instructions"), bot?["instructions"]?.stringValue ?? NativeLanguage.text("Add in Bot settings"))
+        case (1, 4): return (NativeLanguage.text("Capabilities"), NativeLanguage.text("{count} attached", ["count": String(bot?["capabilities"]?.stringArrayValue?.count ?? 0)]))
+        case (2, 0): return (NativeLanguage.text("Memory"), state["memory"] == .bool(false) ? NativeLanguage.text("Unavailable")
+                             : memoryCount.map { NativeLanguage.text("{count} entries", ["count": String($0)]) } ?? "—")
+        case (2, 1): return (NativeLanguage.text("Usage"), usageText ?? "—")
+        case (3, 0): return (NativeLanguage.text("Open browser"), NativeLanguage.text("See the current page and hand it back to the Bot"))
+        default: return (NativeLanguage.text("Scheduled tasks"), scheduleText ?? "—")
         }
     }
 
@@ -167,7 +169,7 @@ final class ConversationDetailsViewController: UITableViewController {
 
     private func pickPermission(source: UIView?) {
         guard case .array(let options)? = state["permissions"]?["options"] else { return }
-        let sheet = UIAlertController(title: "Permissions", message: nil, preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: NativeLanguage.text("Permissions"), message: nil, preferredStyle: .actionSheet)
         for option in options {
             guard let value = option["value"]?.stringValue else { continue }
             sheet.addAction(UIAlertAction(title: option["name"]?.stringValue ?? value, style: .default) { [weak self] _ in
@@ -180,15 +182,15 @@ final class ConversationDetailsViewController: UITableViewController {
                         self.permissionOverride = value
                         self.tableView.reloadData()
                     } catch {
-                        let alert = UIAlertController(title: "Could not change permissions",
+                        let alert = UIAlertController(title: NativeLanguage.text("Could not change permissions"),
                                                       message: error.localizedDescription, preferredStyle: .alert)
-                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
                         self.present(alert, animated: true)
                     }
                 }
             })
         }
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = source
         present(sheet, animated: true)
     }
@@ -202,14 +204,14 @@ final class ConversationDetailsViewController: UITableViewController {
                 bot = bots.first { $0["id"]?.stringValue == id }
             } else { bot = nil }
             let name = bot?["name"]?.stringValue ?? id
-            return (name, id == room?["admin"]?.stringValue ? "Admin" : bot?["role"]?.stringValue ?? "Member")
+            return (name, id == room?["admin"]?.stringValue ? NativeLanguage.text("Admin") : bot?["role"]?.stringValue ?? NativeLanguage.text("Member"))
         }
         switch (path.section, path.row) {
-        case (0, 0): return ("Name", room?["name"]?.stringValue ?? target.name)
-        case (0, 1): return ("Notice", room?["notice"]?.stringValue ?? "Add in group settings")
-        case (2, 0): return ("Who answers", room?["mode"]?.stringValue == "everyone" ? "Everyone" : "Admin leads")
-        case (2, 1): return ("Members", "\(memberIDs.count)")
-        default: return ("Memory", "Manage group memory")
+        case (0, 0): return (NativeLanguage.text("Name"), room?["name"]?.stringValue ?? target.name)
+        case (0, 1): return (NativeLanguage.text("Notice"), room?["notice"]?.stringValue ?? NativeLanguage.text("Add in group settings"))
+        case (2, 0): return (NativeLanguage.text("Who answers"), room?["mode"]?.stringValue == "everyone" ? NativeLanguage.text("Everyone") : NativeLanguage.text("Admin leads"))
+        case (2, 1): return (NativeLanguage.text("Members"), "\(memberIDs.count)")
+        default: return (NativeLanguage.text("Memory"), NativeLanguage.text("Manage group memory"))
         }
     }
 
@@ -231,7 +233,7 @@ final class ConversationDetailsViewController: UITableViewController {
                     + (usage?["cacheReadTokens"]?.intValue ?? 0)
                     + (usage?["cacheWriteTokens"]?.intValue ?? 0)
                 let output = usage?["outputTokens"]?.intValue ?? 0
-                usageText = "\(input + output) tokens"
+                usageText = NativeLanguage.text("{count} tokens", ["count": String(input + output)])
                 tableView.reloadData()
             }
         }
@@ -241,7 +243,7 @@ final class ConversationDetailsViewController: UITableViewController {
                 let active = tasks.filter {
                     $0["botId"]?.stringValue == target.id && $0["status"]?.stringValue == "active"
                 }
-                scheduleText = active.isEmpty ? "None" : active.compactMap { $0["title"]?.stringValue }
+                scheduleText = active.isEmpty ? NativeLanguage.text("None") : active.compactMap { $0["title"]?.stringValue }
                     .joined(separator: ", ")
                 tableView.reloadData()
             }

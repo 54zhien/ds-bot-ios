@@ -27,9 +27,9 @@ final class FolderPickerViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Working folder"
+        title = NativeLanguage.text("Working folder")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Use this folder", style: .done, target: self, action: #selector(choose)
+            title: NativeLanguage.text("Use this folder"), style: .done, target: self, action: #selector(choose)
         )
         Task {
             if let value = try? await BotAPI.call("folders", on: session),
@@ -56,7 +56,7 @@ final class FolderPickerViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 2 }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Folders" : path.isEmpty ? "/" : path
+        section == 0 ? NativeLanguage.text("Folders") : path.isEmpty ? "/" : path
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         section == 0 ? recent.count : (parentPath == nil ? 0 : 1) + entries.count + (truncated ? 1 : 0)
@@ -67,19 +67,19 @@ final class FolderPickerViewController: UITableViewController {
         cell.selectionStyle = .default
         if indexPath.section == 0 {
             let item = recent[indexPath.row]
-            cell.textLabel?.text = item["title"]?.stringValue ?? "Folder"
+            cell.textLabel?.text = item["title"]?.stringValue ?? NativeLanguage.text("Folder")
             cell.detailTextLabel?.text = item["path"]?.stringValue
         } else if parentPath != nil && indexPath.row == 0 {
-            cell.textLabel?.text = "Up one level"
+            cell.textLabel?.text = NativeLanguage.text("Up one level")
             cell.detailTextLabel?.text = parentPath
         } else {
             let offset = indexPath.row - (parentPath == nil ? 0 : 1)
             if offset < entries.count {
                 let item = entries[offset]
-                cell.textLabel?.text = item["name"]?.stringValue ?? "Folder"
+                cell.textLabel?.text = item["name"]?.stringValue ?? NativeLanguage.text("Folder")
                 cell.detailTextLabel?.text = item["path"]?.stringValue
             } else {
-                cell.textLabel?.text = "Some folders are not shown"
+                cell.textLabel?.text = NativeLanguage.text("Some folders are not shown")
                 cell.detailTextLabel?.text = nil
                 cell.selectionStyle = .none
             }
@@ -127,8 +127,8 @@ final class FolderPickerViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Folder unavailable", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Folder unavailable"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
