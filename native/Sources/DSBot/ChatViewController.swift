@@ -55,6 +55,11 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var roomID: String?
     private var selectedTarget: ChatTarget?
     private var teamState: JSONValue?
+    /// The last state error, shown until a read succeeds. It used to be overwritten by
+    /// the empty-state text, which is why a failure looked like "No Bot yet".
+    private var loadError: String?
+    /// The live key the host gave us; sent back so the host can answer unchanged.
+    private var liveKey: String?
     private var polling: Task<Void, Never>?
     private var loadingOlder = false
     private var readingLatest = false
@@ -368,12 +373,29 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func updateEmptyState() {
+        if let loadError {
+            emptyState.text = loadError
+            emptyState.isHidden = rows.count > 0
+            retryLoadButton.isHidden = rows.count > 0
+            return
+        }
         let message: String? = savedOffer == nil
             ? "Pair with your computer to start chatting."
             : botID == nil && roomID == nil ? "No Bot yet" : rows.isEmpty ? "No messages yet" : nil
         emptyState.text = message.map(tr)
         emptyState.isHidden = rows.count > 0
         if !rows.isEmpty { retryLoadButton.isHidden = true }
+    }
+
+    /// The same call the React Native app makes: since -1 asks for a full state, and
+    /// avatars as refs keeps the reply small. An empty payload made the host's
+    /// "nothing changed" early exit possible.
+    private func statePayload() -> JSONValue {
+        .object([
+            "since": .number(-1),
+            "avatars": .string("ref"),
+            "live": liveKey.map { JSONValue.string($0) } ?? .null,
+        ])
     }
 
     private func connect(to offer: PairingOffer, pairingCode: String?) {
@@ -616,8 +638,17 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             }
         }
         do {
-            let state = try await BotAPI.call("state", on: session)
+            let state = try await BotAPI.call("state", payload: statePayload(), on: session)
             guard id == sessionID, linkStatus == .online else { return }
+            if let live = state["liveKey"]?.stringValue { liveKey = live }
+            // The host answers {revision, unchanged, liveKey} when nothing moved; the
+            // screen keeps what it has instead of falling into the no-target branch.
+            if state["unchanged"] == .bool(true) {
+                loadError = nil
+                updateEmptyState()
+                return
+            }
+            loadError = nil
             teamState = state
             let selected = state["mainBotId"]?.stringValue
             let bots: [JSONValue]
@@ -657,8 +688,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 rows = []
                 latestButton.isHidden = true
                 list.reloadData()
-                emptyState.text = "No Bot yet"
-                emptyState.isHidden = false
+                updateEmptyState()
                 return
             }
             UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1_000),
@@ -729,11 +759,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             }
         } catch {
             guard id == sessionID else { return }
-            if rows.isEmpty {
-                emptyState.text = error.localizedDescription
-                emptyState.isHidden = false
-                retryLoadButton.isHidden = false
-            }
+            // A failed read is visible until one succeeds: updateEmptyState prefers it
+            // over the placeholder text and keeps the retry button.
+            loadError = error.localizedDescription
+            updateEmptyState()
         }
     }
 
