@@ -17,12 +17,19 @@ struct ChatFeedBuffer {
         return "\(sessionID)|key:\(row.sourceKey)"
     }
 
-    /// One event's item, or nil when it names another chat, carries no item, or
-    /// repeats one already pending. Returns the row to show until the read lands.
-    mutating func feed(_ data: JSONValue, for sessionID: String?) -> ChatRow? {
+    /// One event's item, or nil when it names another chat, carries no item, repeats
+    /// one already pending, or echoes a send the outbox still shows. Returns the row
+    /// to show until the read lands.
+    mutating func feed(_ data: JSONValue, for sessionID: String?, sendsPending: Bool = false) -> ChatRow? {
         guard let sessionID,
               data["sessionId"]?.stringValue == sessionID,
               let item = data["item"], item != .null else { return nil }
+        // The host echoes our own send back as a message event (host feed.js:79);
+        // the outbox row already draws it, so taking the echo would double it.
+        // "Ours is in flight" stands in for "this echo is ours": it would also
+        // swallow a second window's user message sent in the same moment, a shape
+        // this one-phone-to-one-computer product does not have.
+        if sendsPending, item["kind"]?.stringValue == "user" { return nil }
         let row = ChatRow(item)
         let key = ChatFeedBuffer.key(sessionID, item, row)
         guard seen.insert(key).inserted else { return nil }

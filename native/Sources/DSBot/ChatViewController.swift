@@ -93,6 +93,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var loadingOlder = false
     private var readingLatest = false
     private var readAgain = false
+    /// The notices read position, and the rows message events brought ahead of the
+    /// read that confirms them: both live off-screen so they stay testable.
+    private var feedState = FeedState()
+    private var feedBuffer = ChatFeedBuffer()
     private var linkStatus: LinkSession.Status = .disconnected
     /// Set when the Server refused this phone's identity: retrying the dead offer
     /// cannot work, so the retry button becomes the way back into pairing.
@@ -125,7 +129,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 return true
             }
             acknowledgedRows[key] = matched
-            rows = visible + (outbox[key] ?? []).map { entry in
+            rows = visible + feedBuffer.pending(among: visible) + (outbox[key] ?? []).map { entry in
                 ChatRow(localID: entry.id, text: entry.text,
                         localImageData: entry.images.compactMap { Data(base64Encoded: $0) },
                         failureReason: entry.failureReason)
@@ -762,6 +766,24 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         if event == "revision" || event == "live" || event == "notice"
             || (event == "message" && data["sessionId"]?.stringValue == chatSessionID)
             || (event == "room" && data["roomId"]?.stringValue == roomID) {
+            if event == "message" {
+                // Our own send comes back as an event while the outbox still shows it;
+                // taking the echo would draw the message twice until the read lands.
+                let sendsPending = !(outbox[chatKey ?? ""]?.isEmpty ?? true)
+                if feedBuffer.feed(data, for: chatSessionID, sendsPending: sendsPending) != nil {
+                    // The stream branch's own anchor dance: follow a pinned reader,
+                    // leave a history reader where they are.
+                    let nearBottom = ScrollAnchor.atBottom(
+                        contentSize: list.contentSize.height, offset: list.contentOffset.y,
+                        viewport: list.bounds.height)
+                    rebuildRows()
+                    if nearBottom && !rows.isEmpty {
+                        list.layoutIfNeeded()
+                        list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0),
+                                         at: .bottom, animated: false)
+                    }
+                }
+            }
             Task { await refreshLatest(for: id) }
         }
     }
@@ -893,10 +915,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             }
             setStatus(tr("Online"))
             startPolling(for: id)
-            let boot = hello["boot"]?.stringValue ?? ""
-            _ = try? await BotAPI.call("notices", payload: .object([
-                "boot": .string(boot), "since": .number(0),
-            ]), on: session)
+            // The read position outlives reconnects: a host that restarted answers
+            // reset, and the team is read again instead of trusting stale numbers.
+            if let reply = try? await BotAPI.call("notices", payload: feedState.parameters(), on: session),
+               feedState.receive(reply) {
+                await refreshLatest(for: id)
+            }
         } catch {
             guard id == sessionID, linkStatus == .online else { return }
             showLinkError(error.userText, for: id)
@@ -1065,6 +1089,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             chatSessionID = nextSessionID
             updateSideButton()
             updatePending(state, sessionID: nextSessionID)
+            // The confirming read replaces everything the message events brought.
+            feedBuffer.clear()
             latestRows = page.items
             // The fresh page overwrites whatever the cache held for this chat.
             if let key = chatKey {

@@ -6,11 +6,11 @@ import XCTest
 /// reads (Chat.tsx:255). The on-device feel — another window's message
 /// appearing before the poll — is a device check.
 final class ChatFeedBufferTests: XCTestCase {
-    private func message(seq: Int, text: String) -> JSONValue {
+    private func message(kind: String = "bot", seq: Int, text: String) -> JSONValue {
         .object([
             "sessionId": .string("s-1"),
             "item": .object([
-                "kind": .string("bot"),
+                "kind": .string(kind),
                 "name": .string("Bot"),
                 "text": .string(text),
                 "seq": .number(Double(seq)),
@@ -32,6 +32,17 @@ final class ChatFeedBufferTests: XCTestCase {
         XCTAssertNil(buffer.feed(message(seq: 7, text: "one again"), for: "s-1"),
                      "the sequence is already pending, so the repeat is not a new row")
         XCTAssertEqual(buffer.pending(among: []).count, 1)
+    }
+
+    func testOurOwnPendingSendSuppressesItsEcho() {
+        var buffer = ChatFeedBuffer()
+        // The host echoes our send back as a message event; the outbox row already
+        // draws it, so the echo would show the same message twice until the read.
+        XCTAssertNil(buffer.feed(message(kind: "user", seq: 7, text: "mine"), for: "s-1", sendsPending: true))
+        XCTAssertEqual(buffer.pending(among: []).count, 0)
+        // With nothing of ours in flight, another window's user message is still
+        // worth showing ahead of the read.
+        XCTAssertNotNil(buffer.feed(message(kind: "user", seq: 8, text: "theirs"), for: "s-1"))
     }
 
     func testARowTheLoadedPageAlreadyCarriesIsNotShown() {
