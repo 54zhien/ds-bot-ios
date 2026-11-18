@@ -1532,8 +1532,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
               let duration = info[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber,
               let curve = info[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber else { return }
         keyboardTiming = (duration.doubleValue, UIView.AnimationOptions(rawValue: UInt(curve.intValue) << 16))
-        if let frame = info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue,
-           let height = view.window?.bounds.height ?? view.bounds.height {
+        if let frame = info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+            let height = view.window?.bounds.height ?? view.bounds.height
             let up = frame.cgRectValue.minY < height - 1
             if up != keyboardUp {
                 keyboardUp = up
