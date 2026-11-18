@@ -1,5 +1,23 @@
 import UIKit
 
+struct DeepViewNumberRule {
+    let min: Double?
+    let max: Double?
+    let step: Double
+
+    init(node: JSONValue) {
+        if case .number(let value)? = node["min"] { min = value } else { min = nil }
+        if case .number(let value)? = node["max"] { max = value } else { max = nil }
+        if case .number(let value)? = node["step"] { step = value > 0 ? value : 1 } else { step = 1 }
+    }
+
+    func normalize(_ value: Double) -> Double {
+        let base = min ?? 0
+        let stepped = base + ((value - base) / step).rounded() * step
+        return Swift.min(max ?? .infinity, Swift.max(min ?? -.infinity, stepped))
+    }
+}
+
 /// Native controls for the common Deep View card nodes exposed by the mobile API.
 final class PendingViewController: UIViewController {
     var onChanged: (() -> Void)?
@@ -12,11 +30,14 @@ final class PendingViewController: UIViewController {
     private let body = UIStackView()
     private var inputs: [String: JSONValue] = [:]
     private var fields: [String: UITextField] = [:]
+    private var textAreas: [String: UITextView] = [:]
     private var numericFields = Set<String>()
+    private var numericRules: [String: DeepViewNumberRule] = [:]
     private var selections: [String: Set<String>] = [:]
     private var formula: DeepViewFormula?
     private var computedLabels: [(UILabel, JSONValue)] = []
     private var computedProgress: [(UIProgressView, JSONValue)] = []
+    private var computedProgressLabels: [(UILabel, JSONValue)] = []
     private var computedData: [(UIStackView, JSONValue)] = []
     private var busy = false
 
@@ -89,6 +110,9 @@ final class PendingViewController: UIViewController {
         for (progress, node) in computedProgress {
             let percent = progressPercent(node)
             progress.progress = Float(max(0, min(100, percent))) / 100
+        }
+        for (label, node) in computedProgressLabels {
+            label.text = node["valueLabel"].map { scalar($0) } ?? "\(Int(progressPercent(node).rounded()))%"
         }
         for (container, node) in computedData {
             for view in container.arrangedSubviews {
@@ -227,21 +251,36 @@ final class PendingViewController: UIViewController {
         let id = node["id"]?.stringValue ?? ""
         switch type {
         case "stack": return column(children(node))
-        case "row": return column(children(node), horizontal: true)
+        case "row": return column(children(node))
         case "text": return boundLabel(node["text"])
         case "metric":
-            return column([boundLabel(node["label"]), boundLabel(node["value"], emphasis: true)])
+            var parts: [UIView] = [boundLabel(node["label"]), boundLabel(node["value"], emphasis: true)]
+            if let caption = node["caption"] { parts.append(boundLabel(caption)) }
+            return column(parts)
         case "callout": return boundLabel(node["text"])
         case "html": return column([boundLabel(node["summary"]), label("Open it on the computer")])
         case "progress":
             let title = boundLabel(node["label"])
+            let value = label(node["valueLabel"].map { scalar($0) }
+                              ?? "\(Int(progressPercent(node).rounded()))%")
+            value.font = .preferredFont(forTextStyle: .caption1)
+            value.textColor = .tertiaryLabel
+            let heading = UIStackView(arrangedSubviews: [title, value])
+            heading.axis = .horizontal
+            heading.alignment = .top
+            heading.spacing = 8
+            title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             let progress = UIProgressView(progressViewStyle: .default)
             let percent = progressPercent(node)
             progress.progress = Float(max(0, min(100, percent))) / 100
             if ["percent", "value", "max"].contains(where: { DeepViewFormula.isFormula(node[$0]) }) {
                 computedProgress.append((progress, node))
             }
-            return column([title, progress])
+            if DeepViewFormula.isFormula(node["valueLabel"])
+                || ["percent", "value", "max"].contains(where: { DeepViewFormula.isFormula(node[$0]) }) {
+                computedProgressLabels.append((value, node))
+            }
+            return column([heading, progress])
         case "sources":
             guard case .array(let sources)? = node["items"] else { return nil }
             return column(sources.compactMap { source -> UIView? in
@@ -301,10 +340,20 @@ final class PendingViewController: UIViewController {
             } else { field.text = scalar(node["value"]) }
             fields[id] = field
             numericFields.insert(id)
+            let rule = DeepViewNumberRule(node: node)
+            numericRules[id] = rule
             field.addAction(UIAction { [weak self] _ in
-                if let number = Double(field.text ?? "") { self?.inputs[id] = .number(number) }
+                if let number = Double(field.text ?? "") { self?.inputs[id] = .number(rule.normalize(number)) }
                 self?.refreshFormulas()
             }, for: .editingChanged)
+            if let unit = node["unit"] {
+                let row = UIStackView(arrangedSubviews: [field, boundLabel(unit)])
+                row.axis = .horizontal
+                row.alignment = .center
+                row.spacing = 8
+                field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+                return column([boundLabel(node["label"]), row])
+            }
             return column([boundLabel(node["label"]), field])
         case "options":
             guard case .array(let options)? = node["options"] else { return nil }
@@ -352,6 +401,17 @@ final class PendingViewController: UIViewController {
             guard case .array(let definitions)? = node["fields"] else { return nil }
             var controls: [UIView] = definitions.enumerated().map { index, field in
                 let key = field["id"]?.stringValue ?? String(index)
+                if field["kind"]?.stringValue == "multiline" {
+                    let input = UITextView()
+                    input.isEditable = !readOnly
+                    input.font = .preferredFont(forTextStyle: .body)
+                    input.layer.cornerRadius = 10
+                    input.layer.borderWidth = 1
+                    input.layer.borderColor = UIColor.separator.cgColor
+                    input.heightAnchor.constraint(greaterThanOrEqualToConstant: 100).isActive = true
+                    textAreas[key] = input
+                    return column([label(field["label"]?.stringValue ?? key), input])
+                }
                 let input = UITextField()
                 input.isEnabled = !readOnly
                 input.borderStyle = .roundedRect
@@ -364,7 +424,7 @@ final class PendingViewController: UIViewController {
                 var answers: [String: JSONValue] = [:]
                 for (index, definition) in definitions.enumerated() {
                     let key = definition["id"]?.stringValue ?? String(index)
-                    answers[key] = .string(self.fields[key]?.text ?? "")
+                    answers[key] = .string(self.textAreas[key]?.text ?? self.fields[key]?.text ?? "")
                 }
                 self.submit(action: id, values: ["fields": .object(answers)])
             }
@@ -386,7 +446,9 @@ final class PendingViewController: UIViewController {
         busy = true
         var sent = values
         for key in numericFields {
-            if let number = Double(fields[key]?.text ?? "") { inputs[key] = .number(number) }
+            if let number = Double(fields[key]?.text ?? "") {
+                inputs[key] = .number(numericRules[key]?.normalize(number) ?? number)
+            }
         }
         if !inputs.isEmpty { sent["inputs"] = .object(inputs) }
         Task {
