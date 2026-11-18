@@ -139,6 +139,11 @@ jobs:
           echo "simulator: $name ($udid)"
           xcrun simctl boot "$udid" 2>/dev/null || true
           xcrun simctl bootstatus "$udid" -b
+          # A first boot raises system banners ("Ready for Apple Intelligence") that land on
+          # the status bar and sit in the picture. Give them time to expire, then ask for no
+          # more: the defaults key is best effort, the wait is what actually does the work.
+          xcrun simctl spawn "$udid" defaults write com.apple.notificationcenterui doNotDisturb -bool true >/dev/null 2>&1 || true
+          sleep 10
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
           echo "DSBOT_UDID=$udid" >> "$GITHUB_ENV"
 
@@ -191,13 +196,30 @@ jobs:
             exit 1
           fi
 
-      # A screenshot for people, and a BMP for the check below: sips converts without a
-      # dependency, and BMP rows are trivial to read without an image library.
+      # A live process can still have died into a black screen. The log is the cheap half of
+      # that answer: a crash leaves a marker even when the picture looks plausible.
+      - name: Read the app log for crash markers
+        run: |
+          xcrun simctl spawn "$DSBOT_UDID" log show --last 3m --style compact \
+            --predicate 'process == "DSBot" OR subsystem CONTAINS "dsbot"' > smoke/device.log 2>&1 || true
+          echo "log lines: $(wc -l < smoke/device.log | tr -d ' ')"
+          markers="$(grep -nE 'Fatal error|SIGABRT|terminated' smoke/device.log \
+            | grep -vE '[Cc]onnection terminated|terminated normally' | head -5 || true)"
+          if [ -n "$markers" ]; then
+            echo "::error::the app log holds a crash marker"
+            printf '%s\n' "$markers"
+            exit 1
+          fi
+          echo "no crash marker in the app log"
+
+      # A screenshot for people, and a BMP for the check below: simctl can write BMP directly
+      # and sips covers an image where it cannot, so the check never depends on an image library.
       - name: Screenshot the first screen
         run: |
+          # One more beat after the launch wait, so a system banner that just appeared can
+          # leave before the picture is taken.
+          sleep 3
           xcrun simctl io "$DSBOT_UDID" screenshot smoke/01-launch.png
-          # Two routes to BMP, because the check needs pixels and either route can be absent
-          # on an image: simctl writes one directly, sips converts if it does not.
           xcrun simctl io "$DSBOT_UDID" screenshot --type=bmp smoke/01-launch.bmp 2>/dev/null || true
           if [ ! -f smoke/01-launch.bmp ] || [ "$(head -c 2 smoke/01-launch.bmp)" != "BM" ]; then
             sips -s format bmp smoke/01-launch.png --out smoke/01-launch.bmp >/dev/null
@@ -208,13 +230,17 @@ jobs:
           fi
           ls -l smoke/01-launch.png smoke/01-launch.bmp
 
-      # A live process proves nothing about what it draws: a black screen is the failure mode
-      # this project keeps hitting, and it keeps the process alive. Sample the centre of the
-      # first screen; if every sample is the same colour, the app rendered nothing.
-      - name: Check the first screen is not a solid colour
+      # "Still running" cannot see a black screen, and a blank page cannot be told from a
+      # healthy empty state by looking at the centre alone: the unpaired screen is white with
+      # text and a composer, and its middle is one flat colour. So the whole frame is sampled
+      # on a grid and two numbers decide - how many distinct colours there are, and how much
+      # of the frame is not the background. A real black or white screen scores 1 and 0%.
+      - name: Check the first screen is not blank
         run: |
           python3 - smoke/01-launch.bmp <<'PY'
-          import struct, sys
+          import collections
+          import struct
+          import sys
 
           path = sys.argv[1]
           raw = open(path, "rb").read()
@@ -237,21 +263,34 @@ jobs:
               at = offset + row * stride + x * step
               return (raw[at + 2], raw[at + 1], raw[at])
 
-          # The centre 40%: the empty state, the title and the composer all cross it.
-          x0, x1 = int(width * 0.3), int(width * 0.7)
-          y0, y1 = int(height * 0.3), int(height * 0.7)
-          xs = list(range(x0, x1, max(1, (x1 - x0) // 9)))[:10]
-          ys = list(range(y0, y1, max(1, (y1 - y0) // 9)))[:10]
-          points = [(x, y) for y in ys for x in xs]
-          colours = [pixel(x, y) for x, y in points]
-          distinct = sorted(set(colours))
+          cols, rows = 40, 20
+          points = []
+          for r in range(rows):
+              y = min(height - 1, int((r + 0.5) * height / rows))
+              for c in range(cols):
+                  x = min(width - 1, int((c + 0.5) * width / cols))
+                  points.append(pixel(x, y))
+          counter = collections.Counter(points)
+          background, _ = counter.most_common(1)[0]
+          differing = sum(
+              1 for p in points
+              if max(abs(p[0] - background[0]), abs(p[1] - background[1]), abs(p[2] - background[2])) > 16
+          )
+          percent = 100.0 * differing / len(points)
           print("screenshot " + str(width) + "x" + str(height) + " at " + str(bpp) + "bpp")
-          print("sampled " + str(len(points)) + " points over the centre -> " + str(len(distinct)) + " distinct colour(s)")
-          print("first few: " + ", ".join(str(c) for c in distinct[:5]))
-          if len(distinct) == 1:
-              print("::error::the first screen is one colour rgb" + str(distinct[0]) + " over the whole centre: the app rendered nothing")
+          print("sampled " + str(len(points)) + " points over the whole frame")
+          print("distinct colours: " + str(len(counter)) + " (need at least 8)")
+          print("background rgb" + str(background) + ", " + str(differing) + " samples differ (" + str(round(percent, 2)) + "%, need at least 1%)")
+          problems = []
+          if len(counter) < 8:
+              problems.append("only " + str(len(counter)) + " distinct colour(s): the app drew nothing")
+          if percent < 1.0:
+              problems.append("only " + str(round(percent, 2)) + "% of the frame differs from rgb" + str(background) + ": the screen is blank")
+          if problems:
+              for problem in problems:
+                  print("::error::" + problem)
               sys.exit(1)
-          print("first screen is not a solid colour")
+          print("first screen holds content")
           PY
 
       - name: Collect the app log
