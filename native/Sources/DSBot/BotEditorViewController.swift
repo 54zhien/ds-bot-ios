@@ -43,13 +43,13 @@ final class BotEditorViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = bot == nil ? "Create new Bot" : "Bot settings"
+        title = NativeLanguage.text(bot == nil ? "Create new Bot" : "Bot settings")
         view.backgroundColor = .systemBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel, target: self, action: #selector(close)
         )
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: bot == nil ? "Create" : "Save", style: .done, target: self, action: #selector(save)
+            title: NativeLanguage.text(bot == nil ? "Create" : "Save"), style: .done, target: self, action: #selector(save)
         )
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.keyboardDismissMode = .interactive
@@ -72,11 +72,12 @@ final class BotEditorViewController: UIViewController {
             form.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
         ])
 
-        addField("Name", field: nameField, text: bot?["name"]?.stringValue ?? "", placeholder: "New Bot")
-        addField("Label", field: roleField, text: bot?["role"]?.stringValue ?? "",
-                 placeholder: "Research, admin…")
+        addField(NativeLanguage.text("Name"), field: nameField, text: bot?["name"]?.stringValue ?? "",
+                 placeholder: NativeLanguage.text("New Bot"))
+        addField(NativeLanguage.text("Label"), field: roleField, text: bot?["role"]?.stringValue ?? "",
+                 placeholder: NativeLanguage.text("Research, admin…"))
         let instructionsLabel = UILabel()
-        instructionsLabel.text = "What this Bot does"
+        instructionsLabel.text = NativeLanguage.text("What this Bot does")
         instructionsLabel.font = .preferredFont(forTextStyle: .subheadline)
         form.addArrangedSubview(instructionsLabel)
         instructionsField.text = bot?["instructions"]?.stringValue ?? ""
@@ -86,23 +87,23 @@ final class BotEditorViewController: UIViewController {
         instructionsField.layer.borderColor = UIColor.separator.cgColor
         instructionsField.heightAnchor.constraint(equalToConstant: 110).isActive = true
         form.addArrangedSubview(instructionsField)
-        addPicker(colorButton, label: "Character color", value: color, action: #selector(pickColor))
-        addPicker(shapeButton, label: "Character shape", value: shape, action: #selector(pickShape))
+        addPicker(colorButton, label: NativeLanguage.text("Character color"), value: color, action: #selector(pickColor))
+        addPicker(shapeButton, label: NativeLanguage.text("Character shape"), value: shape, action: #selector(pickShape))
         if case .array(let models)? = state["models"], !models.isEmpty {
-            addPicker(modelButton, label: "Model", value: model ?? "Default", action: #selector(pickModel))
-            addPicker(effortButton, label: "Thinking level", value: effort ?? "Default", action: #selector(pickEffort))
+            addPicker(modelButton, label: NativeLanguage.text("Model"), value: model ?? NativeLanguage.text("Default"), action: #selector(pickModel))
+            addPicker(effortButton, label: NativeLanguage.text("Thinking level"), value: effort ?? NativeLanguage.text("Default"), action: #selector(pickEffort))
             effortButton.isHidden = true
             loadEfforts()
         }
         if bot != nil {
             privateSwitch.isOn = bot?["private"] == .bool(true)
-            addToggle("Private", control: privateSwitch)
+            addToggle(NativeLanguage.text("Private"), control: privateSwitch)
             let id = bot?["id"]?.stringValue ?? ""
             let mains = state["mainBotIds"]?.stringArrayValue ?? []
             mainSwitch.isOn = mains.contains(id) || state["mainBotId"]?.stringValue == id
-            addToggle("Main Bot", control: mainSwitch)
+            addToggle(NativeLanguage.text("Main Bot"), control: mainSwitch)
             let more = UIButton(type: .system)
-            more.setTitle("Duplicate or delete Bot", for: .normal)
+            more.setTitle(NativeLanguage.text("Duplicate or delete Bot"), for: .normal)
             more.addTarget(self, action: #selector(moreActions), for: .touchUpInside)
             more.heightAnchor.constraint(equalToConstant: 48).isActive = true
             form.addArrangedSubview(more)
@@ -150,31 +151,31 @@ final class BotEditorViewController: UIViewController {
         for value in values {
             sheet.addAction(UIAlertAction(title: value, style: .default) { _ in update(value) })
         }
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = button
         present(sheet, animated: true)
     }
 
     @objc private func pickColor() {
-        choose("Character color", values: Self.colors, from: colorButton) { [weak self] value in
+        choose(NativeLanguage.text("Character color"), values: Self.colors, from: colorButton) { [weak self] value in
             self?.color = value
-            self?.colorButton.setTitle("Character color · \(value)", for: .normal)
+            self?.colorButton.setTitle(NativeLanguage.text("Character color") + " · " + value, for: .normal)
         }
     }
 
     @objc private func pickShape() {
-        choose("Character shape", values: Self.shapes, from: shapeButton) { [weak self] value in
+        choose(NativeLanguage.text("Character shape"), values: Self.shapes, from: shapeButton) { [weak self] value in
             self?.shape = value
-            self?.shapeButton.setTitle("Character shape · \(value)", for: .normal)
+            self?.shapeButton.setTitle(NativeLanguage.text("Character shape") + " · " + value, for: .normal)
         }
     }
 
     @objc private func pickModel() {
         guard case .array(let entries)? = state["models"] else { return }
         let refs = entries.compactMap { $0["ref"]?.stringValue }
-        choose("Model", values: refs, from: modelButton) { [weak self] value in
+        choose(NativeLanguage.text("Model"), values: refs, from: modelButton) { [weak self] value in
             self?.model = value
-            self?.modelButton.setTitle("Model · \(value)", for: .normal)
+            self?.modelButton.setTitle(NativeLanguage.text("Model") + " · " + value, for: .normal)
             self?.effort = nil
             self?.loadEfforts()
         }
@@ -203,22 +204,22 @@ final class BotEditorViewController: UIViewController {
         } else { efforts = [] }
         effortButton.isHidden = efforts.isEmpty
         let name = efforts.first { $0.id == effort }?.name ?? "Default"
-        effortButton.setTitle("Thinking level · \(name)", for: .normal)
+        effortButton.setTitle(NativeLanguage.text("Thinking level") + " · " + name, for: .normal)
     }
 
     @objc private func pickEffort() {
-        let sheet = UIAlertController(title: "Thinking level", message: nil, preferredStyle: .actionSheet)
-        sheet.addAction(UIAlertAction(title: "Default", style: .default) { [weak self] _ in
+        let sheet = UIAlertController(title: NativeLanguage.text("Thinking level"), message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: NativeLanguage.text("Default"), style: .default) { [weak self] _ in
             self?.effort = nil
-            self?.effortButton.setTitle("Thinking level · Default", for: .normal)
+            self?.effortButton.setTitle(NativeLanguage.text("Thinking level") + " · " + NativeLanguage.text("Default"), for: .normal)
         })
         for item in efforts {
             sheet.addAction(UIAlertAction(title: item.name, style: .default) { [weak self] _ in
                 self?.effort = item.id
-                self?.effortButton.setTitle("Thinking level · \(item.name)", for: .normal)
+                self?.effortButton.setTitle(NativeLanguage.text("Thinking level") + " · " + item.name, for: .normal)
             })
         }
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = effortButton
         present(sheet, animated: true)
     }
@@ -291,23 +292,24 @@ final class BotEditorViewController: UIViewController {
         guard let bot, let id = bot["id"]?.stringValue else { return }
         let sheet = UIAlertController(title: bot["name"]?.stringValue, message: nil, preferredStyle: .actionSheet)
         if bot["private"] != .bool(true) {
-            sheet.addAction(UIAlertAction(title: "Duplicate", style: .default) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: NativeLanguage.text("Duplicate"), style: .default) { [weak self] _ in
                 self?.performBotAction("duplicate-bot", id: id)
             })
         }
-        sheet.addAction(UIAlertAction(title: "Delete Bot", style: .destructive) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: NativeLanguage.text("Delete Bot"), style: .destructive) { [weak self] _ in
             self?.confirmDelete(id: id)
         })
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
         sheet.popoverPresentationController?.sourceView = form
         present(sheet, animated: true)
     }
 
     private func confirmDelete(id: String) {
-        let alert = UIAlertController(title: "Delete this Bot?", message: "Its chat and settings will be removed.",
+        let alert = UIAlertController(title: NativeLanguage.text("Delete this Bot?"),
+                                      message: NativeLanguage.text("Its chat and settings will be removed."),
                                       preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Delete"), style: .destructive) { [weak self] _ in
             self?.performBotAction("delete-bot", id: id)
         })
         present(alert, animated: true)
@@ -321,7 +323,7 @@ final class BotEditorViewController: UIViewController {
                 let value = try await BotAPI.call(endpoint, payload: .object(["id": .string(id)]), on: session)
                 let target: ChatTarget?
                 if endpoint == "duplicate-bot", let newID = value["id"]?.stringValue {
-                    target = ChatTarget(kind: .bot, id: newID, name: value["name"]?.stringValue ?? "Bot")
+                    target = ChatTarget(kind: .bot, id: newID, name: value["name"]?.stringValue ?? NativeLanguage.text("Bot"))
                 } else { target = nil }
                 let complete = onSaved
                 dismiss(animated: true) { complete?(target) }
@@ -331,8 +333,8 @@ final class BotEditorViewController: UIViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Could not save Bot", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Could not save Bot"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }

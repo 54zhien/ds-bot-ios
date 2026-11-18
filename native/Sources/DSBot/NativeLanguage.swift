@@ -157,6 +157,13 @@ enum NativeLanguage {
         "Enter a title and instructions.": "请填写标题和指令。",
         "Enter a date and time in YYYY-MM-DD and HH:mm format.": "请按 YYYY-MM-DD 和 HH:mm 格式填写日期和时间。",
         "Could not create task": "无法创建任务",
+        "Duplicate or delete Bot": "复制或删除 Bot",
+        "Delete this Bot?": "删除这个 Bot？",
+        "Its chat and settings will be removed.": "它的对话和设置会一并删除。",
+        "Could not save Bot": "无法保存 Bot",
+        "The new group has no ID.": "新群组没有 ID。",
+        "Delete this group?": "删除这个群组？",
+        "Could not save group": "无法保存群组",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }

@@ -10,7 +10,9 @@ final class GroupEditorViewController: UIViewController {
     private var busy = false
     private let nameField = UITextField()
     private let noticeField = UITextView()
-    private let modeControl = UISegmentedControl(items: ["Admin leads", "Everyone"])
+    private let modeControl = UISegmentedControl(items: [
+        NativeLanguage.text("Admin leads"), NativeLanguage.text("Everyone"),
+    ])
     private let memberStack = UIStackView()
 
     init(room: JSONValue?, state: JSONValue, session: LinkSession) {
@@ -26,13 +28,13 @@ final class GroupEditorViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = room == nil ? "Create group chat" : "Group settings"
+        title = NativeLanguage.text(room == nil ? "Create group chat" : "Group settings")
         view.backgroundColor = .systemBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel, target: self, action: #selector(close)
         )
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: room == nil ? "Create" : "Save", style: .done, target: self, action: #selector(save)
+            title: NativeLanguage.text(room == nil ? "Create" : "Save"), style: .done, target: self, action: #selector(save)
         )
         let scroll = UIScrollView()
         scroll.translatesAutoresizingMaskIntoConstraints = false
@@ -57,18 +59,18 @@ final class GroupEditorViewController: UIViewController {
             form.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
         ])
         let intro = UILabel()
-        intro.text = "Pick at least two Bots. The admin leads the group."
+        intro.text = NativeLanguage.text("Pick at least two Bots. The admin leads the group.")
         intro.textColor = .secondaryLabel
         intro.font = .preferredFont(forTextStyle: .subheadline)
         intro.numberOfLines = 0
         form.addArrangedSubview(intro)
-        addLabel("Name", to: form)
+        addLabel(NativeLanguage.text("Name"), to: form)
         nameField.borderStyle = .roundedRect
-        nameField.placeholder = "Name after members"
+        nameField.placeholder = NativeLanguage.text("Name after members")
         nameField.text = room?["named"] == .bool(true) ? room?["name"]?.stringValue : ""
         nameField.heightAnchor.constraint(equalToConstant: 44).isActive = true
         form.addArrangedSubview(nameField)
-        addLabel("Notice", to: form)
+        addLabel(NativeLanguage.text("Notice"), to: form)
         noticeField.text = room?["notice"]?.stringValue ?? ""
         noticeField.font = .preferredFont(forTextStyle: .body)
         noticeField.layer.cornerRadius = 12
@@ -76,11 +78,11 @@ final class GroupEditorViewController: UIViewController {
         noticeField.layer.borderColor = UIColor.separator.cgColor
         noticeField.heightAnchor.constraint(equalToConstant: 90).isActive = true
         form.addArrangedSubview(noticeField)
-        addLabel("Who answers", to: form)
+        addLabel(NativeLanguage.text("Who answers"), to: form)
         modeControl.selectedSegmentIndex = room?["mode"]?.stringValue == "everyone"
             || (room != nil && room?["admin"]?.stringValue == nil) ? 1 : 0
         form.addArrangedSubview(modeControl)
-        addLabel("Members", to: form)
+        addLabel(NativeLanguage.text("Members"), to: form)
         memberStack.axis = .vertical
         memberStack.spacing = 8
         form.addArrangedSubview(memberStack)
@@ -97,7 +99,7 @@ final class GroupEditorViewController: UIViewController {
             row.addArrangedSubview(member)
             let lead = UIButton(type: .system)
             lead.tag = index
-            lead.setTitle("Admin", for: .normal)
+            lead.setTitle(NativeLanguage.text("Admin"), for: .normal)
             lead.addTarget(self, action: #selector(makeAdmin(_:)), for: .touchUpInside)
             row.addArrangedSubview(lead)
             member.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -107,7 +109,7 @@ final class GroupEditorViewController: UIViewController {
         updateMembers()
         if room != nil {
             let remove = UIButton(type: .system)
-            remove.setTitle("Delete group", for: .normal)
+            remove.setTitle(NativeLanguage.text("Delete group"), for: .normal)
             remove.setTitleColor(.systemRed, for: .normal)
             remove.addTarget(self, action: #selector(confirmDelete), for: .touchUpInside)
             remove.heightAnchor.constraint(equalToConstant: 50).isActive = true
@@ -131,7 +133,7 @@ final class GroupEditorViewController: UIViewController {
             let checked = members.contains(id)
             member.setTitle("\(checked ? "✓" : "○")  \(bots[member.tag]["name"]?.stringValue ?? id)", for: .normal)
             lead.isHidden = !checked
-            lead.setTitle(admin == id ? "Admin" : "Make admin", for: .normal)
+            lead.setTitle(NativeLanguage.text(admin == id ? "Admin" : "Make admin"), for: .normal)
             lead.setTitleColor(admin == id ? .systemBlue : .secondaryLabel, for: .normal)
         }
         navigationItem.rightBarButtonItem?.isEnabled = members.count >= 2 && !busy
@@ -186,7 +188,7 @@ final class GroupEditorViewController: UIViewController {
                         response = try await BotAPI.call("update-room", payload: .object(patch), on: session)
                     } else { response = .null }
                     target = ChatTarget(kind: .room, id: id,
-                                        name: response["room"]?["name"]?.stringValue ?? room["name"]?.stringValue ?? "Group")
+                                        name: response["room"]?["name"]?.stringValue ?? room["name"]?.stringValue ?? NativeLanguage.text("Group"))
                 } else {
                     var payload: [String: JSONValue] = [
                         "members": .array(members.map(JSONValue.string)), "greet": .bool(true),
@@ -196,7 +198,7 @@ final class GroupEditorViewController: UIViewController {
                     let created = try await BotAPI.call("create-room", payload: .object(payload), on: session)
                     guard let id = created["id"]?.stringValue else { throw NSError(
                         domain: "DSBot", code: 4,
-                        userInfo: [NSLocalizedDescriptionKey: "The new group has no ID."]
+                        userInfo: [NSLocalizedDescriptionKey: NativeLanguage.text("The new group has no ID.")]
                     ) }
                     if !notice.isEmpty || mode != "admin" {
                         var patch: [String: JSONValue] = ["id": .string(id)]
@@ -216,9 +218,9 @@ final class GroupEditorViewController: UIViewController {
 
     @objc private func confirmDelete() {
         guard let room, let id = room["id"]?.stringValue else { return }
-        let alert = UIAlertController(title: "Delete this group?", message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+        let alert = UIAlertController(title: NativeLanguage.text("Delete this group?"), message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Delete"), style: .destructive) { [weak self] _ in
             self?.deleteRoom(id)
         })
         present(alert, animated: true)
@@ -238,8 +240,8 @@ final class GroupEditorViewController: UIViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Could not save group", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Could not save group"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
