@@ -13,6 +13,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let titleButton = UIButton(type: .system)
     private var composerHeight: NSLayoutConstraint!
     private let pendingDock = PendingDockView()
+    private let blockedView = BotBlockedView()
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusBar = UIStackView()
@@ -321,6 +322,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updateSideButton()
         selectedTarget = nil
         teamState = nil
+        blockedView.configure(nil)
         pendingItems = []
         updatePendingButton()
         chatSessionID = nil
@@ -572,6 +574,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 updateSideButton()
                 pendingItems = []
                 updatePendingButton()
+                blockedView.configure(nil)
+                updateBottomInset()
                 rows = []
                 list.reloadData()
                 emptyState.text = "No Bot yet"
@@ -593,6 +597,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 cursor = nil
             }
             composer.canSend = true
+            if target.kind == .bot, chosen?["blocked"] != nil {
+                let models: [JSONValue]
+                if case .array(let values)? = state["models"] { models = values } else { models = [] }
+                blockedView.configure(BotBlockedPresentation(bot: chosen ?? .null, models: models))
+            } else { blockedView.configure(nil) }
+            updateBottomInset()
             if target.kind == .bot {
                 let work = state["work"]?["bots"]?[target.id]
                 let activity = state["activity"]?[target.id]
@@ -851,6 +861,13 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         present(UINavigationController(rootViewController: settings), animated: true)
     }
 
+    private func showProviders() {
+        let settings = NativeSettingsViewController(computerName: savedOffer?.name ?? "", session: session)
+        let navigation = UINavigationController(rootViewController: settings)
+        navigation.pushViewController(ProviderSettingsViewController(session: session), animated: false)
+        present(navigation, animated: true)
+    }
+
     private func showUsage() {
         let usage = UsageViewController(session: session)
         present(UINavigationController(rootViewController: usage), animated: true)
@@ -873,6 +890,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updateTitleButton()
         pendingItems = []
         updatePendingButton()
+        blockedView.configure(nil)
+        updateBottomInset()
         list.reloadData()
         updateEmptyState()
         Task { await refreshLatest(for: sessionID) }
@@ -885,7 +904,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         composer.onHeightChange = { [weak self] height in
             guard let self else { return }
             composerHeight.constant = height
-            list.contentInset.bottom = height + pendingHeight.constant + 22
+            updateBottomInset()
             let timing = keyboardTiming
             keyboardTiming = nil
             UIView.animate(
@@ -910,6 +929,17 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         view.addSubview(pendingDock)
         pendingHeight = pendingDock.heightAnchor.constraint(equalToConstant: 0)
         pendingDock.isHidden = true
+        blockedView.translatesAutoresizingMaskIntoConstraints = false
+        blockedView.onAction = { [weak self] action in
+            guard let self else { return }
+            switch action {
+            case .providers: showProviders()
+            case .topUp:
+                if let url = URL(string: "https://platform.deepseek.com/top_up") { UIApplication.shared.open(url) }
+            case .model: showDetails()
+            }
+        }
+        view.addSubview(blockedView)
         if #available(iOS 17.0, *) {
             view.keyboardLayoutGuide.usesBottomSafeArea = true
         }
@@ -922,7 +952,18 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             pendingDock.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
             pendingDock.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
             pendingHeight,
+            blockedView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+            blockedView.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
+            blockedView.bottomAnchor.constraint(equalTo: pendingDock.topAnchor, constant: -8),
         ])
+    }
+
+    private func updateBottomInset() {
+        let blockedHeight = blockedView.isHidden ? 0 : blockedView.systemLayoutSizeFitting(
+            CGSize(width: max(1, view.bounds.width - 32), height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
+        ).height + 8
+        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + blockedHeight + 22
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {
@@ -973,7 +1014,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         let width = max(1, view.bounds.width - 32)
         let maxHeight = max(1, view.bounds.height * 0.52)
         pendingHeight.constant = min(pendingDock.requiredHeight(width: width), maxHeight)
-        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + 22
+        updateBottomInset()
         let updates = { self.view.layoutIfNeeded() }
         if animated && !UIAccessibility.isReduceMotionEnabled {
             UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.82,
