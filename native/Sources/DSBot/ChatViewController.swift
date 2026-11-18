@@ -21,6 +21,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusBar = UIStackView()
+    private var statusHeight: NSLayoutConstraint!
+
+    /// The palette follows the appearance, so no token values are copied here.
+    private var palette: Palette { Palette.make(dark: traitCollection.userInterfaceStyle == .dark) }
     private let roomGoalView = RoomGoalView()
     private var goalHiddenHeight: NSLayoutConstraint!
     private let statusLabel = UILabel()
@@ -187,7 +191,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = tr("Chat")
-        titleButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        titleButton.titleLabel?.font = TypeScale.headerTitle.font
+        titleButton.setTitleColor(palette.ink, for: .normal)
         titleButton.setTitle(tr("Chat"), for: .normal)
         titleButton.accessibilityLabel = tr("Conversation details")
         titleButton.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
@@ -195,11 +200,14 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updateTitleButton()
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = palette.main
         configureNoticeBanner()
+        // An icon, not a worded capsule: the label carries the meaning for VoiceOver.
         computerItem = UIBarButtonItem(
-            title: tr("Pair"), style: .plain, target: self, action: #selector(showPairing)
+            image: UIImage(systemName: "desktopcomputer"), style: .plain,
+            target: self, action: #selector(showPairing)
         )
+        computerItem.accessibilityLabel = tr("Computers")
         let sideButton = UIButton(type: .system)
         sideButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         NSLayoutConstraint.activate([
@@ -213,6 +221,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         sideIcon.isOpaque = false
         sideIcon.backgroundColor = .clear
         sideIcon.isUserInteractionEnabled = false
+        sideIcon.tintColor = palette.ink
         sideButton.addSubview(sideIcon)
         NSLayoutConstraint.activate([
             sideIcon.centerXAnchor.constraint(equalTo: sideButton.centerXAnchor),
@@ -235,6 +244,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         teamIcon.isOpaque = false
         teamIcon.isUserInteractionEnabled = false
         teamIcon.backgroundColor = .clear
+        teamIcon.tintColor = palette.ink
         teamButton.addSubview(teamIcon)
         NSLayoutConstraint.activate([
             teamIcon.centerXAnchor.constraint(equalTo: teamButton.centerXAnchor),
@@ -254,7 +264,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         drawerEdge.cancelsTouchesInView = false
         view.addGestureRecognizer(drawerEdge)
         savedOffer = pairingStore.load()
-        computerItem.title = tr(savedOffer == nil ? "Pair" : "Computers")
+        computerItem.accessibilityLabel = tr(savedOffer == nil ? "Pair" : "Computers")
         updateEmptyState()
         if let savedOffer { connect(to: savedOffer, pairingCode: nil) }
     }
@@ -269,32 +279,50 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updateTitleButton()
         updateEmptyState()
         updatePendingButton()
+        refreshStatus()
     }
 
     private func configureStatusBar() {
         statusBar.translatesAutoresizingMaskIntoConstraints = false
         statusBar.axis = .horizontal
         statusBar.alignment = .center
-        statusBar.spacing = 12
+        statusBar.spacing = Glass.gap
         statusBar.isLayoutMarginsRelativeArrangement = true
-        statusBar.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
-        statusBar.backgroundColor = .secondarySystemBackground
+        statusBar.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: Glass.margin, bottom: 0, trailing: Glass.margin)
+        statusBar.backgroundColor = .clear
         view.addSubview(statusBar)
-        statusLabel.font = .preferredFont(forTextStyle: .subheadline)
-        statusLabel.textColor = .secondaryLabel
+        statusLabel.font = TypeScale.small.font
+        statusLabel.textColor = palette.ink2
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         statusBar.addArrangedSubview(statusLabel)
+        retryButton.titleLabel?.font = TypeScale.small.font
+        retryButton.setTitleColor(palette.accent, for: .normal)
         retryButton.setTitle(tr("Retry"), for: .normal)
         retryButton.addTarget(self, action: #selector(retryConnection), for: .touchUpInside)
         statusBar.addArrangedSubview(retryButton)
         retryButton.isHidden = true
-        statusLabel.text = tr("Not paired")
+        setStatus(tr("Not paired"))
+        statusHeight = statusBar.heightAnchor.constraint(equalToConstant: Metrics.statusRow)
         NSLayoutConstraint.activate([
             statusBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: 44),
+            statusHeight,
         ])
+        refreshStatus()
+    }
+
+    private func setStatus(_ text: String) {
+        statusLabel.text = text
+        refreshStatus()
+    }
+
+    /// Online is the quiet state: nothing on screen, no row reserved for it.
+    private func refreshStatus() {
+        let text = statusLabel.text ?? ""
+        let quiet = text.isEmpty || text == tr("Online")
+        statusBar.isHidden = quiet
+        statusHeight.constant = quiet ? 0 : Metrics.statusRow
     }
 
     /// A build on a phone has no console, so a long press is the only way to get the dump
@@ -480,7 +508,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         cursor = nil
         list.reloadData()
         updateEmptyState()
-        statusLabel.text = tr("Connecting…")
+        setStatus(tr("Connecting…"))
         retryButton.isHidden = true
         let phone = PhoneIdentityStore.loadOrCreate()
         let pairing = LinkSession.Pairing(
@@ -599,14 +627,14 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         pairingSheet?.showStatus(status)
         switch status {
         case .connecting:
-            statusLabel.text = tr("Connecting…")
+            setStatus(tr("Connecting…"))
             retryButton.isHidden = true
         case .online:
-            statusLabel.text = tr("Checking computer…")
+            setStatus(tr("Checking computer…"))
             retryButton.isHidden = true
             Task { await checkComputer(for: id) }
         case .offline:
-            statusLabel.text = tr("Offline · reconnecting")
+            setStatus(tr("Offline · reconnecting"))
             retryButton.isHidden = true
             composer.canSend = false
             composer.running = false
@@ -615,7 +643,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             stream.clear()
             rebuildRows()
         case .disconnected:
-            statusLabel.text = tr(savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline")
+            setStatus(tr(savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"))
             retryButton.isHidden = savedOffer == nil && pendingOffer == nil
             composer.canSend = false
             composer.running = false
@@ -628,7 +656,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private func showLinkError(_ message: String, for id: UUID) {
         guard id == sessionID else { return }
-        statusLabel.text = message
+        setStatus(message)
         let sheet = (presentedViewController as? UINavigationController)?.topViewController as? PairingViewController
         sheet?.showError(message)
     }
@@ -646,11 +674,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 pairingStore.save(pendingOffer)
                 savedOffer = pendingOffer
                 self.pendingOffer = nil
-                computerItem.title = tr("Computers")
+                computerItem.accessibilityLabel = tr("Computers")
+        computerItem.image = UIImage(systemName: "desktopcomputer")
                 updateEmptyState()
                 presentedViewController?.dismiss(animated: true)
             }
-            statusLabel.text = tr("Online")
+            setStatus(tr("Online"))
             startPolling(for: id)
             let boot = hello["boot"]?.stringValue ?? ""
             _ = try? await BotAPI.call("notices", payload: .object([
@@ -908,7 +937,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                     latestButton.isHidden = true
                     list.reloadData()
                     updateEmptyState()
-                    statusLabel.text = tr("Not paired")
+                    setStatus(tr("Not paired"))
                     computerItem.title = tr("Pair")
                     Task { await old.disconnect() }
                 }
