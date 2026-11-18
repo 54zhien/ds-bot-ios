@@ -24,12 +24,14 @@ struct ChatPage {
     let items: [ChatRow]
     let cursor: JSONValue?
 
-    init(_ value: JSONValue) {
+    init(_ value: JSONValue, inRoom: Bool = false) {
         sessionID = value["sessionId"]?.stringValue
         if case .array(let items)? = value["items"] {
             self.items = items.compactMap { item in
                 if item["kind"]?.stringValue == "relay", ChatEventText.relay(item["reply"]) == nil { return nil }
-                return ChatRow(item)
+                var row = ChatRow(item)
+                row.inRoom = inRoom
+                return row
             }
         } else {
             items = []
@@ -105,6 +107,9 @@ struct ChatRow {
     /// True when the next row continues this Bot's run, so this row draws no stamp.
     /// Chat.tsx stampOf puts a run's time on its last bubble only.
     var stampFolded = false
+    /// True in a room, where Chat.tsx shows no stamps at all. Set by the page, since
+    /// an item's own fields cannot tell a room reply from a one-to-one reply.
+    var inRoom = false
 
     init(_ value: JSONValue) {
         kind = value["kind"]?.stringValue ?? "event"

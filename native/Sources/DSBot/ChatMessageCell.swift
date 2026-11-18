@@ -57,7 +57,9 @@ final class ChatMessageCell: UITableViewCell {
     private let markdownView = ChatMarkdownView()
     private let photos = PhotoGridView()
     private let fileStack = UIStackView()
+    // Two views, two rules: the clock obeys the room, the send state never does.
     private let timeLabel = UILabel()
+    private let stateLabel = UILabel()
     private var leading: NSLayoutConstraint!
     private var trailing: NSLayoutConstraint!
     private var centered: NSLayoutConstraint!
@@ -87,7 +89,9 @@ final class ChatMessageCell: UITableViewCell {
         fileStack.spacing = 6
         timeLabel.font = TypeScale.caption.font
         timeLabel.textColor = palette.ink3
-        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, markdownView, photos, fileStack, timeLabel])
+        stateLabel.font = TypeScale.caption.font
+        stateLabel.textColor = palette.ink3
+        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, markdownView, photos, fileStack, timeLabel, stateLabel])
         text.translatesAutoresizingMaskIntoConstraints = false
         text.axis = .vertical
         text.spacing = 4
@@ -193,17 +197,24 @@ final class ChatMessageCell: UITableViewCell {
             : (row.isNotice || row.kind == "steps" ? palette.ink3 : palette.ink)
         messageLabel.font = row.stepSummary == nil ? TypeScale.bubble.font : TypeScale.small.font
         authorLabel.textColor = palette.ink3
-        if row.localID == nil {
-            timeLabel.text = row.time.map { Self.clock.string(from: $0) }
-        } else if row.failed {
+        // Two views, two rules: the clock obeys the room, the send state never does.
+        // Chat.tsx shows stamps outside rooms only, one per Bot run on its last row.
+        let stampable = row.kind == "user" || row.kind == "bot" || row.kind == "post"
+        timeLabel.text = row.time.map { Self.clock.string(from: $0) }
+        timeLabel.textColor = palette.ink3
+        timeLabel.numberOfLines = 1
+        timeLabel.isHidden = row.localID != nil || row.inRoom || !stampable || row.stampFolded
+        if row.failed {
             let reason = row.failureReason.map { NativeLanguage.text("Not sent · {reason}", ["reason": $0]) }
-            timeLabel.text = reason ?? NativeLanguage.text("Not sent. Tap to retry")
+            stateLabel.text = reason ?? NativeLanguage.text("Not sent. Tap to retry")
+            stateLabel.textColor = palette.danger
+            stateLabel.numberOfLines = 2
         } else {
-            timeLabel.text = NativeLanguage.text("Sending…")
+            stateLabel.text = NativeLanguage.text("Sending…")
+            stateLabel.textColor = palette.ink3
+            stateLabel.numberOfLines = 1
         }
-        timeLabel.numberOfLines = row.failed ? 2 : 1
-        timeLabel.textColor = row.failed ? palette.danger : palette.ink3
-        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps" || row.stampFolded
+        stateLabel.isHidden = row.localID == nil
         accessibilityLabel = [row.author, row.text, row.failureReason ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     }
 }
