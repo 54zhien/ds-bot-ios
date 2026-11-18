@@ -130,9 +130,9 @@ final class IconTests: XCTestCase {
     private func controlPoints(_ path: UIBezierPath) -> [CGPoint?] {
         var points: [CGPoint?] = []
         path.cgPath.applyWithBlock { element in
-            switch element.type {
+            switch element.pointee.type {
             case .addCurveToPoint, .addQuadCurveToPoint:
-                points.append(element.points.pointee)
+                points.append(element.pointee.points.pointee)
             default:
                 points.append(nil)
             }
