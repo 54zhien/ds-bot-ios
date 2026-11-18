@@ -189,10 +189,31 @@ jobs:
           elif xcrun simctl spawn "$DSBOT_UDID" launchctl list | grep -q "$bundle_id"; then
             echo "still running after 8s (launchd job present)"
           else
-            echo "::error::the app exited within 8s of launch, which reads as a crash on start"
+            # Dump the log first, then make the red line itself carry the diagnosis: the
+            # file:line and the fatal message out of the app's own log stream, instead of a
+            # sentence that only points at a log the reader still has to open. No threshold
+            # or judgement changes here - a healthy run never enters this branch.
             xcrun simctl spawn "$DSBOT_UDID" log show --last 2m --style compact \
               --predicate 'process == "DSBot"' > smoke/device.log 2>&1 || true
             tail -60 smoke/device.log || true
+            crash_line="$(grep -E 'Fatal error|SIGABRT|Terminating app' smoke/device.log | tail -1 || true)"
+            frame_line="$(grep -E 'DSBot/[^ :]+\.swift:[0-9]+' smoke/device.log | tail -1 || true)"
+            source_line="${crash_line:-$frame_line}"
+            diagnosis=""
+            if [ -n "$source_line" ]; then
+              frame="$(printf '%s' "$source_line" | sed -nE 's/.*(DSBot\/[^ :]+\.swift:[0-9]+).*/\1/p')"
+              message="$(printf '%s' "$source_line" | sed -nE 's/.*(Fatal error: .*)/\1/p')"
+              if [ -n "$frame" ] && [ -n "$message" ]; then
+                diagnosis="$frame $message"
+              else
+                diagnosis="${frame}${message}"
+              fi
+            fi
+            if [ -n "$diagnosis" ]; then
+              echo "::error::the app exited within 8s of launch - $diagnosis"
+            else
+              echo "::error::the app exited within 8s of launch, which reads as a crash on start; no crash marker in the app log, see the device.log artifact"
+            fi
             exit 1
           fi
 
