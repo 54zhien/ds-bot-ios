@@ -116,7 +116,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     private var sections: [(String, [Entry])] = []
     private var mainEntries: [Entry] = []
     private var query = ""
-    private var palette = ThemeStore.palette(trait: traitCollection)
+    private var palette = ThemeStore.palette(dark: false)
     private let gearButtonIcon = IconView(icon: .gear, size: Glass.iconXL)
     private let plusButtonIcon = IconView(icon: .plus, size: Glass.iconXL)
 
@@ -141,6 +141,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "DS Bot"
+        palette = ThemeStore.palette(trait: traitCollection)
         tableView.register(TeamRowCell.self, forCellReuseIdentifier: "team")
         tableView.separatorStyle = .none
         tableView.rowHeight = UITableView.automaticDimension
