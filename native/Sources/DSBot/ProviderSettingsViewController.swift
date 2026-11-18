@@ -20,7 +20,10 @@ final class ProviderSettingsViewController: UITableViewController {
         title = NativeLanguage.text("Model providers")
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
+        SettingsStyle.prepare(tableView)
         Task { await load() }
+
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
     }
 
     @objc private func refresh() { Task { await load() } }
@@ -38,8 +41,12 @@ final class ProviderSettingsViewController: UITableViewController {
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        tr(section == 0 ? "Model providers" : section == 1 ? "Known providers" : "Custom API")
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        SettingsStyle.headerHeight
+    }
+    override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        SettingsStyle.headerView(title: tr(section == 0 ? "Model providers" : section == 1 ? "Known providers" : "Custom API"),
+                                 palette: palette)
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         section == 0 ? max(1, providers.count) : section == 1 ? addable.count : 1
@@ -49,6 +56,7 @@ final class ProviderSettingsViewController: UITableViewController {
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "provider")
         cell.accessoryView = nil
         cell.selectionStyle = .default
+        SettingsStyle.styleSubtitle(cell, palette: palette)
         if indexPath.section == 0 && providers.isEmpty {
             cell.textLabel?.text = tr(available ? "No providers" : "This computer cannot set up model providers")
             cell.detailTextLabel?.text = nil

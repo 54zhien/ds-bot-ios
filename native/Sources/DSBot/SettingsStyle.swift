@@ -36,6 +36,17 @@ enum SettingsStyle {
         return header
     }
 
+    /// A row whose second line sits under the label, not beside it.
+    static func styleSubtitle(_ cell: UITableViewCell, palette: Palette) {
+        style(cell, palette: palette)
+        cell.detailTextLabel?.font = TypeScale.rowPreview.font
+        cell.detailTextLabel?.textColor = palette.ink2
+    }
+
+    /// A titled section's header height; a gap-only header when the RN screen has no label.
+    static let headerHeight: CGFloat = 38
+    static let gapHeaderHeight: CGFloat = 22
+
     static func style(_ cell: UITableViewCell, palette: Palette, danger: Bool = false) {
         cell.backgroundColor = palette.card
         cell.separatorInset = UIEdgeInsets(top: 0, left: Glass.margin, bottom: 0, right: 0)

@@ -29,6 +29,11 @@ final class CustomProviderViewController: UITableViewController {
         super.viewDidLoad()
         title = NativeLanguage.text("Custom provider")
         tableView.keyboardDismissMode = .interactive
+        SettingsStyle.prepare(tableView)
+        for field in [providerID, providerName, baseURL, apiKey, manualModels] {
+            field.font = TypeScale.settingsRow.font
+            field.textColor = SettingsStyle.palette(of: traitCollection).ink
+        }
         for (field, hint) in [(providerID, "Provider ID"), (providerName, "Name"),
                               (baseURL, "API base URL"), (apiKey, "API key"),
                               (manualModels, "Model IDs, comma separated")] {
@@ -49,8 +54,13 @@ final class CustomProviderViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Connection", "Models", nil][section].map { NativeLanguage.text($0) }
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
+    private var headerTitles: [String?] { ["Connection", "Models", nil].map { $0.map(NativeLanguage.text) } }
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        headerTitles[section] == nil ? SettingsStyle.gapHeaderHeight : SettingsStyle.headerHeight
+    }
+    override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        headerTitles[section].map { SettingsStyle.headerView(title: $0, palette: palette) }
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -62,8 +72,8 @@ final class CustomProviderViewController: UITableViewController {
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "custom-provider")
         cell.accessoryType = .none
         cell.accessoryView = nil
-        cell.textLabel?.textColor = .label
         cell.detailTextLabel?.text = nil
+        SettingsStyle.style(cell, palette: palette)
         cell.contentView.subviews.filter { $0 is UITextField }.forEach { $0.removeFromSuperview() }
         if path.section == 0 && path.row != 3 {
             let field = [providerID, providerName, baseURL, apiKey][path.row]
@@ -78,7 +88,7 @@ final class CustomProviderViewController: UITableViewController {
             cell.selectionStyle = .default
         } else if path.section == 1 && path.row == 0 {
             cell.textLabel?.text = NativeLanguage.text(discovering ? "Finding models…" : "Find models")
-            cell.textLabel?.textColor = view.tintColor
+            cell.textLabel?.textColor = palette.accent
             cell.selectionStyle = .default
         } else if path.section == 1 && path.row == 1 {
             manualModels.removeFromSuperview()
@@ -90,11 +100,12 @@ final class CustomProviderViewController: UITableViewController {
             let id = model["id"]?.stringValue ?? ""
             cell.textLabel?.text = model["name"]?.stringValue ?? id
             cell.detailTextLabel?.text = id
+            SettingsStyle.styleSubtitle(cell, palette: palette)
             cell.accessoryType = selectedModels.contains(id) ? .checkmark : .none
             cell.selectionStyle = .default
         } else {
             cell.textLabel?.text = NativeLanguage.text(saving ? "Adding…" : "Add provider")
-            cell.textLabel?.textColor = view.tintColor
+            cell.textLabel?.textColor = palette.accent
             cell.selectionStyle = .default
         }
         return cell
