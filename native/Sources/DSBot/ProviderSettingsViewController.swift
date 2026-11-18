@@ -60,7 +60,7 @@ final class ProviderSettingsViewController: UITableViewController {
             let key = tr(configured ? "Key set" : "Needs an API key")
             let count: Int
             if case .array(let models)? = item["models"] { count = models.count } else { count = 0 }
-            cell.detailTextLabel?.text = "\(key) · \(count) models"
+            cell.detailTextLabel?.text = NativeLanguage.text("{key} · {count} models", ["key": key, "count": String(count)])
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         } else if indexPath.section == 1 {
             let item = addable[indexPath.row]
@@ -127,7 +127,7 @@ final class ProviderSettingsViewController: UITableViewController {
 
     private func add(_ item: JSONValue) {
         guard let id = item["id"]?.stringValue else { return }
-        let alert = UIAlertController(title: "Add \(item["name"]?.stringValue ?? id)",
+        let alert = UIAlertController(title: NativeLanguage.text("Add {name}", ["name": item["name"]?.stringValue ?? id]),
                                       message: tr("Enter an API key if you have one."), preferredStyle: .alert)
         alert.addTextField { field in
             field.placeholder = self.tr("API key")
@@ -151,7 +151,7 @@ final class ProviderSettingsViewController: UITableViewController {
     }
 
     private func confirmRemoval(id: String, name: String) {
-        let alert = UIAlertController(title: "Remove \(name)?",
+        let alert = UIAlertController(title: NativeLanguage.text("Remove {name}?", ["name": name]),
                                       message: tr("Bots using this provider need another model."), preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: tr("Keep"), style: .cancel))
         alert.addAction(UIAlertAction(title: tr("Remove"), style: .destructive) { [weak self] _ in

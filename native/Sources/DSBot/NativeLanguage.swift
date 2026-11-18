@@ -146,6 +146,17 @@ enum NativeLanguage {
         "Send side question": "发送侧问",
         "The side chat has no ID.": "侧边对话没有 ID。",
         "Side chat failed": "侧边对话失败",
+        "Remove from memory?": "从记忆中删除？",
+        "Memory unavailable": "记忆不可用",
+        "Could not save memory": "无法保存记忆",
+        "{key} · {count} models": "{key} · {count} 个模型",
+        "Add {name}": "添加 {name}",
+        "Remove {name}?": "移除 {name}？",
+        "Delete this task?": "删除这个任务？",
+        "Schedule unavailable": "定时任务不可用",
+        "Enter a title and instructions.": "请填写标题和指令。",
+        "Enter a date and time in YYYY-MM-DD and HH:mm format.": "请按 YYYY-MM-DD 和 HH:mm 格式填写日期和时间。",
+        "Could not create task": "无法创建任务",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }

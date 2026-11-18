@@ -108,7 +108,7 @@ final class SchedulesViewController: UITableViewController {
     ) -> UISwipeActionsConfiguration? {
         guard tasks.indices.contains(indexPath.row), let id = tasks[indexPath.row]["id"]?.stringValue else { return nil }
         let task = tasks[indexPath.row]
-        let action = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, done in
+        let action = UIContextualAction(style: .destructive, title: NativeLanguage.text("Delete")) { [weak self] _, _, done in
             self?.confirmDelete(id: id, sessionID: task["sessionId"]?.stringValue ?? self?.sessionID ?? "")
             done(false)
         }
@@ -122,9 +122,9 @@ final class SchedulesViewController: UITableViewController {
     }
 
     private func confirmDelete(id: String, sessionID: String) {
-        let alert = UIAlertController(title: "Delete this task?", message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Keep", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+        let alert = UIAlertController(title: NativeLanguage.text("Delete this task?"), message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Keep"), style: .cancel))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Delete"), style: .destructive) { [weak self] _ in
             guard let self else { return }
             Task {
                 do {
@@ -139,8 +139,8 @@ final class SchedulesViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Schedule unavailable", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Schedule unavailable"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
@@ -260,7 +260,7 @@ private final class ScheduleEditorViewController: UIViewController {
             let selected = selectedWeekdays.contains(index + 1)
             button.backgroundColor = selected ? view.tintColor : .tertiarySystemBackground
             button.setTitleColor(selected ? .white : .label, for: .normal)
-            button.accessibilityValue = selected ? "Selected" : "Not selected"
+            button.accessibilityValue = NativeLanguage.text(selected ? "Selected" : "Not selected")
         }
     }
 
@@ -275,14 +275,17 @@ private final class ScheduleEditorViewController: UIViewController {
     @objc private func create() {
         let title = name.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let task = prompt.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, !task.isEmpty else { showError("Enter a title and instructions."); return }
+        guard !title.isEmpty, !task.isEmpty else {
+            showError(NativeLanguage.text("Enter a title and instructions."))
+            return
+        }
         let when: [String: JSONValue]
         switch kind.selectedSegmentIndex {
         case 0:
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd HH:mm"
             guard let at = formatter.date(from: "\(date.text ?? "") \(time.text ?? "")") else {
-                showError("Enter a date and time in YYYY-MM-DD and HH:mm format.")
+                showError(NativeLanguage.text("Enter a date and time in YYYY-MM-DD and HH:mm format."))
                 return
             }
             when = ["kind": .string("at"), "at": .string(ISO8601DateFormatter().string(from: at))]
@@ -324,9 +327,9 @@ private final class ScheduleEditorViewController: UIViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Could not create task", message: message,
+        let alert = UIAlertController(title: NativeLanguage.text("Could not create task"), message: message,
                                       preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }

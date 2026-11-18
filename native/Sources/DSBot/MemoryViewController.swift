@@ -29,7 +29,7 @@ final class MemoryViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Memory"
+        title = NativeLanguage.text("Memory")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .add, target: self, action: #selector(add)
         )
@@ -53,7 +53,7 @@ final class MemoryViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 2 }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Memory" : "\(entries.count) entries"
+        section == 0 ? NativeLanguage.text("Memory") : NativeLanguage.text("{count} entries", ["count": String(entries.count)])
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         section == 0 ? 2 : max(1, entries.count)
@@ -65,22 +65,22 @@ final class MemoryViewController: UITableViewController {
         cell.detailTextLabel?.numberOfLines = 0
         switch (indexPath.section, indexPath.row) {
         case (0, 0):
-            cell.textLabel?.text = "Summary"
+            cell.textLabel?.text = NativeLanguage.text("Summary")
             cell.detailTextLabel?.text = summary ?? "—"
             cell.selectionStyle = .none
         case (0, 1):
-            cell.textLabel?.text = "Ask memory"
+            cell.textLabel?.text = NativeLanguage.text("Ask memory")
             cell.detailTextLabel?.text = nil
             cell.selectionStyle = .default
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         default:
             if entries.isEmpty {
-                cell.textLabel?.text = loaded ? "Nothing saved yet" : "Loading…"
+                cell.textLabel?.text = NativeLanguage.text(loaded ? "Nothing saved yet" : "Loading…")
                 cell.detailTextLabel?.text = nil
                 cell.selectionStyle = .none
             } else {
                 let entry = entries[indexPath.row]
-                cell.textLabel?.text = entry["topic"]?.stringValue ?? "Memory"
+                cell.textLabel?.text = entry["topic"]?.stringValue ?? NativeLanguage.text("Memory")
                 cell.detailTextLabel?.text = entry["text"]?.stringValue
                 cell.selectionStyle = .default
                 cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
@@ -102,7 +102,7 @@ final class MemoryViewController: UITableViewController {
     ) -> UISwipeActionsConfiguration? {
         guard indexPath.section == 1 && entries.indices.contains(indexPath.row) else { return nil }
         let entry = entries[indexPath.row]
-        let action = UIContextualAction(style: .destructive, title: "Remove") { [weak self] _, _, done in
+        let action = UIContextualAction(style: .destructive, title: NativeLanguage.text("Remove")) { [weak self] _, _, done in
             self?.confirmForget(entry)
             done(true)
         }
@@ -118,10 +118,10 @@ final class MemoryViewController: UITableViewController {
     }
 
     private func ask() {
-        let alert = UIAlertController(title: "Ask memory", message: nil, preferredStyle: .alert)
-        alert.addTextField { $0.placeholder = "Question" }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Ask", style: .default) { [weak self, weak alert] _ in
+        let alert = UIAlertController(title: NativeLanguage.text("Ask memory"), message: nil, preferredStyle: .alert)
+        alert.addTextField { $0.placeholder = NativeLanguage.text("Question") }
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Ask"), style: .default) { [weak self, weak alert] _ in
             guard let self, let question = alert?.textFields?.first?.text,
                   !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             var payload = self.owner.payload
@@ -129,9 +129,9 @@ final class MemoryViewController: UITableViewController {
             Task {
                 do {
                     let result = try await BotAPI.call("memory-ask", payload: .object(payload), on: self.session)
-                    let answer = UIAlertController(title: "Memory", message: result["reply"]?.stringValue ?? "",
+                    let answer = UIAlertController(title: NativeLanguage.text("Memory"), message: result["reply"]?.stringValue ?? "",
                                                    preferredStyle: .alert)
-                    answer.addAction(UIAlertAction(title: "OK", style: .default))
+                    answer.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
                     self.present(answer, animated: true)
                     await self.load()
                 } catch { self.showError(error.localizedDescription) }
@@ -141,10 +141,10 @@ final class MemoryViewController: UITableViewController {
     }
 
     private func confirmForget(_ entry: JSONValue) {
-        let alert = UIAlertController(title: "Remove from memory?", message: entry["text"]?.stringValue,
+        let alert = UIAlertController(title: NativeLanguage.text("Remove from memory?"), message: entry["text"]?.stringValue,
                                       preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Keep", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Remove", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Keep"), style: .cancel))
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("Remove"), style: .destructive) { [weak self] _ in
             guard let self else { return }
             var payload = self.owner.payload
             payload["scope"] = entry["scope"] ?? .string("own")
@@ -161,8 +161,8 @@ final class MemoryViewController: UITableViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Memory unavailable", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: NativeLanguage.text("Memory unavailable"), message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
     }
 }
@@ -186,13 +186,13 @@ private final class MemoryEntryEditorViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = entry == nil ? "Add memory" : "Edit memory"
+        title = NativeLanguage.text(entry == nil ? "Add memory" : "Edit memory")
         view.backgroundColor = .systemBackground
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Save", style: .done,
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: NativeLanguage.text("Save"), style: .done,
                                                             target: self, action: #selector(save))
         topic.translatesAutoresizingMaskIntoConstraints = false
         topic.borderStyle = .roundedRect
-        topic.placeholder = "Topic"
+        topic.placeholder = NativeLanguage.text("Topic")
         topic.text = entry?["topic"]?.stringValue
         view.addSubview(topic)
         text.translatesAutoresizingMaskIntoConstraints = false
@@ -234,9 +234,9 @@ private final class MemoryEntryEditorViewController: UIViewController {
                 navigationController?.popViewController(animated: true)
             } catch {
                 navigationItem.rightBarButtonItem?.isEnabled = true
-                let alert = UIAlertController(title: "Could not save memory", message: error.localizedDescription,
+                let alert = UIAlertController(title: NativeLanguage.text("Could not save memory"), message: error.localizedDescription,
                                               preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
                 present(alert, animated: true)
             }
         }

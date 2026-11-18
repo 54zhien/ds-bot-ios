@@ -198,7 +198,7 @@ final class CapabilitiesViewController: UITableViewController {
     }
 
     private func confirmDelete(_ name: String) {
-        let alert = UIAlertController(title: "Delete \(name)?", message: nil, preferredStyle: .alert)
+        let alert = UIAlertController(title: NativeLanguage.text("Delete {name}?", ["name": name]), message: nil, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: tr("Keep"), style: .cancel))
         alert.addAction(UIAlertAction(title: tr("Delete"), style: .destructive) { [weak self] _ in
             self?.run("capability-delete", payload: ["name": .string(name)])
