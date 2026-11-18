@@ -116,6 +116,24 @@ final class NeedsYouViewController: UITableViewController {
         title = NativeLanguage.text("Needs you")
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done,
                                                             target: self, action: #selector(close))
+        // NeedsYou.tsx parks its empty line 60pt below the list top, text only: the
+        // state itself is the answer, so there is no button to press.
+        if sections.isEmpty {
+            let holder = UIView()
+            let empty = UILabel()
+            empty.translatesAutoresizingMaskIntoConstraints = false
+            empty.text = NativeLanguage.text("Nothing needs you")
+            empty.font = TypeScale.small.font
+            empty.textColor = Palette.make(dark: traitCollection.userInterfaceStyle == .dark).ink3
+            empty.textAlignment = .center
+            holder.addSubview(empty)
+            NSLayoutConstraint.activate([
+                empty.topAnchor.constraint(equalTo: holder.topAnchor, constant: 60),
+                empty.leadingAnchor.constraint(equalTo: holder.leadingAnchor),
+                empty.trailingAnchor.constraint(equalTo: holder.trailingAnchor),
+            ])
+            tableView.backgroundView = holder
+        }
     }
 
     @objc private func close() { dismiss(animated: true) }

@@ -318,7 +318,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         }
         mainEntries = main
         sections = [("Conversations", conversations)].filter { !$0.1.isEmpty }
-        buildMainTiles()
+        if bots.isEmpty && rooms.isEmpty { buildEmptyHeader() } else { buildMainTiles() }
         tableView.reloadData()
     }
 
@@ -342,6 +342,54 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         else { phrase = "On it" }
         let target = value["target"]?.stringValue ?? ""
         return target.isEmpty ? tr(phrase) : "\(tr(phrase)) · \(target)"
+    }
+
+    /// The team itself is empty: one line and one way forward, not a blank drawer.
+    /// TeamList.tsx parks its empty text 40pt below the list top.
+    private func buildEmptyHeader() {
+        let width = tableView.bounds.width > 0 ? tableView.bounds.width : min(view.bounds.width * 0.85, 340)
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 1))
+        let column = UIStackView()
+        column.axis = .vertical
+        column.alignment = .center
+        column.spacing = 12
+        column.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(column)
+        let text = UILabel()
+        text.text = tr("No Bot yet")
+        text.font = TypeScale.small.font
+        text.textColor = palette.ink3
+        text.textAlignment = .center
+        column.addArrangedSubview(text)
+        let create = UIButton(type: .system)
+        create.setTitle(tr("New Bot"), for: .normal)
+        create.titleLabel?.font = .systemFont(ofSize: TypeScale.rowName.size, weight: .semibold)
+        create.setTitleColor(palette.accentInk, for: .normal)
+        create.backgroundColor = palette.accent
+        create.layer.cornerRadius = Radius.input
+        create.contentEdgeInsets = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+        create.heightAnchor.constraint(equalToConstant: Glass.control).isActive = true
+        create.accessibilityLabel = tr("New Bot")
+        create.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            let action = self.onCreateBot
+            self.dismiss(animated: true) { action?() }
+        }, for: .touchUpInside)
+        column.addArrangedSubview(create)
+        NSLayoutConstraint.activate([
+            column.topAnchor.constraint(equalTo: header.topAnchor, constant: 40),
+            column.centerXAnchor.constraint(equalTo: header.centerXAnchor),
+            column.leadingAnchor.constraint(greaterThanOrEqualTo: header.leadingAnchor, constant: Glass.margin),
+            column.trailingAnchor.constraint(lessThanOrEqualTo: header.trailingAnchor, constant: -Glass.margin),
+        ])
+        header.setNeedsLayout()
+        header.layoutIfNeeded()
+        let height = column.systemLayoutSizeFitting(
+            CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
+        ).height + 40
+        header.frame.size.height = height
+        tableView.tableHeaderView = header
     }
 
     private func buildMainTiles() {

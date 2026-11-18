@@ -12,6 +12,7 @@ final class SideChatViewController: UIViewController {
     private let backButton = UIButton(type: .system)
     private let closeChatButton = UIButton(type: .system)
     private var chats: [JSONValue] = []
+    private let emptyLabel = UILabel()
     private var openID: String?
     private var entries: [JSONValue] = []
     private var polling: Task<Void, Never>?
@@ -52,6 +53,19 @@ final class SideChatViewController: UIViewController {
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 90
         view.addSubview(table)
+        // side.tsx parks the empty line 30pt below the list top when no chat exists;
+        // the composer below is already the way forward.
+        emptyLabel.text = NativeLanguage.text("Ask about the work so far")
+        emptyLabel.font = TypeScale.small.font
+        emptyLabel.textColor = Palette.make(dark: traitCollection.userInterfaceStyle == .dark).ink3
+        emptyLabel.textAlignment = .center
+        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(emptyLabel)
+        NSLayoutConstraint.activate([
+            emptyLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 30),
+            emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Glass.margin),
+            emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Glass.margin),
+        ])
         let composer = UIStackView()
         composer.translatesAutoresizingMaskIntoConstraints = false
         composer.axis = .horizontal
@@ -127,6 +141,7 @@ final class SideChatViewController: UIViewController {
 
     private func updateHeader() {
         closeChatButton.isHidden = openID == nil
+        emptyLabel.isHidden = !chats.isEmpty
     }
 
     @objc private func back() {
