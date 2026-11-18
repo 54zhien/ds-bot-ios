@@ -47,6 +47,35 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertNil(keys?["value"], "the reply is described one level down, not by its envelope")
     }
 
+    func testTheHelloReplyIsKeptBesideTheHandshake() throws {
+        // The phone refuses a computer whose api version it does not know, so the answer
+        // that decided that has to be in the dump. The Noise hello is recorded too, and the
+        // two must stay apart in the document.
+        Diagnostics.shared.recordHandshake(
+            sent: Data("{\"name\":\"DS Bot\"}".utf8), received: Data("{\"name\":\"CI Desk\"}".utf8)
+        )
+        Diagnostics.shared.recordCall(
+            method: "bot", endpoint: "hello", milliseconds: 3, errorCode: nil, errorMessage: nil,
+            reply: .object([
+                "ok": .bool(true),
+                "value": .object([
+                    "api": .number(3),
+                    "boot": .string("b-1"),
+                    "capabilities": .array([.string("transport.relay")]),
+                ]),
+            ])
+        )
+
+        let text = Diagnostics.shared.text()
+        let document = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]
+        let hello = document?["helloReply"] as? [String: Any]
+        XCTAssertEqual(hello?["api"] as? Int, 3)
+        XCTAssertEqual(hello?["boot"] as? String, "b-1")
+        XCTAssertEqual(hello?["capabilities"] as? [String], ["transport.relay"])
+        XCTAssertNotNil(document?["handshake"], "the Noise hello keeps its own section")
+        XCTAssertNil(hello?["ok"], "the reply is kept without its envelope")
+    }
+
     func testADumpLandsWhereTheUpdatesPageLooksForIt() throws {
         let url = try DiagnosticsStore.write("{\"ok\":true}")
 

@@ -309,15 +309,26 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
 
     @objc private func showDiagnosticsMenu(_ press: UILongPressGestureRecognizer) {
         guard press.state == .began else { return }
+        // The dump is written before the sheet appears: a user who only copies would
+        // otherwise never leave a file behind, and the Updates page would be empty exactly
+        // when someone needs it.
+        let written = try? Diagnostics.shared.save()
         let sheet = UIAlertController(title: tr("Diagnostics"), message: nil, preferredStyle: .actionSheet)
         sheet.addAction(UIAlertAction(title: tr("Copy diagnostics"), style: .default) { _ in
-            UIPasteboard.general.string = Diagnostics.shared.text()
+            // The paste is the file this sheet wrote, so it matches what the Updates page
+            // lists; the in-memory text is only a fallback for a failed write.
+            let text = written.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            UIPasteboard.general.string = text ?? Diagnostics.shared.text()
         })
         sheet.addAction(UIAlertAction(title: tr("Save diagnostics"), style: .default) { [weak self] _ in
-            do {
-                let url = try Diagnostics.shared.save()
+            // Save names the file the sheet already wrote instead of making a second one.
+            if let written {
+                self?.showSavedDiagnostics(written)
+            } else if let url = try? Diagnostics.shared.save() {
                 self?.showSavedDiagnostics(url)
-            } catch { self?.showActionError(error.localizedDescription) }
+            } else {
+                self?.showActionError(NativeLanguage.text("The dump could not be written."))
+            }
         })
         sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
         // An action sheet on iPad is a popover, and a popover needs an anchor.

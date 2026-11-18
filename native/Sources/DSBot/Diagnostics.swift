@@ -23,6 +23,7 @@ final class Diagnostics: @unchecked Sendable {
         var invalidMessages: [String]
         var lastState: [String: Any]?
         var lastHandshake: [String: Any]?
+        var lastHelloReply: Any?
         var lastLinkError: String?
     }
 
@@ -34,6 +35,7 @@ final class Diagnostics: @unchecked Sendable {
     private var invalidMessages: [String] = []
     private var lastState: [String: Any]?
     private var lastHandshake: [String: Any]?
+    private var lastHelloReply: Any?
     private var lastLinkError: String?
 
     func recordCall(
@@ -43,8 +45,15 @@ final class Diagnostics: @unchecked Sendable {
         // The reply shape is the only way to tell a host that sent nothing from a phone
         // that could not read what it sent.
         var state: [String: Any]?
-        if endpoint == "state", let reply {
-            state = Diagnostics.describeFields(of: reply["value"] ?? reply)
+        var hello: Any?
+        if let reply {
+            switch endpoint {
+            case "state": state = Diagnostics.describeFields(of: reply["value"] ?? reply)
+            // The phone checks api and boot to decide whether the computer is new enough,
+            // so the whole answer is kept; it is small and it explains that refusal.
+            case "hello": hello = Diagnostics.plain(reply["value"] ?? reply)
+            default: break
+            }
         }
         lock.withLock {
             calls.append(Call(
@@ -55,6 +64,7 @@ final class Diagnostics: @unchecked Sendable {
                 calls.removeFirst(calls.count - Diagnostics.callLimit)
             }
             if let state { lastState = state }
+            if let hello { lastHelloReply = hello }
         }
     }
 
@@ -84,7 +94,8 @@ final class Diagnostics: @unchecked Sendable {
         let snapshot = lock.withLock {
             Snapshot(
                 calls: calls, invalidMessages: invalidMessages, lastState: lastState,
-                lastHandshake: lastHandshake, lastLinkError: lastLinkError
+                lastHandshake: lastHandshake, lastHelloReply: lastHelloReply,
+                lastLinkError: lastLinkError
             )
         }
         var document: [String: Any] = [
@@ -104,6 +115,7 @@ final class Diagnostics: @unchecked Sendable {
         ]
         if let lastState = snapshot.lastState { document["state"] = ["keys": lastState] }
         if let lastHandshake = snapshot.lastHandshake { document["handshake"] = lastHandshake }
+        if let lastHelloReply = snapshot.lastHelloReply { document["helloReply"] = lastHelloReply }
         if !snapshot.invalidMessages.isEmpty { document["invalidMessages"] = snapshot.invalidMessages }
         if let lastLinkError = snapshot.lastLinkError { document["linkError"] = lastLinkError }
         let scrubbed = Redaction.scrub(document) as? [String: Any] ?? document
@@ -148,6 +160,19 @@ final class Diagnostics: @unchecked Sendable {
         case .number: return ["type": "number"]
         case .bool: return ["type": "bool"]
         case .null: return ["type": "null"]
+        }
+    }
+
+    /// The wire types are not all JSON-serializable, so they are turned back into the
+    /// Foundation shapes JSONSerialization writes.
+    private static func plain(_ value: JSONValue) -> Any {
+        switch value {
+        case .null: return NSNull()
+        case .bool(let flag): return flag
+        case .number(let number): return number
+        case .string(let text): return text
+        case .array(let items): return items.map { plain($0) }
+        case .object(let fields): return fields.mapValues { plain($0) }
         }
     }
 
