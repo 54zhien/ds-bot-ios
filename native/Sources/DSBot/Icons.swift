@@ -436,6 +436,21 @@ enum Icon {
     }
 }
 
+extension UIBarButtonItem {
+    /// A 44pt round icon button for a bar, the size ShellB gives its header
+    /// controls; the label rides the button for accessibility.
+    convenience init(icon: Icon, label: String, color: UIColor, target: Any?, action: Selector) {
+        let button = UIButton(type: .system)
+        button.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        button.accessibilityLabel = label
+        button.addTarget(target, action: action, for: .touchUpInside)
+        let glyph = IconView(icon: icon, size: Glass.iconXL, color: color)
+        glyph.frame.origin = CGPoint(x: 9, y: 9)
+        button.addSubview(glyph)
+        self.init(customView: button)
+    }
+}
+
 /// One icon as a view: the size is the render size, the colour is whatever the
 /// caller's palette says, and both can change on trait changes like any label.
 final class IconView: UIView {

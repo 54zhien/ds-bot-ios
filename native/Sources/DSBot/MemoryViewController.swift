@@ -188,8 +188,12 @@ private final class MemoryEntryEditorViewController: UIViewController {
         super.viewDidLoad()
         title = NativeLanguage.text(entry == nil ? "Add memory" : "Edit memory")
         view.backgroundColor = .systemBackground
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: NativeLanguage.text("Save"), style: .done,
-                                                            target: self, action: #selector(save))
+        let save = UIBarButtonItem(title: NativeLanguage.text("Save"), style: .done,
+                                     target: self, action: #selector(save))
+        // The words carry the action, so they stay; the colour marks it primary.
+        save.tintColor = ThemeStore.palette(trait: traitCollection).accent
+        save.setTitleTextAttributes([.font: TypeScale.rowName.font], for: .normal)
+        navigationItem.rightBarButtonItem = save
         topic.translatesAutoresizingMaskIntoConstraints = false
         topic.borderStyle = .roundedRect
         topic.placeholder = NativeLanguage.text("Topic")

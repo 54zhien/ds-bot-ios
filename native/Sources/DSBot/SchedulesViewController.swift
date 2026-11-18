@@ -18,8 +18,10 @@ final class SchedulesViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = NativeLanguage.text("Scheduled tasks")
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
-                                                            target: self, action: #selector(add))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            icon: .plus, label: NativeLanguage.text("New task"),
+            color: ThemeStore.palette(trait: traitCollection).ink2,
+            target: self, action: #selector(add))
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         Task { await load() }
@@ -181,8 +183,12 @@ private final class ScheduleEditorViewController: UIViewController {
         super.viewDidLoad()
         title = NativeLanguage.text("New task")
         view.backgroundColor = .systemBackground
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: NativeLanguage.text("Create task"), style: .done,
-                                                            target: self, action: #selector(create))
+        let create = UIBarButtonItem(title: NativeLanguage.text("Create task"), style: .done,
+                                        target: self, action: #selector(create))
+        // The words carry the action, so they stay; the colour marks it primary.
+        create.tintColor = ThemeStore.palette(trait: traitCollection).accent
+        create.setTitleTextAttributes([.font: TypeScale.rowName.font], for: .normal)
+        navigationItem.rightBarButtonItem = create
         scroll.translatesAutoresizingMaskIntoConstraints = false
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.axis = .vertical

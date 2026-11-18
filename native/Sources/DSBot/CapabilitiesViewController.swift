@@ -17,8 +17,10 @@ final class CapabilitiesViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = NativeLanguage.text("Capabilities")
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add, target: self,
-                                                            action: #selector(add))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            icon: .plus, label: NativeLanguage.text("Add capability"),
+            color: ThemeStore.palette(trait: traitCollection).ink2,
+            target: self, action: #selector(add))
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         SettingsStyle.prepare(tableView)

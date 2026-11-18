@@ -15,8 +15,10 @@ final class SecretsSettingsViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = NativeLanguage.text("Secrets")
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
-                                                            target: self, action: #selector(add))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            icon: .plus, label: NativeLanguage.text("Add secret"),
+            color: ThemeStore.palette(trait: traitCollection).ink2,
+            target: self, action: #selector(add))
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         SettingsStyle.prepare(tableView)
