@@ -125,7 +125,7 @@ final class ChatMessageCell: UITableViewCell {
         }
         // The asymmetry is deliberate: a user message is a bubble, a Bot message is text.
         bubble.backgroundColor = row.isUser ? palette.user : .clear
-        authorLabel.isHidden = row.isNotice || row.kind == "steps" || row.continuesPrevious
+        authorLabel.isHidden = row.isNotice || row.kind == "steps"
         authorLabel.text = row.author
         let wideBlock = !row.isNotice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
         wideWidth.isActive = wideBlock
@@ -203,7 +203,7 @@ final class ChatMessageCell: UITableViewCell {
         }
         timeLabel.numberOfLines = row.failed ? 2 : 1
         timeLabel.textColor = row.failed ? palette.danger : palette.ink3
-        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps" || row.continuesPrevious
+        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps" || row.stampFolded
         accessibilityLabel = [row.author, row.text, row.failureReason ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     }
 }

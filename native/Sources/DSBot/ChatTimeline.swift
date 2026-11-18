@@ -102,8 +102,9 @@ struct ChatRow {
     let localID: UUID?
     let failed: Bool
     let failureReason: String?
-    /// True when the previous row has the same author, so this row draws no name or time.
-    var continuesPrevious = false
+    /// True when the next row continues this Bot's run, so this row draws no stamp.
+    /// Chat.tsx stampOf puts a run's time on its last bubble only.
+    var stampFolded = false
 
     init(_ value: JSONValue) {
         kind = value["kind"]?.stringValue ?? "event"
