@@ -9,6 +9,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let emptyState = UILabel()
     private let retryLoadButton = UIButton(type: .system)
     private let emptyChatView = EmptyChatView()
+    private let emptyChatGuide = UILayoutGuide()
     private let latestButton = UIButton(type: .system)
     private let composer = NativeComposerView()
     private let header = PassthroughHeader()
@@ -534,13 +535,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         emptyChatView.translatesAutoresizingMaskIntoConstraints = false
         emptyChatView.isHidden = true
         view.addSubview(emptyChatView)
+        view.addLayoutGuide(emptyChatGuide)
         NSLayoutConstraint.activate([
+            emptyChatGuide.topAnchor.constraint(equalTo: view.topAnchor),
+            emptyChatGuide.heightAnchor.constraint(equalTo: view.heightAnchor,
+                                                   multiplier: EmptyChatView.topPercent),
             emptyChatView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: EmptyChatView.sideInset),
             emptyChatView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -EmptyChatView.sideInset),
-            // Chat.tsx styles.empty pins the block at 28% of the screen; a position
-            // anchored to a dimension needs the item API's multiplier.
-            NSLayoutConstraint(item: emptyChatView, attribute: .top, relatedBy: .equal,
-                               toItem: view, attribute: .height, multiplier: EmptyChatView.topPercent, constant: 0),
+            // Chat.tsx styles.empty pins the block at 28% of the screen. A percentage
+            // offset needs a guide: pairing .top with .height is rejected at runtime.
+            emptyChatView.topAnchor.constraint(equalTo: emptyChatGuide.bottomAnchor),
         ])
         headerFade.configure(color: palette.main)
         view.addSubview(headerFade)
