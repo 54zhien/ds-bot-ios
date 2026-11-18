@@ -148,7 +148,7 @@ struct ChatRow {
             stepSummary = summary
             stepDetails = tools.map { tool in
                 let label = tool["label"]?.stringValue ?? tool["name"]?.stringValue ?? NativeLanguage.text("Tool")
-                return label + (tool["ok"] == .bool(false) ? " — failed" : "")
+                return label + (tool["ok"] == .bool(false) ? NativeLanguage.text(" — failed") : "")
             }
         } else {
             stepSummary = nil
@@ -242,7 +242,7 @@ struct ChatRow {
     var isUser: Bool { kind == "user" }
     var isNotice: Bool { kind == "event" || kind == "divider" || kind == "relay" }
     var author: String {
-        if isUser { return "You" }
+        if isUser { return NativeLanguage.text("You") }
         if !name.isEmpty { return name }
         if kind == "bot" || kind == "post" { return "Bot" }
         return kind.capitalized
