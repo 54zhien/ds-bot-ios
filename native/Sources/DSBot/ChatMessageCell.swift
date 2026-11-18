@@ -1,22 +1,24 @@
 import UIKit
 
-/// Photos in a square grid. The height comes from the count and the width only, so a
-/// late image decode never changes the row height under the thumb.
+/// Photos the way items.tsx grids them: one shows large, the rest two to a row,
+/// with fixed tile sizes rather than a share of the width. The height comes from
+/// the count alone, so a late image decode never changes the row height under
+/// the thumb.
 final class PhotoGridView: UIView {
     private var tiles: [UIView] = []
 
-    /// Width / (smallest tile + gap), capped at three columns.
-    static func columns(for width: CGFloat) -> Int {
-        guard width > 0 else { return 1 }
-        return max(1, min(3, Int((width + Glass.gap) / (100 + Glass.gap))))
-    }
+    /// items.tsx gridOf: one photo is a 200 square, several are 120 two to a
+    /// row, six points apart.
+    private static let single: CGFloat = 200
+    private static let tile: CGFloat = 120
+    private static let gap: CGFloat = 6
 
-    static func height(forWidth width: CGFloat, count: Int) -> CGFloat {
+    static func height(for count: Int) -> CGFloat {
         guard count > 0 else { return 0 }
-        let columns = CGFloat(columns(for: width))
-        let side = (width - Glass.gap * (columns - 1)) / columns
-        let rows = CGFloat((count + Int(columns) - 1) / Int(columns))
-        return rows * side + Glass.gap * (rows - 1)
+        let columns = min(2, count)
+        let side = count == 1 ? single : tile
+        let rows = CGFloat((count + columns - 1) / columns)
+        return rows * side + gap * (rows - 1)
     }
 
     func setViews(_ views: [UIView]) {
@@ -28,20 +30,19 @@ final class PhotoGridView: UIView {
     }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric,
-               height: Self.height(forWidth: bounds.width > 0 ? bounds.width : 280, count: tiles.count))
+        CGSize(width: UIView.noIntrinsicMetric, height: Self.height(for: tiles.count))
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         guard !tiles.isEmpty else { return }
-        let columns = Self.columns(for: bounds.width)
-        let side = (bounds.width - Glass.gap * CGFloat(columns - 1)) / CGFloat(columns)
+        let columns = min(2, tiles.count)
+        let side = tiles.count == 1 ? Self.single : Self.tile
         for (index, tile) in tiles.enumerated() {
             let column = index % columns
             let row = index / columns
-            tile.frame = CGRect(x: CGFloat(column) * (side + Glass.gap),
-                                y: CGFloat(row) * (side + Glass.gap),
+            tile.frame = CGRect(x: CGFloat(column) * (side + gap),
+                                y: CGFloat(row) * (side + gap),
                                 width: side, height: side)
         }
     }
@@ -174,7 +175,7 @@ final class ChatMessageCell: UITableViewCell {
         for reference in row.imageRefs {
             let button = UIButton(type: .custom)
             button.clipsToBounds = true
-            button.layer.cornerRadius = Radius.card
+            button.layer.cornerRadius = Radius.bubble
             button.backgroundColor = palette.hover
             button.imageView?.contentMode = .scaleAspectFill
             button.setImage(images[reference], for: .normal)
@@ -186,7 +187,7 @@ final class ChatMessageCell: UITableViewCell {
             let thumbnail = UIImageView(image: UIImage(data: data))
             thumbnail.contentMode = .scaleAspectFill
             thumbnail.clipsToBounds = true
-            thumbnail.layer.cornerRadius = Radius.card
+            thumbnail.layer.cornerRadius = Radius.bubble
             tiles.append(thumbnail)
         }
         photos.setViews(tiles)
