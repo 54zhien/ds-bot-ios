@@ -5,9 +5,21 @@ import UIKit
 /// RN's pointerEvents="box-none" equivalent: only real controls catch touches.
 final class PassthroughHeader: UIView {
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        subviews.contains { child in
-            child.isUserInteractionEnabled && !child.isHidden && child.frame.insetBy(dx: -8, dy: -8).contains(point)
+        controlHit(self, at: point)
+    }
+
+    /// The controls sit in a wrapping row whose frame spans the header's blank
+    /// gaps; only controls and gesture bearers may answer, not the row itself.
+    private func controlHit(_ view: UIView, at point: CGPoint) -> Bool {
+        for child in view.subviews {
+            guard child.isUserInteractionEnabled, !child.isHidden else { continue }
+            let local = view.convert(point, to: child)
+            guard child.frame.insetBy(dx: -8, dy: -8).contains(local) else { continue }
+            if child is UIControl { return true }
+            if let gestures = child.gestureRecognizers, !gestures.isEmpty { return true }
+            if controlHit(child, at: local) { return true }
         }
+        return false
     }
 }
 
