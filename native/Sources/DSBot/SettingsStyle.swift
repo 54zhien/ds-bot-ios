@@ -11,6 +11,7 @@ enum SettingsStyle {
         ThemeStore.palette(trait: trait)
     }
 
+    @MainActor
     static func prepare(_ table: UITableView) {
         let palette = palette(of: table.traitCollection)
         table.backgroundColor = palette.main
