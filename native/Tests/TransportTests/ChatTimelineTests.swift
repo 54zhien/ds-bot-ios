@@ -58,4 +58,21 @@ final class ChatTimelineTests: XCTestCase {
         XCTAssertEqual(row.viewRecord?["view"], root)
         XCTAssertEqual(row.viewRecord?["title"], .string("Report"))
     }
+
+    func testLocalPhotoRowRetainsPreviewWithoutAddingCountToText() {
+        let image = Data([1, 2, 3])
+        let row = ChatRow(localID: UUID(), text: "", localImageData: [image], failureReason: nil)
+        XCTAssertEqual(row.imageCount, 1)
+        XCTAssertEqual(row.localImageData, [image])
+        XCTAssertEqual(row.text, "")
+    }
+
+    func testSavedPhotoOnlyMessageUsesImageWithoutCountText() {
+        let row = ChatRow(.object([
+            "kind": .string("user"),
+            "imageRefs": .array([.object(["attachmentId": .string("photo-1")])]),
+        ]))
+        XCTAssertEqual(row.imageCount, 1)
+        XCTAssertEqual(row.text, "")
+    }
 }

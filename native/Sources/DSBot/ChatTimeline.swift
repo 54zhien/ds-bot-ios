@@ -92,6 +92,7 @@ struct ChatRow {
     let messageText: String
     let imageCount: Int
     let imageRefs: [String]
+    let localImageData: [Data]
     let files: [ChatFile]
     let viewRecord: JSONValue?
     let stepSummary: String?
@@ -116,6 +117,7 @@ struct ChatRow {
         if case .array(let refs)? = value["imageRefs"] {
             imageRefs = refs.compactMap { $0["attachmentId"]?.stringValue }
         } else { imageRefs = [] }
+        localImageData = []
         var attached: [ChatFile] = []
         if case .array(let references)? = value["files"] {
             attached = references.compactMap { reference in
@@ -185,7 +187,7 @@ struct ChatRow {
             if !responses.isEmpty { display = responses.joined(separator: "\n") }
         }
         if count > 0 {
-            text = display.isEmpty ? "Photos: \(count)" : "\(display)\nPhotos: \(count)"
+            text = display
         } else if !display.isEmpty {
             text = display
         } else {
@@ -212,17 +214,18 @@ struct ChatRow {
         failureReason = nil
     }
 
-    init(localID: UUID, text: String, imageCount: Int, failureReason: String?) {
+    init(localID: UUID, text: String, localImageData: [Data], failureReason: String?) {
         kind = "user"
         name = ""
         messageText = text
-        self.imageCount = imageCount
+        imageCount = localImageData.count
         imageRefs = []
+        self.localImageData = localImageData
         files = []
         viewRecord = nil
         stepSummary = nil
         stepDetails = []
-        self.text = imageCount == 0 ? text : text.isEmpty ? "Photos: \(imageCount)" : "\(text)\nPhotos: \(imageCount)"
+        self.text = text
         time = Date()
         sourceKey = "local-\(localID.uuidString)"
         self.localID = localID

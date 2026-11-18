@@ -46,6 +46,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var outbox: [String: [Outgoing]] = [:]
     private var acknowledgedRows: [String: Set<String>] = [:]
     private var imageCache: [String: UIImage] = [:]
+    private var originalImages: [String: UIImage] = [:]
     private var imageReads = Set<String>()
     private var expandedSteps = Set<String>()
     private var cursor: JSONValue?
@@ -85,9 +86,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 return true
             }
             acknowledgedRows[key] = matched
-            rows = visible + (outbox[key] ?? []).map {
-                ChatRow(localID: $0.id, text: $0.text, imageCount: $0.images.count,
-                        failureReason: $0.failureReason)
+            rows = visible + (outbox[key] ?? []).map { entry in
+                ChatRow(localID: entry.id, text: entry.text,
+                        localImageData: entry.images.compactMap { Data(base64Encoded: $0) },
+                        failureReason: entry.failureReason)
             }
             if stream.sessionID == chatSessionID, !stream.text.isEmpty {
                 rows.append(ChatRow(.object(["kind": .string("bot"), "text": .string(stream.text)])))
@@ -137,20 +139,30 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         return images
     }
 
-    private func openPhoto(_ attachmentID: String) {
+    private func openPhotos(_ refs: [String], startingWith attachmentID: String) {
         guard let chatSessionID else { return }
-        let viewer = PhotoViewController(image: imageCache[imageKey(attachmentID)])
-        present(UINavigationController(rootViewController: viewer), animated: true)
+        let index = refs.firstIndex(of: attachmentID) ?? 0
+        let viewer = PhotoViewController(refs: refs, images: refs.map { imageCache[imageKey($0)] }, index: index)
         let connectionID = sessionID
-        Task {
-            guard let result = try? await BotAPI.call("image", payload: .object([
-                "sessionId": .string(chatSessionID), "attachmentId": .string(attachmentID),
-            ]), on: session),
-                  let encoded = result["data"]?.stringValue,
-                  let bytes = Data(base64Encoded: encoded), let image = UIImage(data: bytes),
-                  connectionID == sessionID else { return }
-            viewer.show(image)
+        viewer.onSelect = { [weak self, weak viewer] reference, page in
+            guard let self, let viewer else { return }
+            let cacheKey = "\(savedOffer?.hostDeviceId ?? ""):\(chatSessionID):\(reference)"
+            if let image = originalImages[cacheKey] {
+                viewer.show(image, at: page)
+                return
+            }
+            Task {
+                guard let result = try? await BotAPI.call("image", payload: .object([
+                    "sessionId": .string(chatSessionID), "attachmentId": .string(reference),
+                ]), on: session),
+                      let encoded = result["data"]?.stringValue,
+                      let bytes = Data(base64Encoded: encoded), let image = UIImage(data: bytes),
+                      connectionID == sessionID, self.chatSessionID == chatSessionID else { return }
+                originalImages[cacheKey] = image
+                viewer.show(image, at: page)
+            }
         }
+        present(UINavigationController(rootViewController: viewer), animated: true)
     }
 
     private func openFile(_ file: ChatFile) {
@@ -1292,7 +1304,7 @@ extension ChatViewController: UITableViewDataSource {
         cell.configure(row, images: previewImages(for: row),
                        stepsExpanded: expandedSteps.contains(row.sourceKey))
         cell.onOpenFile = { [weak self] file in self?.openFile(file) }
-        cell.onOpenPhoto = { [weak self] reference in self?.openPhoto(reference) }
+        cell.onOpenPhoto = { [weak self] reference in self?.openPhotos(row.imageRefs, startingWith: reference) }
         if let chatSessionID {
             for reference in row.imageRefs where imageCache[imageKey(reference)] == nil {
                 loadPreview(reference, sessionID: chatSessionID)
@@ -1319,7 +1331,7 @@ extension ChatViewController: UITableViewDelegate {
             return
         }
         if let attachmentID = rows[indexPath.row].imageRefs.first {
-            openPhoto(attachmentID)
+            openPhotos(rows[indexPath.row].imageRefs, startingWith: attachmentID)
             return
         }
         guard let localID = rows[indexPath.row].localID,
@@ -1351,35 +1363,91 @@ extension ChatViewController: UITableViewDelegate {
     }
 }
 
-private final class PhotoViewController: UIViewController {
-    private let photo = UIImageView()
+private final class PhotoViewController: UIViewController, UIScrollViewDelegate {
+    var onSelect: ((String, Int) -> Void)?
+    private let refs: [String]
+    private let photos: [UIImageView]
+    private let initialIndex: Int
+    private let scroller = UIScrollView()
+    private let pages = UIStackView()
+    private var currentIndex: Int
+    private var didPosition = false
 
-    init(image: UIImage?) {
+    init(refs: [String], images: [UIImage?], index: Int) {
+        self.refs = refs
+        photos = images.map { image in
+            let view = UIImageView(image: image)
+            view.contentMode = .scaleAspectFit
+            return view
+        }
+        initialIndex = index
+        currentIndex = index
         super.init(nibName: nil, bundle: nil)
-        photo.image = image
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Photo"
+        updateTitle()
         view.backgroundColor = .black
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done, target: self, action: #selector(close)
         )
-        photo.translatesAutoresizingMaskIntoConstraints = false
-        photo.contentMode = .scaleAspectFit
-        view.addSubview(photo)
+        scroller.translatesAutoresizingMaskIntoConstraints = false
+        scroller.isPagingEnabled = true
+        scroller.showsHorizontalScrollIndicator = false
+        scroller.delegate = self
+        pages.translatesAutoresizingMaskIntoConstraints = false
+        pages.axis = .horizontal
+        for photo in photos { pages.addArrangedSubview(photo) }
+        view.addSubview(scroller)
+        scroller.addSubview(pages)
         NSLayoutConstraint.activate([
-            photo.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            photo.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            photo.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            photo.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scroller.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scroller.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scroller.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scroller.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            pages.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
+            pages.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
+            pages.leadingAnchor.constraint(equalTo: scroller.contentLayoutGuide.leadingAnchor),
+            pages.trailingAnchor.constraint(equalTo: scroller.contentLayoutGuide.trailingAnchor),
+            pages.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
         ])
+        for photo in photos {
+            photo.widthAnchor.constraint(equalTo: scroller.frameLayoutGuide.widthAnchor).isActive = true
+        }
+        scroller.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(close)))
     }
 
-    func show(_ image: UIImage) { photo.image = image }
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        guard !didPosition, scroller.bounds.width > 0 else { return }
+        didPosition = true
+        scroller.contentOffset.x = CGFloat(initialIndex) * scroller.bounds.width
+        select(initialIndex)
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        guard scrollView.bounds.width > 0 else { return }
+        select(Int((scrollView.contentOffset.x / scrollView.bounds.width).rounded()))
+    }
+
+    private func select(_ index: Int) {
+        guard refs.indices.contains(index) else { return }
+        currentIndex = index
+        updateTitle()
+        onSelect?(refs[index], index)
+    }
+
+    private func updateTitle() {
+        title = refs.count > 1 ? "\(currentIndex + 1) / \(refs.count)" : NativeLanguage.text("Photo")
+    }
+
+    func show(_ image: UIImage, at index: Int) {
+        guard photos.indices.contains(index) else { return }
+        photos[index].image = image
+    }
     @objc private func close() { dismiss(animated: true) }
 }
 
@@ -1545,7 +1613,18 @@ private final class ChatMessageCell: UITableViewCell {
             button.addAction(UIAction { [weak self] _ in self?.onOpenPhoto?(reference) }, for: .touchUpInside)
             photoStack.addArrangedSubview(button)
         }
-        photoScroll.isHidden = row.imageRefs.isEmpty
+        for data in row.localImageData {
+            let thumbnail = UIImageView(image: UIImage(data: data))
+            thumbnail.contentMode = .scaleAspectFill
+            thumbnail.clipsToBounds = true
+            thumbnail.layer.cornerRadius = 12
+            thumbnail.widthAnchor.constraint(equalToConstant: 150).isActive = true
+            photoStack.addArrangedSubview(thumbnail)
+        }
+        photoScroll.isHidden = row.imageRefs.isEmpty && row.localImageData.isEmpty
+        if row.text.isEmpty && (!row.imageRefs.isEmpty || !row.localImageData.isEmpty) {
+            messageLabel.isHidden = true
+        }
         for view in fileStack.arrangedSubviews { fileStack.removeArrangedSubview(view); view.removeFromSuperview() }
         for file in row.files {
             let button = UIButton(type: .system)
