@@ -1262,13 +1262,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
               presentedViewController == nil, teamState != nil else { return false }
         let movement = pan.translation(in: view)
         let originX = pan.location(in: view).x - movement.x
-        return originX <= 24 && movement.x > 8 && abs(movement.x) > abs(movement.y)
+        // Drawer.tsx:65-66: activate past 8 horizontally, fail past 12 vertically.
+        return originX <= 24 && movement.x > 8 && abs(movement.y) <= 12
     }
 
     @objc private func openDrawerFromEdge(_ pan: UIPanGestureRecognizer) {
         guard pan.state == .ended else { return }
+        // Drawer.tsx:69,:74: past half the panel's width or a fast flick opens it.
+        let width = min(view.bounds.width * 0.85, 340)
         let distance = pan.translation(in: view).x
-        if distance > 80 || pan.velocity(in: view).x > 350 { showTeam() }
+        if distance > width / 2 || pan.velocity(in: view).x > 350 { showTeam() }
     }
 
     @objc private func showSideChat() {
