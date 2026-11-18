@@ -576,6 +576,22 @@ jobs:
       # about what went into it: which commits, which version, which Xcode. These notes are
       # written from the same facts as build-info-native.json and travel with the IPA, so
       # one download answers "what is this build" without opening the run.
+      # The IPA artifact is the only thing a person keeps, and until now it said nothing
+      # about what went into it: which commits, which version, which Xcode. These notes are
+      # written from the same facts as build-info-native.json and travel with the IPA, so
+      # one download answers "what is this build" without opening the run.
+      #
+      # The version is the one native/project.yml declares, not mobile/app.json: project.yml
+      # fills Support/Info.plist, and that is what ends up inside the IPA. app.json belongs to
+      # the React Native line and will drift. The step fails if the archive and project.yml
+      # ever disagree, so the notes cannot claim a version the IPA does not carry.
+      #
+      # Tags are cut by hand, and the v0.1.x series was cut five times in one afternoon before
+      # the native rewrite added a hundred commits without moving the version. That is not a
+      # bug to fix by editing tags, but the notes should say it out loud: they compare the
+      # newest ios-native-v* tag with the version that ships and print a warning when the two
+      # differ. Until the user accepts a first usable build there is no reason to cut more
+      # tags; when that happens, the version and the tagging rules get decided together.
       - name: Write the release notes
         run: |
           file_sha="$(cut -d' ' -f1 dist/DS-Bot-native-unsigned.sha256)"
@@ -585,9 +601,28 @@ jobs:
             exit 1
           fi
 
+          # native/project.yml is the source of truth for the version; the archive carries it
+          # through XcodeGen's Info.plist. Comparing the two catches a spec edited after the
+          # project was generated, which would otherwise ship a mislabelled artifact.
+          declared_version="$(sed -nE 's/^[[:space:]]+CFBundleShortVersionString:[[:space:]]*"?(.*[^"[:space:]])"?$/\1/p' native/project.yml | head -1)"
+          declared_build="$(sed -nE 's/^[[:space:]]+CFBundleVersion:[[:space:]]*"?(.*[^"[:space:]])"?$/\1/p' native/project.yml | head -1)"
+          if [ -z "$declared_version" ] || [ -z "$declared_build" ]; then
+            echo "::error::native/project.yml declares no CFBundleShortVersionString / CFBundleVersion"
+            exit 1
+          fi
+          if [ "$declared_version" != "$DSBOT_VERSION" ] || [ "$declared_build" != "$DSBOT_BUILD_NUMBER" ]; then
+            echo "::error::the archive says $DSBOT_VERSION ($DSBOT_BUILD_NUMBER) while native/project.yml declares $declared_version ($declared_build)"
+            exit 1
+          fi
+
+          newest_tag=""
+          tag_note=""
           # The newest ios-native-v* tag that is a strict ancestor of this commit. On a tag
           # build that is the previous release, so the notes still list what went into this
           # one. With no tag, or nothing new, the last 20 commits are listed instead.
+          # Only ancestors count, for the warning as well: a tag cut on some side branch is
+          # not a previous release of this line, and comparing against it would invent a
+          # disagreement that nobody can act on.
           prev_tag=""
           head_tag=""
           head_commit="$(git rev-parse HEAD)"
@@ -597,13 +632,18 @@ jobs:
               # A tag build: remember the tag, then keep looking for the release before it,
               # so the notes describe what this release adds rather than the tag itself.
               head_tag="$candidate"
+              [ -n "$newest_tag" ] || newest_tag="$candidate"
               continue
             fi
             if [ -n "$tag_commit" ] && git merge-base --is-ancestor "$tag_commit" HEAD; then
+              [ -n "$newest_tag" ] || newest_tag="$candidate"
               prev_tag="$candidate"
               break
             fi
           done
+          if [ -n "$newest_tag" ] && [ "${newest_tag#ios-native-v}" != "$DSBOT_VERSION" ]; then
+            tag_note="$(printf '> Version note: the newest tag is %s but this build is %s.\n> Tags are cut by hand; the version in project.yml is what ships.' "$newest_tag" "$DSBOT_VERSION")"
+          fi
 
           range=""
           if [ -n "$prev_tag" ]; then
@@ -622,6 +662,10 @@ jobs:
           fi
           count="$(wc -l < dist/release-commits.txt | tr -d ' ')"
 
+          # A release note is read, not grepped: a hundred lines of subjects stop being a note.
+          # Forty are printed and the rest are one compare link away.
+          listed=40
+
           {
             echo "# DS-Bot for iOS $DSBOT_VERSION (build $DSBOT_BUILD_NUMBER)"
             echo ''
@@ -639,14 +683,24 @@ jobs:
                       "signed", "sha256", "ipa"):
               print("- **" + key + "**: " + str(info.get(key)))
           PY
+            if [ -n "$tag_note" ]; then
+              echo ''
+              echo "$tag_note"
+            fi
             echo ''
             echo "## Commits ($count, $range)"
             echo ''
-            cat dist/release-commits.txt
+            if [ "$count" -gt "$listed" ]; then
+              head -n "$listed" dist/release-commits.txt
+              echo ''
+              echo "…还有 $((count - listed)) 条未列出：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${prev_tag}...${GITHUB_SHA}"
+            else
+              cat dist/release-commits.txt
+            fi
           } > dist/release-notes.md
 
-          echo "release notes: $(wc -l < dist/release-notes.md | tr -d ' ') lines, $(wc -c < dist/release-notes.md | tr -d ' ') bytes"
-          sed -n '1,14p' dist/release-notes.md
+          echo "release notes: $(wc -l < dist/release-notes.md | tr -d ' ') lines, $(wc -c < dist/release-notes.md | tr -d ' ') bytes, $count commits in range, $listed listed"
+          sed -n '1,16p' dist/release-notes.md
       - name: Upload the native IPA
         uses: actions/upload-artifact@v4
         with:
