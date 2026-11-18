@@ -9,7 +9,7 @@
 | workflow（文件） | job | 触发 | 实测耗时 | 回答什么问题 | 什么时候手动 dispatch |
 |---|---|---|---|---|---|
 | `ios-native.yml` | `compile` | **push** 到任意分支，且改动命中 `native/**` 或 `.github/workflows/ios-native.yml`。tag 推送被 `if` 排除 | 2m53s – 10m49s，通常 ~6 min（随排队浮动） | 这棵树编得过吗？单测过吗？ | **不 dispatch**：dispatch 进的是 ipa job，compile 在 dispatch 里是 `skipped` |
-| `ios-native.yml` | `ipa` | `workflow_dispatch`（`runner` / `xcode_version`），或 push tag `ios-native-v*` | 96s – 109s | 能不能出一个合格的未签名 IPA | 要可安装的包、或验证出包链时才跑 |
+| `ios-native.yml` | `ipa` | `workflow_dispatch`（`runner` / `xcode_version`），或 push tag `ios-native-v*` | 96s – 2m05s | 能不能出一个合格的未签名 IPA | 要可安装的包、或验证出包链时才跑；**用 `scripts/dispatch-ipa.ps1`**，它会自动重试饿死（见 §6） |
 | `ios-native-smoke.yml` | `smoke` | **push 到 `main`**，且命中 `native/Sources/DSBot/**` 或 `native/project.yml`；另有 dispatch | 7m43s | app 起得来吗？首屏是不是黑屏/白屏？ | 改完 UI 想要一张真界面截图时 |
 | `ios-native-interop.yml` | `interop` | 只有 `workflow_dispatch` | 57s / 98s | Swift 传输层能不能跟真 relay 走完 hello → 握手 → 一次 RPC | 动了 `native/Sources/Transport/**` 或协议之后 |
 | `ios-native-screens.yml` | `screens` | 只有 `workflow_dispatch` | **未实测**（从没跑过，估计 6–9 min） | 喂一份结构正确的样张 state，界面到底画成什么样 | 要判 UI 差距时；用户嫌慢，先问 Warden |
@@ -76,3 +76,12 @@ mean luminance 252.1       (< 40 且 < 4 色 = black screen)
 
 - **版本号以 `native/project.yml` 的 `CFBundleShortVersionString` / `CFBundleVersion` 为准**。`mobile/app.json` 是 RN 那边的，`mobile/` 下没有任何东西决定原生包的版本。
 - **不要打 tag。** `ios-native-v*` 由人手动切，现有 `v0.1.0`…`v0.1.4` 是 11-16 一下午连打的，此后原生加了一百多个提交、版本号没动。在用户真机验收第一版可用之前，不切新 tag；版本号与 tag 策略等验收后再一起定。
+
+## 6. 出包 dispatch 与排队饿死
+
+macos-26 的 runner 池偶尔派不出机器：排队的 ipa job 在 **15m01s** 被平台回收，job 层记 `cancelled`、`steps=0`、`runner_id=0`，run 层记 `failure`。实测 `44334425742`、`44337943209` 两次都是这个形状，紧跟的重 dispatch 直接成功。这个签名与真编译红不同（`steps>0`），与人手取消也不同（run 层是 `cancelled`），所以三者可以可靠地区分。
+
+出包一律走 `scripts/dispatch-ipa.ps1`（默认 N=3 次尝试）：dispatch → 每 30s 轮询 → **只对饿死**自动重 dispatch（每次重试前打印 `attempt k/N` 与新 run id，并注明是饿死重试）→ 真红（`steps>0`）立即停并报红掉的步骤名 → 成功后自动收尾：下载 `DS-Bot-ios-native-unsigned`、按 `DS-Bot-<version>-native-<sha>-unsigned.ipa` 改名、sha256 与 build-info 交叉验证、复制进 `D:\DSBotWorkspace\DS Bot iOS\artifacts`（Hermes 的转发任务盯那个目录）。每次判定都会打印原始字段（`run.conclusion` / `job.conclusion` / `steps` / `runner_id`），凭据可见。换 runner 不是杠杆：macos-15 没有 Xcode 26，两个 job 都会在选 Xcode 那步红。
+
+**方案 C（未启用）：仓库内巡逻 workflow。** 形态：`ios-native-ipa-retry.yml`，`on: workflow_run` 监听「iOS native」完成，`if` 卡「dispatch 触发 + run `failure` + `run_attempt < N`」，调 jobs API 验上面的饿死签名，`gh run rerun --failed` 原 run 重跑（attempt+1，内置 `GITHUB_TOKEN` + `permissions: actions: write`，无 secret，同一 run id 保证据链）。**什么时候启用：出现定时/无人值守的出包才轮到它**——巡逻 workflow 不需要任何人的机器开机。今天所有 dispatch 都是人在场点的，人在场机器就在，脚本已覆盖；多一个每次 run 结束都会评估一遍的 workflow，目前只是噪声，所以不建。
+
