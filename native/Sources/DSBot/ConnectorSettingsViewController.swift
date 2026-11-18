@@ -17,8 +17,11 @@ final class ConnectorSettingsViewController: UITableViewController {
         title = NativeLanguage.text("Connectors")
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
+        SettingsStyle.prepare(tableView)
         Task { await load() }
     }
+
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
 
     @objc private func refresh() { Task { await load() } }
 
@@ -39,6 +42,7 @@ final class ConnectorSettingsViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "connector")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "connector")
         cell.accessoryView = nil
+        SettingsStyle.styleSubtitle(cell, palette: palette)
         if connectors.isEmpty {
             cell.textLabel?.text = tr("No connectors")
             cell.detailTextLabel?.text = nil
