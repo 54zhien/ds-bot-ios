@@ -1502,8 +1502,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// The composer's sides follow the display corner's centre at rest and take the
     /// standard margin while editing; 12 above the keyboard either way.
     private func updateComposerSide() {
-        let screenR = Metrics.screenRadius(bottomInset: window?.safeAreaInsets.bottom ?? 0,
-                                           bounds: window?.bounds ?? view.bounds)
+        let screenR = Metrics.screenRadius(bottomInset: view.window?.safeAreaInsets.bottom ?? view.safeAreaInsets.bottom,
+                                           bounds: view.window?.bounds ?? view.bounds)
         let side = composer.isExpanded ? Glass.margin : Metrics.Composer.restInset(screenR: screenR)
         composerLeading.constant = side
         composerTrailing.constant = -side
@@ -1533,7 +1533,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
               let curve = info[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber else { return }
         keyboardTiming = (duration.doubleValue, UIView.AnimationOptions(rawValue: UInt(curve.intValue) << 16))
         if let frame = info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue,
-           let height = window?.bounds.height {
+           let height = view.window?.bounds.height ?? view.bounds.height {
             let up = frame.cgRectValue.minY < height - 1
             if up != keyboardUp {
                 keyboardUp = up
