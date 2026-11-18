@@ -244,6 +244,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         ])
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: teamButton)
         configureStatusBar()
+        configureDiagnosticsMenu()
         configureRoomGoal()
         configureList()
         configureComposer()
@@ -294,6 +295,48 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: 44),
         ])
+    }
+
+    /// A build on a phone has no console, so a long press is the only way to get the dump
+    /// out. It sits on the title and the status bar because both are always on screen.
+    private func configureDiagnosticsMenu() {
+        for target in [titleButton, statusBar] as [UIView] {
+            let press = UILongPressGestureRecognizer(target: self, action: #selector(showDiagnosticsMenu(_:)))
+            press.minimumPressDuration = 0.6
+            target.addGestureRecognizer(press)
+        }
+    }
+
+    @objc private func showDiagnosticsMenu(_ press: UILongPressGestureRecognizer) {
+        guard press.state == .began else { return }
+        let sheet = UIAlertController(title: tr("Diagnostics"), message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: tr("Copy diagnostics"), style: .default) { _ in
+            Task { @MainActor in
+                UIPasteboard.general.string = await Diagnostics.shared.text()
+            }
+        })
+        sheet.addAction(UIAlertAction(title: tr("Save diagnostics"), style: .default) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                do {
+                    let url = try await Diagnostics.shared.save()
+                    self?.showSavedDiagnostics(url)
+                } catch { self?.showActionError(error.localizedDescription) }
+            }
+        })
+        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
+        // An action sheet on iPad is a popover, and a popover needs an anchor.
+        sheet.popoverPresentationController?.sourceView = press.view
+        sheet.popoverPresentationController?.sourceRect = press.view?.bounds ?? .zero
+        present(sheet, animated: true)
+    }
+
+    private func showSavedDiagnostics(_ url: URL) {
+        let alert = UIAlertController(title: tr("Diagnostics saved"), message: url.lastPathComponent, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: tr("Copy path"), style: .default) { _ in
+            UIPasteboard.general.string = url.path
+        })
+        alert.addAction(UIAlertAction(title: tr("OK"), style: .cancel))
+        present(alert, animated: true)
     }
 
     private func configureRoomGoal() {

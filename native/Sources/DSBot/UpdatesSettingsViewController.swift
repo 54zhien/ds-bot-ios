@@ -5,6 +5,7 @@ final class UpdatesSettingsViewController: UITableViewController {
     private var update: JSONValue?
     private var dsh: JSONValue?
     private var diagnostics: JSONValue?
+    private var latestDump: URL?
     private var busy = false
     private var hasNotes: Bool { !(update?["notes"]?.stringValue ?? "").isEmpty }
     private var lastEntry: String? {
@@ -35,18 +36,21 @@ final class UpdatesSettingsViewController: UITableViewController {
             dsh = result["dsh"]
         }
         diagnostics = try? await BotAPI.call("diagnostics", on: session)
+        // Taken from the folder, so a dump the user deleted in Files.app stops being shown.
+        latestDump = DiagnosticsStore.latest()
         tableView.reloadData()
         refreshControl?.endRefreshing()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 4 }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        NativeLanguage.text(["DS Bot", "DSH", "Diagnostics"][section])
+        NativeLanguage.text(["DS Bot", "DSH", "Diagnostics", "Phone diagnostics"][section])
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return 2 + (hasNotes ? 1 : 0) + (update?["available"] == .bool(true) ? 1 : 0)
         case 1: return dsh?["available"] == .bool(true) ? 2 : 1
+        case 3: return 2
         default: return lastEntry == nil ? 3 : 4
         }
     }
@@ -67,6 +71,10 @@ final class UpdatesSettingsViewController: UITableViewController {
         case (2, 1) where lastEntry != nil: pair = (NativeLanguage.text("Last entry"), lastEntry)
         case (2, let row) where row == (lastEntry == nil ? 1 : 2):
             pair = (NativeLanguage.text("Diagnostics log"), NativeLanguage.text("View"))
+        case (3, 0):
+            pair = (NativeLanguage.text("Latest dump"), latestDump?.lastPathComponent ?? NativeLanguage.text("None yet"))
+        case (3, _):
+            pair = (NativeLanguage.text("Diagnostics folder"), "Documents/" + DiagnosticsStore.folder.lastPathComponent)
         default: pair = (NativeLanguage.text("Clear diagnostics"), nil)
         }
         cell.textLabel?.text = pair.0
@@ -74,7 +82,8 @@ final class UpdatesSettingsViewController: UITableViewController {
         if indexPath == IndexPath(row: 1, section: 0)
             || indexPath.section == 0 && indexPath.row == (hasNotes ? 3 : 2) && update?["available"] == .bool(true)
             || indexPath == IndexPath(row: 1, section: 1)
-            || indexPath.section == 2 && indexPath.row >= (lastEntry == nil ? 1 : 2) {
+            || indexPath.section == 2 && indexPath.row >= (lastEntry == nil ? 1 : 2)
+            || indexPath.section == 3 {
             cell.selectionStyle = .default
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         }
@@ -107,6 +116,10 @@ final class UpdatesSettingsViewController: UITableViewController {
         case (2, let row) where row == (lastEntry == nil ? 1 : 2): Task { await showLog() }
         case (2, let row) where row == (lastEntry == nil ? 2 : 3):
             confirm("Clear diagnostics?", endpoint: "diagnostics-clear")
+        case (3, 0):
+            showDump()
+        case (3, 1):
+            UIPasteboard.general.string = DiagnosticsStore.folder.path
         default: break
         }
     }
@@ -131,6 +144,15 @@ final class UpdatesSettingsViewController: UITableViewController {
             } catch { showError(error.localizedDescription) }
             busy = false
         }
+    }
+
+    /// The dump is on this phone, not on the computer, so it opens from the file itself.
+    private func showDump() {
+        guard let latestDump, let text = try? String(contentsOf: latestDump, encoding: .utf8) else {
+            showError(NativeLanguage.text("There is no dump yet. Long-press the chat title to save one."))
+            return
+        }
+        navigationController?.pushViewController(DiagnosticsLogViewController(content: text), animated: true)
     }
 
     private func showLog() async {

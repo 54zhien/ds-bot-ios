@@ -158,7 +158,38 @@ public actor LinkSession {
         guard let channel else {
             throw TransportError(.invalidFrame, "The link is not connected.")
         }
-        return try await channel.call(method, params: params)
+        // Every call is timed and kept, because a chat that never fills is otherwise a
+        // screen with nothing to read on it.
+        let started = DispatchTime.now().uptimeNanoseconds
+        do {
+            let reply = try await channel.call(method, params: params)
+            await Diagnostics.shared.recordCall(
+                method: method, endpoint: params["endpoint"]?.stringValue,
+                milliseconds: LinkSession.elapsed(since: started),
+                errorCode: nil, errorMessage: nil, reply: reply
+            )
+            return reply
+        } catch {
+            let failure = LinkSession.failure(error)
+            await Diagnostics.shared.recordCall(
+                method: method, endpoint: params["endpoint"]?.stringValue,
+                milliseconds: LinkSession.elapsed(since: started),
+                errorCode: failure.code, errorMessage: failure.message, reply: nil
+            )
+            throw error
+        }
+    }
+
+    /// Uptime, not the wall clock: a clock change must not turn a call into a huge number.
+    private static func elapsed(since start: UInt64) -> Int {
+        Int((DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
+    }
+
+    /// The dump carries strings, not error objects, so an actor can hold them.
+    private static func failure(_ error: Error) -> (code: String?, message: String) {
+        if let transport = error as? TransportError { return (transport.code.rawValue, transport.message) }
+        let nsError = error as NSError
+        return ("\(nsError.domain)#\(nsError.code)", nsError.localizedDescription)
     }
 
     // MARK: - Supervisor
@@ -188,6 +219,10 @@ public actor LinkSession {
                 channel = nil
                 guard wanted else { break }
                 onError?(String(describing: error))
+                await Diagnostics.shared.recordLinkError(String(describing: error))
+                // disconnect() may have run while the dump was being written; without this
+                // the offline below would walk the status back from disconnected.
+                guard wanted else { break }
                 if let rejected = error as? TransportError,
                    rejected.code == .notPaired || rejected.code == .pairingRejected {
                     wanted = false
@@ -245,8 +280,13 @@ public actor LinkSession {
             hello: hello
         )
         await secure.setCloseHandler { dropped() }
-        _ = try await secure.connect()
+        let ready = try await secure.connect()
+        await Diagnostics.shared.recordHandshake(sent: hello, received: ready.remoteHello)
         let rpc = RpcClient(send: { data in try await secure.send(data) })
+        // A message that could not be read used to vanish here without a trace.
+        await rpc.setInvalidMessageHandler { text in
+            Task { await Diagnostics.shared.recordInvalidMessage(text) }
+        }
         await secure.setMessageHandler { data in
             Task { await rpc.receive(data) }
         }
