@@ -7,6 +7,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
+    private let latestButton = UIButton(type: .system)
     private let composer = NativeComposerView()
     private var computerItem: UIBarButtonItem!
     private var sideItem: UIBarButtonItem!
@@ -227,6 +228,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         configureRoomGoal()
         configureList()
         configureComposer()
+        configureLatestButton()
         let drawerEdge = UIPanGestureRecognizer(target: self, action: #selector(openDrawerFromEdge(_:)))
         drawerEdge.delegate = self
         drawerEdge.cancelsTouchesInView = false
@@ -318,6 +320,28 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         ])
     }
 
+    private func configureLatestButton() {
+        latestButton.translatesAutoresizingMaskIntoConstraints = false
+        latestButton.setTitle(tr("Latest messages"), for: .normal)
+        latestButton.backgroundColor = .secondarySystemBackground
+        latestButton.layer.cornerRadius = 20
+        latestButton.layer.borderWidth = 1
+        latestButton.layer.borderColor = UIColor.separator.cgColor
+        latestButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
+        latestButton.addTarget(self, action: #selector(scrollToLatest), for: .touchUpInside)
+        latestButton.isHidden = true
+        view.addSubview(latestButton)
+        NSLayoutConstraint.activate([
+            latestButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            latestButton.bottomAnchor.constraint(equalTo: computerUseView.topAnchor, constant: -8),
+        ])
+    }
+
+    @objc private func scrollToLatest() {
+        guard !rows.isEmpty else { return }
+        list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: true)
+    }
+
     private func updateEmptyState() {
         let message: String? = savedOffer == nil
             ? "Pair with your computer to start chatting."
@@ -352,6 +376,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         olderRows = []
         latestRows = []
         rows = []
+        latestButton.isHidden = true
         expandedSteps = []
         cursor = nil
         list.reloadData()
@@ -602,6 +627,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 roomGoalView.configure(nil)
                 updateBottomInset()
                 rows = []
+                latestButton.isHidden = true
                 list.reloadData()
                 emptyState.text = "No Bot yet"
                 emptyState.isHidden = false
@@ -916,6 +942,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         olderRows = []
         latestRows = []
         rows = []
+        latestButton.isHidden = true
         expandedSteps = []
         cursor = nil
         title = target.name
@@ -1272,6 +1299,8 @@ extension ChatViewController: UITableViewDelegate {
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let distance = scrollView.contentSize.height - scrollView.contentOffset.y - scrollView.bounds.height
+        latestButton.isHidden = rows.isEmpty || distance <= 600
         if (scrollView.isDragging || scrollView.isDecelerating) && scrollView.contentOffset.y < 100 {
             loadOlder()
         }

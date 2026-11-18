@@ -17,11 +17,13 @@ struct RoomGoalPresentation {
         title = goal["title"]?.stringValue ?? ""
         status = goal["status"]?.stringValue ?? ""
         current = goal["current"]?.intValue ?? 0
+        let parsedStages: [Stage]
         if case .array(let values)? = goal["stages"] {
-            stages = values.map { Stage(title: $0["title"]?.stringValue ?? "", status: $0["status"]?.stringValue ?? "") }
-        } else { stages = [] }
-        let active = ["active", "paused"].contains(status) && stages.indices.contains(current)
-        let currentStage = active ? stages[current] : nil
+            parsedStages = values.map { Stage(title: $0["title"]?.stringValue ?? "", status: $0["status"]?.stringValue ?? "") }
+        } else { parsedStages = [] }
+        stages = parsedStages
+        let active = ["active", "paused"].contains(status) && parsedStages.indices.contains(current)
+        let currentStage = active ? parsedStages[current] : nil
         let checking: Bool
         if active, case .array(let rawStages)? = goal["stages"],
            case .array(let tasks)? = rawStages[current]["tasks"] {
@@ -29,10 +31,10 @@ struct RoomGoalPresentation {
         } else { checking = active }
         let index: Int?
         if status == "drafting" { index = nil }
-        else if status == "stopped" { index = stages.filter { $0.status == "passed" }.count }
+        else if status == "stopped" { index = parsedStages.filter { $0.status == "passed" }.count }
         else if active { index = current + 1 }
-        else { index = stages.count }
-        number = index.map { "\($0)/\(stages.count)" }
+        else { index = parsedStages.count }
+        number = index.map { "\($0)/\(parsedStages.count)" }
         if status == "drafting" { label = NativeLanguage.text("Aligning the goal with you") }
         else if status == "stopped" { label = NativeLanguage.text("Stopped") }
         else if status == "complete" { label = NativeLanguage.text("Goal reached") }
