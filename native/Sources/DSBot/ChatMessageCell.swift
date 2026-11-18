@@ -41,8 +41,8 @@ final class PhotoGridView: UIView {
         for (index, tile) in tiles.enumerated() {
             let column = index % columns
             let row = index / columns
-            tile.frame = CGRect(x: CGFloat(column) * (side + gap),
-                                y: CGFloat(row) * (side + gap),
+            tile.frame = CGRect(x: CGFloat(column) * (side + Self.gap),
+                                y: CGFloat(row) * (side + Self.gap),
                                 width: side, height: side)
         }
     }
@@ -151,7 +151,10 @@ final class ChatMessageCell: UITableViewCell {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func configure(_ row: ChatRow, images: [String: UIImage] = [:], stepsExpanded: Bool = false) {
-        for constraint in [leading, trailing, centered, botWidth, userWidth, noticeWidth, wideWidth, wideUserWidth] {
+        // The width rules are implicitly-unwrapped so init can build them: in an
+        // array literal that reads as optional, hence the unwrap here.
+        for constraint in [leading, trailing, centered, botWidth, userWidth,
+                           noticeWidth, wideWidth, wideUserWidth].compactMap({ $0 }) {
             constraint.isActive = false
         }
         let notice = row.isNotice || row.kind == "steps"
