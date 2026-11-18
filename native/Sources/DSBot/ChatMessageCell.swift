@@ -154,8 +154,14 @@ final class ChatMessageCell: UITableViewCell {
         fileStack.isHidden = row.files.isEmpty
         messageLabel.textAlignment = row.isNotice || row.kind == "steps" ? .center : .left
         messageLabel.textColor = row.isNotice || row.kind == "steps" ? .secondaryLabel : .label
-        timeLabel.text = row.localID == nil ? row.time.map { Self.clock.string(from: $0) }
-            : row.failed ? "Not sent · \(row.failureReason ?? "Tap to retry")" : "Sending…"
+        if row.localID == nil {
+            timeLabel.text = row.time.map { Self.clock.string(from: $0) }
+        } else if row.failed {
+            let reason = row.failureReason.map { NativeLanguage.text("Not sent · {reason}", ["reason": $0]) }
+            timeLabel.text = reason ?? NativeLanguage.text("Not sent. Tap to retry")
+        } else {
+            timeLabel.text = NativeLanguage.text("Sending…")
+        }
         timeLabel.numberOfLines = row.failed ? 2 : 1
         timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps"
         accessibilityLabel = [row.author, row.text, row.failureReason ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")

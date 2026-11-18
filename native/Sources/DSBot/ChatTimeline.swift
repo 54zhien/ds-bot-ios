@@ -139,8 +139,13 @@ struct ChatRow {
             if case .array(let entries)? = value["tools"] { tools = entries } else { tools = [] }
             let count = tools.count
             let seconds = (value["ms"]?.intValue ?? 0) / 1_000
-            stepSummary = "Used \(count) \(count == 1 ? "tool" : "tools")"
-                + (seconds > 0 ? " · thought for \(seconds)s" : "")
+            var summary = count == 1
+                ? NativeLanguage.text("Used {count} tool", ["count": String(count)])
+                : NativeLanguage.text("Used {count} tools", ["count": String(count)])
+            if seconds > 0 {
+                summary += NativeLanguage.text(" · thought for {seconds}s", ["seconds": String(seconds)])
+            }
+            stepSummary = summary
             stepDetails = tools.map { tool in
                 let label = tool["label"]?.stringValue ?? tool["name"]?.stringValue ?? NativeLanguage.text("Tool")
                 return label + (tool["ok"] == .bool(false) ? " — failed" : "")
@@ -175,7 +180,8 @@ struct ChatRow {
             }
         } else if kind == "closed" {
             let prompt = value["question"]?["question"]?.stringValue ?? title
-            let state = value["closed"]?.stringValue == "replied" ? "Answered by message" : "Dismissed"
+            let state = value["closed"]?.stringValue == "replied"
+                ? NativeLanguage.text("Answered by message") : NativeLanguage.text("Dismissed")
             display = prompt.isEmpty ? state : "\(prompt)\n\(state)"
         } else if kind == "answer", case .array(let answers)? = value["answers"] {
             let responses = answers.compactMap { answer -> String? in
@@ -192,11 +198,11 @@ struct ChatRow {
             text = display
         } else {
             switch kind {
-            case "steps": text = "Work steps"
-            case "view": text = "View"
-            case "answer": text = "Answer"
-            case "closed": text = "Answered"
-            case "divider": text = "Earlier conversation"
+            case "steps": text = NativeLanguage.text("Work steps")
+            case "view": text = NativeLanguage.text("View")
+            case "answer": text = NativeLanguage.text("Answer")
+            case "closed": text = NativeLanguage.text("Answered")
+            case "divider": text = NativeLanguage.text("Earlier conversation")
             default: text = kind.capitalized
             }
         }

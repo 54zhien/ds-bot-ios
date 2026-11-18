@@ -164,6 +164,11 @@ enum NativeLanguage {
         "The new group has no ID.": "新群组没有 ID。",
         "Delete this group?": "删除这个群组？",
         "Could not save group": "无法保存群组",
+        "Not sent · {reason}": "未发出 · {reason}",
+        "Work steps": "工作步骤",
+        "Answer": "回答",
+        "Answered": "已回答",
+        "Earlier conversation": "更早的对话",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }
