@@ -15,11 +15,28 @@ final class ChatMarkdownTests: XCTestCase {
         let source = "## Summary\n- first\n- second\n> quoted **text**\n> next line\n---\n3. third\n4. fourth"
         XCTAssertEqual(ChatMarkdownBlock.parse(source), [
             .heading(2, "Summary"),
-            .list(["first", "second"], ordered: false, start: 1),
+            .list([
+                ChatMarkdownListItem(text: "first", marker: "•", depth: 0),
+                ChatMarkdownListItem(text: "second", marker: "•", depth: 0),
+            ]),
             .quote("quoted **text**\nnext line"),
             .rule,
-            .list(["third", "fourth"], ordered: true, start: 3),
+            .list([
+                ChatMarkdownListItem(text: "third", marker: "3.", depth: 0),
+                ChatMarkdownListItem(text: "fourth", marker: "4.", depth: 0),
+            ]),
         ])
         XCTAssertTrue(ChatMarkdownView.hasWideBlock(source))
+    }
+
+    func testNestedListKeepsLevelsAndContinuation() {
+        let source = "- parent\n  1. child\n     continued\n    - grandchild\n  2. sibling\n- next"
+        XCTAssertEqual(ChatMarkdownBlock.parse(source), [.list([
+            ChatMarkdownListItem(text: "parent", marker: "•", depth: 0),
+            ChatMarkdownListItem(text: "child\ncontinued", marker: "1.", depth: 1),
+            ChatMarkdownListItem(text: "grandchild", marker: "•", depth: 2),
+            ChatMarkdownListItem(text: "sibling", marker: "2.", depth: 1),
+            ChatMarkdownListItem(text: "next", marker: "•", depth: 0),
+        ])])
     }
 }

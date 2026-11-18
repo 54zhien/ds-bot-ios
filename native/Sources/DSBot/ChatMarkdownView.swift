@@ -1,11 +1,17 @@
 import UIKit
 
+struct ChatMarkdownListItem: Equatable {
+    let text: String
+    let marker: String
+    let depth: Int
+}
+
 enum ChatMarkdownBlock: Equatable {
     case text(String)
     case code(String)
     case table([[String]])
     case heading(Int, String)
-    case list([String], ordered: Bool, start: Int)
+    case list([ChatMarkdownListItem])
     case quote(String)
     case rule
 
@@ -71,16 +77,31 @@ enum ChatMarkdownBlock: Equatable {
                 blocks.append(.quote(quoted.joined(separator: "\n")))
                 continue
             }
-            if let first = listItem(line) {
+            if let first = listItem(lines[index]) {
                 flush()
-                var items: [String] = []
-                while index < lines.count,
-                      let item = listItem(lines[index].trimmingCharacters(in: .whitespaces)),
-                      item.1 == first.1 {
-                    items.append(item.0)
-                    index += 1
+                var items: [ChatMarkdownListItem] = []
+                var indents = [first.indent]
+                while index < lines.count {
+                    if let item = listItem(lines[index]) {
+                        if item.indent > indents.last! { indents.append(item.indent) }
+                        else {
+                            while indents.count > 1 && item.indent < indents.last! { indents.removeLast() }
+                        }
+                        items.append(ChatMarkdownListItem(text: item.text, marker: item.marker,
+                                                          depth: indents.count - 1))
+                        index += 1
+                    } else if lines[index].trimmingCharacters(in: .whitespaces).isEmpty,
+                              index + 1 < lines.count, listItem(lines[index + 1]) != nil {
+                        index += 1
+                    } else if let last = items.last, !lines[index].trimmingCharacters(in: .whitespaces).isEmpty,
+                              leadingSpaces(lines[index]) > indents.first! {
+                        items[items.count - 1] = ChatMarkdownListItem(
+                            text: last.text + "\n" + lines[index].trimmingCharacters(in: .whitespaces),
+                            marker: last.marker, depth: last.depth)
+                        index += 1
+                    } else { break }
                 }
-                blocks.append(.list(items, ordered: first.1, start: first.2))
+                blocks.append(.list(items))
                 continue
             }
             paragraph.append(lines[index])
@@ -101,13 +122,19 @@ enum ChatMarkdownBlock: Equatable {
         return title.isEmpty ? nil : (depth, title)
     }
 
-    private static func listItem(_ line: String) -> (String, Bool, Int)? {
-        for marker in ["- ", "+ ", "* "] where line.hasPrefix(marker) {
-            return (String(line.dropFirst(marker.count)), false, 1)
+    private static func leadingSpaces(_ line: String) -> Int {
+        line.prefix { $0 == " " || $0 == "\t" }.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) }
+    }
+
+    private static func listItem(_ line: String) -> (text: String, marker: String, indent: Int)? {
+        let indent = leadingSpaces(line)
+        let body = line.drop { $0 == " " || $0 == "\t" }
+        for marker in ["- ", "+ ", "* "] where body.hasPrefix(marker) {
+            return (String(body.dropFirst(marker.count)), "•", indent)
         }
-        guard let prefix = line.range(of: "^[0-9]+[.)] ", options: .regularExpression),
-              let start = Int(line[prefix].dropLast(2)) else { return nil }
-        return (String(line[prefix.upperBound...]), true, start)
+        guard let prefix = body.range(of: "^[0-9]+[.)] ", options: .regularExpression),
+              let start = Int(body[prefix].dropLast(2)) else { return nil }
+        return (String(body[prefix.upperBound...]), "\(start).", indent)
     }
 
     private static func isDivider(_ line: String) -> Bool {
@@ -166,8 +193,7 @@ final class ChatMarkdownView: UIStackView {
             case .heading(let depth, let value):
                 let label = markdownLabel(value, font: .preferredFont(forTextStyle: depth == 1 ? .title3 : .headline))
                 addArrangedSubview(label)
-            case .list(let items, let ordered, let start):
-                addArrangedSubview(listView(items, ordered: ordered, start: start))
+            case .list(let items): addArrangedSubview(listView(items))
             case .quote(let value): addArrangedSubview(quoteView(value))
             case .rule:
                 let separator = UIView()
@@ -191,22 +217,29 @@ final class ChatMarkdownView: UIStackView {
         return label
     }
 
-    private func listView(_ items: [String], ordered: Bool, start: Int) -> UIView {
+    private func listView(_ items: [ChatMarkdownListItem]) -> UIView {
         let list = UIStackView()
         list.axis = .vertical
         list.spacing = 6
-        for (index, item) in items.enumerated() {
+        for item in items {
             let marker = UILabel()
-            marker.text = ordered ? "\(start + index)." : "•"
+            marker.text = item.marker
             marker.textColor = .secondaryLabel
             marker.font = .preferredFont(forTextStyle: .body)
             marker.textAlignment = .right
-            marker.widthAnchor.constraint(equalToConstant: ordered ? 30 : 18).isActive = true
-            let row = UIStackView(arrangedSubviews: [marker, markdownLabel(item)])
+            marker.widthAnchor.constraint(equalToConstant: item.marker == "•" ? 18 : 30).isActive = true
+            let row = UIStackView(arrangedSubviews: [marker, markdownLabel(item.text)])
             row.axis = .horizontal
             row.alignment = .top
             row.spacing = 6
-            list.addArrangedSubview(row)
+            if item.depth == 0 { list.addArrangedSubview(row) }
+            else {
+                let inset = UIView()
+                inset.widthAnchor.constraint(equalToConstant: CGFloat(item.depth * 14)).isActive = true
+                let nested = UIStackView(arrangedSubviews: [inset, row])
+                nested.axis = .horizontal
+                list.addArrangedSubview(nested)
+            }
         }
         return list
     }
