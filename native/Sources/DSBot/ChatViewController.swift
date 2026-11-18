@@ -655,6 +655,18 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             if case .array(let values)? = state["bots"] { bots = values } else { bots = [] }
             let rooms: [JSONValue]
             if case .array(let values)? = state["rooms"] { rooms = values } else { rooms = [] }
+            // A bots array we cannot use is a shape problem, not an empty team: say so
+            // rather than letting the screen claim there is no Bot.
+            switch state["bots"] {
+            case .array(let values):
+                if !values.isEmpty, !values.contains(where: { $0["id"]?.stringValue != nil }) {
+                    loadError = "state reply: bots carried no string id"
+                }
+            case .some:
+                loadError = "state reply: bots is not an array"
+            case .none:
+                loadError = "state reply: bots is missing"
+            }
             let chosen: JSONValue?
             let target: ChatTarget?
             if let selectedTarget,
