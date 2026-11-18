@@ -11,7 +11,7 @@ final class ChatMarkdownTests: XCTestCase {
         ])
     }
 
-    func testHeadingsListsQuotesAndRulesAreSeparateBlocks() {
+    @MainActor func testHeadingsListsQuotesAndRulesAreSeparateBlocks() {
         let source = "## Summary\n- first\n- second\n> quoted **text**\n> next line\n---\n3. third\n4. fourth"
         XCTAssertEqual(ChatMarkdownBlock.parse(source), [
             .heading(2, "Summary"),

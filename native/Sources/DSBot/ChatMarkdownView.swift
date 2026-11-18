@@ -147,7 +147,6 @@ final class ChatMarkdownView: UIStackView {
     required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     static func hasWideBlock(_ text: String) -> Bool {
-        guard text.contains("```") || text.contains("~~~") || text.contains("|") else { return false }
         return ChatMarkdownBlock.parse(text).contains {
             if case .text = $0 { return false }
             return true
