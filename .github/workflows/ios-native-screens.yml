@@ -1,0 +1,335 @@
+name: iOS native screens
+
+# Screenshots of the native app with filled data, taken by CI.
+#
+# The point is to see our own interface without waiting for a phone and a person: a relay
+# and a fixture host answer the same endpoints the desktop host answers, the app is seeded
+# with a pairing entry so it connects without a QR code, and the simulator screenshots the
+# chat screen. If the app shows no Bot against a correct state, the bug is in the app; if
+# it shows the team, the bug is in the real host's reply.
+#
+# Manual only: it boots a simulator and takes about five minutes, which does not belong on
+# the push path.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: macOS image
+        type: choice
+        default: macos-26
+        options:
+          - macos-26
+          - macos-15
+      xcode_version:
+        description: Xcode to select, e.g. 26.6; empty picks the newest stable on the image
+        type: string
+        default: ''
+      scheme:
+        description: App scheme; empty uses the project name
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  CI: '1'
+  LANG: en_US.UTF-8
+
+concurrency:
+  group: ios-native-screens-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  screens:
+    name: Screenshot the native app
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard the inputs exist
+        run: |
+          for path in native native/project.yml link/package-lock.json scripts/screens-host.mjs; do
+            if [ ! -e "$path" ]; then
+              echo "::error::$path is missing; the screenshot rig cannot start."
+              exit 1
+            fi
+          done
+          echo "native/, project.yml, link lockfile and the demo host are present"
+
+      - name: Select Xcode
+        env:
+          WANTED: ${{ inputs.xcode_version }}
+        run: |
+          if [ -n "$WANTED" ]; then
+            selected="/Applications/Xcode_$WANTED.app"
+            if [ ! -d "$selected" ]; then
+              echo "::error::$selected is not on this image. Available:"
+              ls -d /Applications/Xcode*.app
+              exit 1
+            fi
+          else
+            selected="$(node -e '
+              const fs = require("node:fs")
+              const version = (name) => (name.match(/^Xcode_([0-9.]+?)(?:_[a-z0-9]+)?\.app$/) || [])[1] || ""
+              const newer = (a, b) => {
+                const left = a.split(".").map(Number)
+                const right = b.split(".").map(Number)
+                for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+                  const gap = (left[i] || 0) - (right[i] || 0)
+                  if (gap !== 0) return gap
+                }
+                return 0
+              }
+              const candidates = fs.readdirSync("/Applications")
+                .filter((name) => version(name) !== "")
+                .sort((a, b) => newer(version(a), version(b)))
+              process.stdout.write(candidates.length ? "/Applications/" + candidates[candidates.length - 1] : "")
+            ')"
+          fi
+          if [ -z "$selected" ]; then
+            echo "::error::no Xcode found on this image"
+            exit 1
+          fi
+          sudo xcode-select -s "$selected"
+          xcodebuild -version
+          echo "DSBOT_XCODE=$(xcodebuild -version | head -1)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: link/package-lock.json
+
+      - name: Install the relay's packages
+        run: |
+          node --version
+          npm ci --no-fund --no-audit --prefix link
+
+      # In-memory, same as the interop rig: nothing is written to disk and every run starts
+      # with an empty device table.
+      - name: Start the relay
+        run: |
+          mkdir -p screens
+          PORT=8787 HOST=127.0.0.1 nohup node link/server/main.ts > screens/server.log 2>&1 &
+          echo $! > screens/server.pid
+          sleep 1
+          cat screens/server.log || true
+
+      - name: Wait for the relay
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8787/healthz >/dev/null 2>&1; then
+              echo "relay answered /healthz after ${i}s"
+              exit 0
+            fi
+            if ! kill -0 "$(cat screens/server.pid)" 2>/dev/null; then
+              echo "::error::the relay exited before answering"
+              tail -60 screens/server.log || true
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::the relay never answered on 127.0.0.1:8787"
+          exit 1
+
+      - name: Start the demo host
+        run: |
+          SCREENS_OUT=screens PORT=8787 INTEROP_HOST=127.0.0.1 \
+            nohup node scripts/screens-host.mjs > screens/host.log 2>&1 &
+          echo $! > screens/host.pid
+          sleep 1
+          cat screens/host.log || true
+
+      # The pairing file appears only after the host is online, so it is the readiness
+      # signal for the whole rig.
+      - name: Wait for the pairing file
+        run: |
+          for i in $(seq 1 90); do
+            if [ -f screens/pairing.plist ]; then
+              echo "the host wrote the pairing file after ${i}s"
+              cat screens/pairing.json
+              exit 0
+            fi
+            if ! kill -0 "$(cat screens/host.pid)" 2>/dev/null; then
+              echo "::error::the demo host exited before writing the pairing file"
+              tail -80 screens/host.log || true
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::the demo host never wrote the pairing file"
+          tail -80 screens/host.log || true
+          exit 1
+
+      - name: Generate the Xcode project
+        id: generate
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+          cd native
+          xcodegen generate
+          project_file="$(ls -d *.xcodeproj 2>/dev/null | head -1)"
+          if [ -z "$project_file" ]; then
+            echo "::error::xcodegen produced no .xcodeproj in native/"
+            exit 1
+          fi
+          echo "project=native/$project_file" >> "$GITHUB_OUTPUT"
+          echo "generated $project_file"
+
+      - name: Read the scheme
+        id: scheme
+        run: |
+          project_file="${{ steps.generate.outputs.project }}"
+          listed="$(xcodebuild -list -json -project "$project_file")"
+          echo "$listed"
+          scheme="$(printf '%s' "$listed" | python3 -c '
+          import json, sys
+          listed = json.load(sys.stdin)
+          container = listed.get("project") or listed.get("workspace") or {}
+          names = [name for name in (container.get("schemes") or []) if not name.startswith("Pods")]
+          wanted, fallback = sys.argv[1], sys.argv[2]
+          for candidate in (wanted, fallback):
+              if candidate and candidate in names:
+                  print(candidate)
+                  break
+          ' "${{ inputs.scheme }}" "$(basename "$project_file" .xcodeproj)")"
+          if [ -z "$scheme" ]; then
+            echo "::error::no app scheme found in $project_file. Schemes listed: $listed"
+            exit 1
+          fi
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "app scheme: $scheme"
+
+      # The device name is read off the image, never hardcoded, and the UDID is used so two
+      # runtimes carrying the same device name cannot make the destination ambiguous.
+      - name: Boot a simulator
+        id: sim
+        run: |
+          listing="$(xcrun simctl list devices available || true)"
+          line="$(printf '%s\n' "$listing" | grep -m1 'iPhone' || true)"
+          udid="$(printf '%s' "$line" | sed -nE 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/p')"
+          name="$(printf '%s' "$line" | sed -nE 's/^[[:space:]]*([^(]*)\(.*/\1/p' | sed -E 's/[[:space:]]+$//')"
+          if [ -z "$udid" ]; then
+            echo "::error::no iPhone simulator on this image; a screenshot needs one"
+            printf '%s\n' "$listing" | head -40
+            exit 1
+          fi
+          echo "simulator: $name ($udid)"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "DSBOT_UDID=$udid" >> "$GITHUB_ENV"
+
+      - name: Build for the simulator
+        id: build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "${{ steps.generate.outputs.project }}" \
+            -scheme "${{ steps.scheme.outputs.scheme }}" \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DSBOT_UDID" \
+            -derivedDataPath build/sim \
+            2>&1 | tee screens/build.log
+          app="$(find build/sim/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -1)"
+          if [ -z "$app" ]; then
+            echo "::error::the build produced no .app for the simulator"
+            ls -la build/sim/Build/Products/Debug-iphonesimulator || true
+            exit 1
+          fi
+          echo "app=$app"
+          echo "DSBOT_APP=$app" >> "$GITHUB_ENV"
+
+      - name: Install the app
+        run: |
+          xcrun simctl install "$DSBOT_UDID" "$DSBOT_APP"
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$DSBOT_APP/Info.plist")"
+          if [ -z "$bundle_id" ]; then
+            echo "::error::the app has no CFBundleIdentifier"
+            exit 1
+          fi
+          echo "bundle id: $bundle_id"
+          echo "DSBOT_BUNDLE_ID=$bundle_id" >> "$GITHUB_ENV"
+
+      # Pairing without a QR code: the app reads this key from its own defaults at launch
+      # and connects on its own (ChatViewController reads PairingStore in viewDidLoad).
+      # The value is Data, so the plist carries the JSON as <data> rather than a string.
+      - name: Seed the pairing entry
+        run: |
+          xcrun simctl spawn "$DSBOT_UDID" defaults import "$DSBOT_BUNDLE_ID" "$PWD/screens/pairing.plist"
+          echo "--- read back the stored key ---"
+          xcrun simctl spawn "$DSBOT_UDID" defaults read "$DSBOT_BUNDLE_ID" dsbot.pairing.offers | head -6 || true
+
+      - name: Launch and screenshot
+        run: |
+          xcrun simctl terminate "$DSBOT_UDID" "$DSBOT_BUNDLE_ID" >/dev/null 2>&1 || true
+          xcrun simctl launch "$DSBOT_UDID" "$DSBOT_BUNDLE_ID" | tee screens/launch.log
+          # Time for connect -> hello -> state -> chat against the local relay.
+          sleep 10
+          xcrun simctl io "$DSBOT_UDID" screenshot screens/01-chat.png
+          echo "took screens/01-chat.png"
+          # The app has no launch argument that switches screens (AppDelegate ignores its
+          # options and SceneDelegate always builds the chat screen), so the second shot is
+          # the same screen after one more poll: if the first was early, this one shows the
+          # settled state.
+          sleep 15
+          xcrun simctl io "$DSBOT_UDID" screenshot screens/02-chat-late.png
+          echo "took screens/02-chat-late.png"
+          ls -l screens/*.png
+
+      - name: Collect the device log
+        if: failure()
+        run: |
+          xcrun simctl spawn "$DSBOT_UDID" log show --last 8m --style compact \
+            --predicate 'process == "DSBot" OR subsystem CONTAINS "dsbot"' > screens/device.log 2>&1 || true
+          tail -80 screens/device.log || true
+
+      # A shell trap cannot span steps, so this is the workflow's equivalent: kill both
+      # background processes by pid, stop the simulator, and print the rig's own logs.
+      - name: Stop the rig
+        if: always()
+        run: |
+          for name in host server; do
+            if [ -f "screens/$name.pid" ]; then
+              pid="$(cat "screens/$name.pid")"
+              if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+                for i in $(seq 1 10); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+                kill -9 "$pid" 2>/dev/null || true
+                echo "stopped $name (pid $pid)"
+              fi
+            fi
+          done
+          xcrun simctl shutdown "$DSBOT_UDID" >/dev/null 2>&1 || true
+          echo '--- relay ---'; tail -30 screens/server.log 2>/dev/null || true
+          echo '--- host ---'; tail -60 screens/host.log 2>/dev/null || true
+
+      - name: Upload the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-native-screens
+          path: screens/*.png
+          retention-days: 14
+          if-no-files-found: warn
+          compression-level: 0
+
+      - name: Upload the logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DS-Bot-ios-native-screens-log
+          path: |
+            screens/*.log
+            screens/server.log
+            screens/host.log
+          retention-days: 7
+          if-no-files-found: warn
