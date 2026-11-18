@@ -8,6 +8,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
     private let retryLoadButton = UIButton(type: .system)
+    private let emptyChatView = EmptyChatView()
     private let latestButton = UIButton(type: .system)
     private let composer = NativeComposerView()
     private var computerItem: UIBarButtonItem!
@@ -440,6 +441,17 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             retryLoadButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             retryLoadButton.topAnchor.constraint(equalTo: emptyState.bottomAnchor, constant: 8),
         ])
+        emptyChatView.translatesAutoresizingMaskIntoConstraints = false
+        emptyChatView.isHidden = true
+        view.addSubview(emptyChatView)
+        NSLayoutConstraint.activate([
+            emptyChatView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: EmptyChatView.sideInset),
+            emptyChatView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -EmptyChatView.sideInset),
+            // Chat.tsx styles.empty pins the block at 28% of the screen; a position
+            // anchored to a dimension needs the item API's multiplier.
+            NSLayoutConstraint(item: emptyChatView, attribute: .top, relatedBy: .equal,
+                               toItem: view, attribute: .height, multiplier: EmptyChatView.topPercent),
+        ])
     }
 
     @objc private func retryChatLoad() { Task { await refreshLatest(for: sessionID) } }
@@ -467,18 +479,81 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func updateEmptyState() {
+        // A failed read keeps the old label, because the retry button belongs to it.
         if let loadError {
+            emptyChatView.isHidden = true
             emptyState.text = loadError
             emptyState.isHidden = rows.count > 0
             retryLoadButton.isHidden = rows.count > 0
             return
         }
-        let message: String? = savedOffer == nil
-            ? "Pair with your computer to start chatting."
-            : botID == nil && roomID == nil ? "No Bot yet" : rows.isEmpty ? "No messages yet" : nil
-        emptyState.text = message.map(tr)
-        emptyState.isHidden = rows.count > 0
-        if !rows.isEmpty { retryLoadButton.isHidden = true }
+        // Unpaired keeps the old label too: the computer button in the navigation bar
+        // is the pairing entry, and it is already on screen.
+        if savedOffer == nil {
+            emptyChatView.isHidden = true
+            emptyState.text = tr("Pair with your computer to start chatting.")
+            emptyState.isHidden = rows.count > 0
+            if !rows.isEmpty { retryLoadButton.isHidden = true }
+            return
+        }
+        // A conversation that exists but has nothing in it yet. chatSessionID is set
+        // only by a read or a restored page, so this never claims "no messages" while
+        // the first page is still on its way.
+        if rows.isEmpty, chatSessionID != nil, let botID, let bot = teamBot(with: botID) {
+            emptyChatView.configure(
+                name: bot["name"]?.stringValue ?? selectedTarget?.name ?? "",
+                role: bot["role"]?.stringValue ?? "",
+                color: bot["color"]?.stringValue,
+                caption: tr("No messages yet"))
+            showEmptyChat()
+            return
+        }
+        if rows.isEmpty, chatSessionID != nil, let roomID, let room = teamRoom(with: roomID) {
+            emptyChatView.configure(
+                name: room["name"]?.stringValue ?? selectedTarget?.name ?? "",
+                role: "", color: nil,
+                caption: tr("No messages yet"))
+            showEmptyChat()
+            return
+        }
+        // A computer whose team has no Bot at all: the one state with an action,
+        // straight into the flow that fixes it.
+        if rows.isEmpty, botID == nil, roomID == nil, teamHasNoBots {
+            emptyChatView.configure(
+                name: "", role: "", color: nil,
+                caption: tr("No Bot yet"),
+                actionTitle: tr("New Bot"),
+                onAction: { [weak self] in self?.showBotEditor(id: nil) })
+            showEmptyChat()
+            return
+        }
+        // The first page of a fresh conversation, or the team state on its way: the
+        // React Native app spins here, and a wrong caption would be worse than none.
+        emptyChatView.isHidden = true
+        emptyState.isHidden = true
+        retryLoadButton.isHidden = true
+    }
+
+    private func showEmptyChat() {
+        emptyChatView.isHidden = false
+        emptyState.isHidden = true
+        retryLoadButton.isHidden = true
+    }
+
+    private func teamBot(with id: String) -> JSONValue? {
+        guard let teamState, case .array(let bots)? = teamState["bots"] else { return nil }
+        return bots.first { $0["id"]?.stringValue == id }
+    }
+
+    private func teamRoom(with id: String) -> JSONValue? {
+        guard let teamState, case .array(let rooms)? = teamState["rooms"] else { return nil }
+        return rooms.first { $0["id"]?.stringValue == id }
+    }
+
+    private var teamHasNoBots: Bool {
+        guard let teamState else { return false }
+        if case .array(let bots)? = teamState["bots"] { return bots.isEmpty }
+        return true
     }
 
     /// The same call the React Native app makes: since -1 asks for a full state, and
