@@ -617,6 +617,8 @@ final class TeamRowCell: UITableViewCell {
         gap.isHidden = state == .none
         badge.isHidden = state != .waiting
         workingDot.isHidden = state != .working
+        // RN draws the working mark as an 8pt green dot (TeamList.tsx).
+        workingDot.backgroundColor = palette.green
         badge.backgroundColor = palette.accent
         badgeLabel.textColor = palette.accentInk
         isAccessibilityElement = true

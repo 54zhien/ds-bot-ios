@@ -64,7 +64,7 @@ final class RoomGoalView: UIStackView {
         backgroundColor = .secondarySystemBackground
         layer.cornerRadius = 16
         layer.borderWidth = 1
-        layer.borderColor = UIColor.separator.cgColor
+        layer.borderColor = ThemeStore.palette(trait: traitCollection).line.cgColor
         isHidden = true
         let tap = UITapGestureRecognizer(target: self, action: #selector(toggle))
         addGestureRecognizer(tap)

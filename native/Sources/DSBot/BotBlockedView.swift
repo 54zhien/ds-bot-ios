@@ -64,7 +64,7 @@ final class BotBlockedView: UIStackView {
         directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
         layer.cornerRadius = 16
         layer.borderWidth = 1
-        layer.borderColor = UIColor.separator.cgColor
+        layer.borderColor = ThemeStore.palette(trait: traitCollection).line.cgColor
         backgroundColor = .secondarySystemBackground
         isHidden = true
     }
