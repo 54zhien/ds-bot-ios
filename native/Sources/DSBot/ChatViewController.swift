@@ -76,6 +76,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// Set when the Server refused this phone's identity: retrying the dead offer
     /// cannot work, so the retry button becomes the way back into pairing.
     private var linkNeedsPairing = false
+    /// The conversation a retry should reopen into once the fresh state lands.
+    private var reconnectTarget: ChatTarget?
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
     private let drawerTransition = TeamDrawerTransition()
     private let noticeBanner = UIButton(type: .system)
@@ -576,6 +578,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         sessionID = id
         linkStatus = .connecting
         linkNeedsPairing = false
+        reconnectTarget = nil
         composer.canSend = false
         composer.running = false
         composer.clear()
@@ -851,6 +854,15 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             case .none:
                 loadError = "state reply: bots is missing"
             }
+            // A retry remembered where the reader was. The reconnect opens straight
+            // back into that conversation; one the team no longer has falls to the
+            // normal pick below without a word. Nothing here touches the composer.
+            if let back = reconnectTarget {
+                reconnectTarget = nil
+                let present = (back.kind == .bot ? bots : rooms)
+                    .contains { $0["id"]?.stringValue == back.id }
+                if present { selectedTarget = back }
+            }
             let chosen: JSONValue?
             let target: ChatTarget?
             if let selectedTarget,
@@ -1018,7 +1030,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             return
         }
         if let offer = pendingOffer ?? savedOffer {
+            // connect resets the pending restore, so it is remembered after it: the
+            // reader lands back in the conversation they were watching.
             connect(to: offer, pairingCode: pendingOffer == nil ? nil : offer.code)
+            reconnectTarget = selectedTarget
         }
     }
 
