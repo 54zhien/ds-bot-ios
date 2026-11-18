@@ -22,9 +22,9 @@ final class ProviderSettingsViewController: UITableViewController {
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
         SettingsStyle.prepare(tableView)
         Task { await load() }
+    }
 
     private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
-    }
 
     @objc private func refresh() { Task { await load() } }
 
