@@ -82,7 +82,9 @@ final class NeedsYouViewController: UITableViewController {
                 for request in requests where request["status"]?.stringValue == "pending" {
                     let name = request["name"]?.stringValue ?? ""
                     secrets.append(Row(target: botTarget(botID),
-                                       summary: name.isEmpty ? "A secret is needed" : "Asks for the secret \(name)"))
+                                       summary: name.isEmpty
+                                           ? NativeLanguage.text("A secret is needed")
+                                           : NativeLanguage.text("Asks for the secret {name}", ["name": name])))
                 }
             }
         }
@@ -101,8 +103,9 @@ final class NeedsYouViewController: UITableViewController {
                 }
             }
         }
-        sections = [("Questions", questions), ("Approvals", approvals), ("Secret requests", secrets),
-                    ("Browser handoffs", handoffs), ("Cards", views)].filter { !$0.1.isEmpty }
+        sections = [(NativeLanguage.text("Questions"), questions), (NativeLanguage.text("Approvals"), approvals),
+                    (NativeLanguage.text("Secret requests"), secrets), (NativeLanguage.text("Browser handoffs"), handoffs),
+                    (NativeLanguage.text("Cards"), views)].filter { !$0.1.isEmpty }
         super.init(style: .insetGrouped)
     }
 
