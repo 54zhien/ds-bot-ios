@@ -6,6 +6,7 @@ enum SettingsStyle {
     /// Settings.tsx styles.row: horizontal 16, vertical 10, at least 50 tall.
     static let rowHeight: CGFloat = 50
 
+    @MainActor
     static func palette(of trait: UITraitCollection) -> Palette {
         ThemeStore.palette(trait: trait)
     }
