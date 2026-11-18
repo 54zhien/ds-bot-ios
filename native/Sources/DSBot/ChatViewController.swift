@@ -1491,7 +1491,7 @@ private final class ChatMessageCell: UITableViewCell {
     var onOpenPhoto: ((String) -> Void)?
     private let bubble = UIView()
     private let authorLabel = UILabel()
-    private let messageLabel = UILabel()
+    private let messageLabel = MarkdownLinkLabel()
     private let markdownView = ChatMarkdownView()
     private let photoScroll = UIScrollView()
     private let photoStack = UIStackView()

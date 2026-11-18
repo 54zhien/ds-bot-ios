@@ -230,7 +230,7 @@ final class ChatMarkdownView: UIStackView {
     }
 
     private func markdownLabel(_ value: String, font: UIFont? = nil) -> UILabel {
-        let label = UILabel()
+        let label = MarkdownLinkLabel()
         label.numberOfLines = 0
         label.font = font ?? .preferredFont(forTextStyle: .body)
         if let markdown = try? AttributedString(markdown: value) {
