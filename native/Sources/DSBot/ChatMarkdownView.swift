@@ -4,6 +4,10 @@ enum ChatMarkdownBlock: Equatable {
     case text(String)
     case code(String)
     case table([[String]])
+    case heading(Int, String)
+    case list([String], ordered: Bool, start: Int)
+    case quote(String)
+    case rule
 
     static func parse(_ source: String) -> [ChatMarkdownBlock] {
         let lines = source.components(separatedBy: "\n")
@@ -42,11 +46,68 @@ enum ChatMarkdownBlock: Equatable {
                 blocks.append(.table(rows))
                 continue
             }
+            if isRule(line) {
+                flush()
+                blocks.append(.rule)
+                index += 1
+                continue
+            }
+            if let heading = heading(line) {
+                flush()
+                blocks.append(.heading(heading.0, heading.1))
+                index += 1
+                continue
+            }
+            if line.hasPrefix(">") {
+                flush()
+                var quoted: [String] = []
+                while index < lines.count {
+                    let current = lines[index].trimmingCharacters(in: .whitespaces)
+                    guard current.hasPrefix(">") else { break }
+                    quoted.append(String(current.dropFirst()).replacingOccurrences(of: "^ ?", with: "",
+                                                                               options: .regularExpression))
+                    index += 1
+                }
+                blocks.append(.quote(quoted.joined(separator: "\n")))
+                continue
+            }
+            if let first = listItem(line) {
+                flush()
+                var items: [String] = []
+                while index < lines.count,
+                      let item = listItem(lines[index].trimmingCharacters(in: .whitespaces)),
+                      item.1 == first.1 {
+                    items.append(item.0)
+                    index += 1
+                }
+                blocks.append(.list(items, ordered: first.1, start: first.2))
+                continue
+            }
             paragraph.append(lines[index])
             index += 1
         }
         flush()
         return blocks
+    }
+
+    private static func isRule(_ line: String) -> Bool {
+        line.range(of: "^([-*_]\\s*){3,}$", options: .regularExpression) != nil
+    }
+
+    private static func heading(_ line: String) -> (Int, String)? {
+        guard let prefix = line.range(of: "^#{1,6} ", options: .regularExpression) else { return nil }
+        let depth = line[prefix].filter { $0 == "#" }.count
+        let title = line[prefix.upperBound...].trimmingCharacters(in: .whitespaces)
+        return title.isEmpty ? nil : (depth, title)
+    }
+
+    private static func listItem(_ line: String) -> (String, Bool, Int)? {
+        for marker in ["- ", "+ ", "* "] where line.hasPrefix(marker) {
+            return (String(line.dropFirst(marker.count)), false, 1)
+        }
+        guard let prefix = line.range(of: "^[0-9]+[.)] ", options: .regularExpression),
+              let start = Int(line[prefix].dropLast(2)) else { return nil }
+        return (String(line[prefix.upperBound...]), true, start)
     }
 
     private static func isDivider(_ line: String) -> Bool {
@@ -100,17 +161,65 @@ final class ChatMarkdownView: UIStackView {
         for block in ChatMarkdownBlock.parse(text) {
             switch block {
             case .text(let value):
-                let label = UILabel()
-                label.numberOfLines = 0
-                label.font = .preferredFont(forTextStyle: .body)
-                if let markdown = try? AttributedString(markdown: value) {
-                    label.attributedText = NSAttributedString(markdown)
-                } else { label.text = value }
-                addArrangedSubview(label)
+                addArrangedSubview(markdownLabel(value))
             case .code(let value): addArrangedSubview(codeView(value))
             case .table(let rows): addArrangedSubview(tableView(rows))
+            case .heading(let depth, let value):
+                let label = markdownLabel(value, font: .preferredFont(forTextStyle: depth == 1 ? .title3 : .headline))
+                addArrangedSubview(label)
+            case .list(let items, let ordered, let start):
+                addArrangedSubview(listView(items, ordered: ordered, start: start))
+            case .quote(let value): addArrangedSubview(quoteView(value))
+            case .rule:
+                let separator = UIView()
+                separator.backgroundColor = UIColor.label.withAlphaComponent(0.14)
+                separator.heightAnchor.constraint(equalToConstant: 1).isActive = true
+                addArrangedSubview(separator)
             }
         }
+    }
+
+    private func markdownLabel(_ value: String, font: UIFont? = nil) -> UILabel {
+        let label = UILabel()
+        label.numberOfLines = 0
+        label.font = font ?? .preferredFont(forTextStyle: .body)
+        if let markdown = try? AttributedString(markdown: value) {
+            let rendered = NSMutableAttributedString(attributedString: NSAttributedString(markdown))
+            if let font { rendered.addAttribute(.font, value: font,
+                                                range: NSRange(location: 0, length: rendered.length)) }
+            label.attributedText = rendered
+        } else { label.text = value }
+        return label
+    }
+
+    private func listView(_ items: [String], ordered: Bool, start: Int) -> UIView {
+        let list = UIStackView()
+        list.axis = .vertical
+        list.spacing = 6
+        for (index, item) in items.enumerated() {
+            let marker = UILabel()
+            marker.text = ordered ? "\(start + index)." : "•"
+            marker.textColor = .secondaryLabel
+            marker.font = .preferredFont(forTextStyle: .body)
+            marker.textAlignment = .right
+            marker.widthAnchor.constraint(equalToConstant: ordered ? 30 : 18).isActive = true
+            let row = UIStackView(arrangedSubviews: [marker, markdownLabel(item)])
+            row.axis = .horizontal
+            row.alignment = .top
+            row.spacing = 6
+            list.addArrangedSubview(row)
+        }
+        return list
+    }
+
+    private func quoteView(_ value: String) -> UIView {
+        let stripe = UIView()
+        stripe.backgroundColor = UIColor.label.withAlphaComponent(0.14)
+        stripe.widthAnchor.constraint(equalToConstant: 3).isActive = true
+        let quote = UIStackView(arrangedSubviews: [stripe, markdownLabel(value)])
+        quote.axis = .horizontal
+        quote.spacing = 10
+        return quote
     }
 
     private func codeView(_ code: String) -> UIView {
