@@ -62,6 +62,22 @@ jobs:
           done
           echo "native/, project.yml, link lockfile and the demo host are present"
 
+      # The phone reaches the Relay over ws://: 127.0.0.1 in the simulator, the computer's
+      # LAN address on a real pairing. ATS blocks cleartext by default, and without this key
+      # the app sits at "Offline" - a blank screenshot that looks exactly like a seeding bug.
+      # Failing here names the real cause, and stops a later edit from dropping the key.
+      - name: Guard ATS allows the local relay
+        run: |
+          if ! grep -qE '^[[:space:]]+NSAppTransportSecurity:[[:space:]]*$' native/project.yml; then
+            echo "::error::native/project.yml has no NSAppTransportSecurity. The Relay is reached over ws://, so without NSAllowsLocalNetworking the app cannot connect and this run would screenshot an offline app."
+            exit 1
+          fi
+          if ! grep -qE '^[[:space:]]+NSAllowsLocalNetworking:[[:space:]]*true[[:space:]]*$' native/project.yml; then
+            echo "::error::native/project.yml has no NSAllowsLocalNetworking: true under NSAppTransportSecurity, so plain ws:// stays blocked."
+            exit 1
+          fi
+          echo "ATS allows local networking: NSAllowsLocalNetworking is true"
+
       - name: Select Xcode
         env:
           WANTED: ${{ inputs.xcode_version }}

@@ -33,6 +33,11 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIRequiresFullScreen: true
+        # The phone talks to the Relay over ws:// - to 127.0.0.1 in the simulator, and to
+        # the computer's LAN address when a real phone pairs by QR code. ATS blocks
+        # cleartext by default, which shows up as an app that connects to nothing at all.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
           UISceneConfigurations:
