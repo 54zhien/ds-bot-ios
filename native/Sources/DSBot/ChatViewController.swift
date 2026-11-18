@@ -487,6 +487,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         linkStatus = .connecting
         composer.canSend = false
         composer.running = false
+        composer.clear()
         polling?.cancel()
         polling = nil
         botID = nil
@@ -918,6 +919,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                     linkStatus = .disconnected
                     composer.canSend = false
                     composer.running = false
+                    composer.clear()
                     botID = nil
                     roomID = nil
                     chatSessionID = nil
@@ -1093,6 +1095,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private func selectTarget(_ target: ChatTarget) {
         guard selectedTarget != target else { return }
+        // The draft goes before the fields change: the height callback then fires with
+        // the outgoing rows still on screen, and no half-typed text rides into the new
+        // target's send.
+        composer.clear()
         selectedTarget = target
         botID = nil
         roomID = nil

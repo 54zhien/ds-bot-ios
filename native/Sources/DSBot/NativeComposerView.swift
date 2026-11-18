@@ -268,6 +268,18 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         updateAction()
     }
 
+    /// Target switches and reconnects drop what was typed: the React Native composer
+    /// was remounted by ShellB's key, so a draft never carried over (ShellB.tsx:219).
+    /// updateShape reports the resting height, so the caller's inset follows it down.
+    func clear() {
+        editor.text = ""
+        placeholder.isHidden = false
+        photos = []
+        refreshPhotos()
+        editor.resignFirstResponder()
+        updateShape()
+    }
+
     func addPhoto(data: Data) {
         guard let image = UIImage(data: data) else { return }
         let longest = max(image.size.width, image.size.height)
