@@ -37,9 +37,10 @@ final class IconTests: XCTestCase {
     func testCurvesAndTheSmoothReflection() {
         let path = SVGPath.parse("M0 0C1 1 2 1 3 0S5 -1 6 0")
         XCTAssertEqual(elements(path), 3)
-        // The S command reflects the previous curve's second control: (2,1) about (3,0).
+        // The S command reflects the previous curve's second control: (2,1) about (3,0)
+        // lands on (4,-1) — the negated offset is the point of the reflection.
         let points = controlPoints(path)
-        XCTAssertEqual(points[2] ?? .zero, CGPoint(x: 4, y: 1))
+        XCTAssertEqual(points[2] ?? .zero, CGPoint(x: 4, y: -1))
     }
 
     func testQuadraticsAndTheTrailingReflection() {
