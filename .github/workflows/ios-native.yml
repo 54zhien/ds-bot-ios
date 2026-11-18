@@ -12,7 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: macOS image
+        description: >-
+          macOS image. Only macos-26 carries Xcode 26 (the iOS 26 SDK), and both
+          jobs here fail their Xcode gate on macos-15 - that option is kept for
+          image probing only (the matrix that needs it lives in
+          ios-toolchain.yml).
         type: choice
         default: macos-26
         options:
