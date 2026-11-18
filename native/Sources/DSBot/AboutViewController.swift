@@ -16,6 +16,7 @@ final class AboutViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = NativeLanguage.text("About")
+        SettingsStyle.prepare(tableView)
         Task {
             versions = try? await BotAPI.call("update-check", on: session)
             tableView.reloadData()
@@ -24,8 +25,12 @@ final class AboutViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 2 }
 
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        NativeLanguage.text(section == 0 ? "About" : "Licenses")
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        SettingsStyle.headerHeight
+    }
+    override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        SettingsStyle.headerView(title: NativeLanguage.text(section == 0 ? "About" : "Licenses"), palette: palette)
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -52,6 +57,7 @@ final class AboutViewController: UITableViewController {
         }
         cell.textLabel?.text = NativeLanguage.text(entry.0)
         cell.detailTextLabel?.text = NativeLanguage.text(entry.1)
+        SettingsStyle.style(cell, palette: palette)
         return cell
     }
 
