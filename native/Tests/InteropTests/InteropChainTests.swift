@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import XCTest
 
@@ -16,7 +15,7 @@ final class InteropChainTests: XCTestCase {
         let phoneKeys = try NoiseKeyPair(privateKey: privateKey)
         // gateway.ts derives the device id from the identity key and rejects a hello
         // whose id does not match, so the test has to derive it the same way.
-        let deviceId = InteropChainTests.deviceId(for: phoneKeys.publicKey)
+        let deviceId = InteropIdentity.deviceId(for: phoneKeys.publicKey)
         let identity = SecureTransport.Identity(
             deviceId: deviceId,
             publicKey: Base64URL.encode(phoneKeys.publicKey),
@@ -62,7 +61,7 @@ final class InteropChainTests: XCTestCase {
         // The paired identity data has to be self-consistent: the Relay derives the id
         // from the key, and this is the same derivation.
         let hostKeyBytes = try Base64URL.decode(InteropConfig.hostPublicKey)
-        XCTAssertEqual(InteropChainTests.deviceId(for: hostKeyBytes), InteropConfig.hostDeviceId, "hostDeviceId must be the derivation of hostPublicKey")
+        XCTAssertEqual(InteropIdentity.deviceId(for: hostKeyBytes), InteropConfig.hostDeviceId, "hostDeviceId must be the derivation of hostPublicKey")
 
         let reply = try await rpc.call("bot.state", params: .object([:]))
         XCTAssertTrue(reply["ok"] == .bool(true), "the host answers ok: true")
@@ -72,11 +71,5 @@ final class InteropChainTests: XCTestCase {
         await secure.close()
         let readyAfterClose = await secure.isReady
         XCTAssertFalse(readyAfterClose, "close() leaves no usable channel")
-    }
-
-    /// keys.ts: `d-` + base64url(sha256(raw X25519 public key)[0..<16]).
-    private static func deviceId(for publicKey: Data) -> String {
-        let digest = Data(SHA256.hash(data: publicKey))
-        return "d-" + Base64URL.encode(digest.prefix(16))
     }
 }

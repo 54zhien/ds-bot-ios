@@ -14,6 +14,7 @@
 //   INTEROP_CONFIG_PATH         where to write the Swift file
 //   INTEROP_ONLINE_TIMEOUT_MS   how long to wait for the relay, default 60000
 
+import { createHash } from 'node:crypto'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import {
@@ -33,6 +34,12 @@ const onlineTimeoutMs = Number(process.env.INTEROP_ONLINE_TIMEOUT_MS ?? 60000)
 // A pairing code lives five minutes by default, which is shorter than a cold xcodebuild.
 const PAIRING_TTL_MS = 30 * 60 * 1000
 
+// A real state reply lists every Bot with its instructions, so it is far past the 48 KiB
+// fragment size. The fixture has to be just as large, or the phone's fragment path never
+// runs here and a phone that cannot reassemble one still looks healthy.
+const FIXTURE_BOTS = 40
+const FIXTURE_BOT_TEXT_BYTES = 3000
+
 // The values are a URL, a device id, a base64url key and a short code: anything else in
 // them means something upstream is wrong, and a stray quote would produce broken Swift.
 const SAFE = new RegExp('^[A-Za-z0-9._:/-]+$')
@@ -41,6 +48,37 @@ function safe(name, value) {
   const text = String(value)
   if (!SAFE.test(text)) throw new Error(name + ' holds characters that cannot go into the Swift file: ' + text)
   return text
+}
+
+// Every Bot names its own index at the start and the end of its text, so a reply whose
+// fragments were joined in the wrong order cannot pass by coincidence.
+function botText(index) {
+  const line = 'Bot ' + index + ' carries this text to keep the state reply above one fragment. '
+  let text = line
+  while (text.length < FIXTURE_BOT_TEXT_BYTES) text += line
+  return text + 'end of bot ' + index
+}
+
+function fixtureState() {
+  const bots = Array.from({ length: FIXTURE_BOTS }, (_, index) => ({
+    id: 'bot-' + String(index).padStart(2, '0'),
+    name: 'Fixture Bot ' + index,
+    role: 'crew',
+    color: 'blue',
+    model: 'deepseek/deepseek-chat',
+    effort: 'high',
+    sessionId: 'fixture-session-' + index,
+    parts: [],
+    instructions: botText(index),
+  }))
+  return {
+    revision: 7,
+    liveKey: 'fixture-live',
+    bots,
+    rooms: [],
+    work: { bots: {}, rooms: {}, approvals: [], waiting: {}, turns: {}, steered: {} },
+    prefs: {},
+  }
 }
 
 const url = 'ws://' + relayHost + ':' + port + LINK_PATH
@@ -60,6 +98,26 @@ const link = new HostLink({
   handle: async (method, params) => {
     calls += 1
     console.log('interop host: rpc ' + method + ' (call ' + calls + ')')
+    // The phone asks for state as bot/state, the way the app does, not as one method name.
+    if (method === 'bot' && params !== null && typeof params === 'object' && params.endpoint === 'state') {
+      const state = fixtureState()
+      const reply = { ok: true, value: state }
+      console.log('interop host: state reply ' + Buffer.byteLength(JSON.stringify(reply), 'utf8')
+        + ' bytes, ' + state.bots.length + ' bots')
+      return reply
+    }
+    // The other direction: the phone sends one oversized request and gets back what the
+    // host measured, which proves the fragments arrived whole and in order.
+    if (method === 'interop.echo') {
+      const text = params !== null && typeof params === 'object' && typeof params.text === 'string' ? params.text : ''
+      return {
+        ok: true,
+        bytes: Buffer.byteLength(text, 'utf8'),
+        sha256: createHash('sha256').update(text, 'utf8').digest('hex'),
+        head: text.slice(0, 16),
+        tail: text.slice(-16),
+      }
+    }
     return { ok: true, method, params }
   },
   onStatus: (status) => console.log('interop host: status ' + status),
