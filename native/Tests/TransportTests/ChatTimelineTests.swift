@@ -48,4 +48,14 @@ final class ChatTimelineTests: XCTestCase {
         XCTAssertEqual(page.items.count, 1)
         XCTAssertEqual(page.items.first?.text, "Hello")
     }
+
+    func testHistoricalViewKeepsRootForReadOnlyOpening() {
+        let root: JSONValue = .object(["type": .string("text"), "text": .string("Result")])
+        let row = ChatRow(.object([
+            "kind": .string("view"), "title": .string("Report"), "view": root,
+        ]))
+        XCTAssertEqual(row.text, "Report")
+        XCTAssertEqual(row.viewRecord?["view"], root)
+        XCTAssertEqual(row.viewRecord?["title"], .string("Report"))
+    }
 }

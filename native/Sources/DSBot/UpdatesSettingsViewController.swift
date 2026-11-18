@@ -6,6 +6,11 @@ final class UpdatesSettingsViewController: UITableViewController {
     private var dsh: JSONValue?
     private var diagnostics: JSONValue?
     private var busy = false
+    private var hasNotes: Bool { !(update?["notes"]?.stringValue ?? "").isEmpty }
+    private var lastEntry: String? {
+        guard case .array(let entries)? = diagnostics?["entries"] else { return nil }
+        return entries.last?["text"]?.stringValue
+    }
 
     init(session: LinkSession) {
         self.session = session
@@ -40,9 +45,9 @@ final class UpdatesSettingsViewController: UITableViewController {
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
-        case 0: return update?["available"] == .bool(true) ? 3 : 2
+        case 0: return 2 + (hasNotes ? 1 : 0) + (update?["available"] == .bool(true) ? 1 : 0)
         case 1: return dsh?["available"] == .bool(true) ? 2 : 1
-        default: return 3
+        default: return lastEntry == nil ? 3 : 4
         }
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -54,17 +59,22 @@ final class UpdatesSettingsViewController: UITableViewController {
         switch (indexPath.section, indexPath.row) {
         case (0, 0): pair = ("DS Bot \(update?["current"]?.stringValue ?? "")", status(update))
         case (0, 1): pair = (NativeLanguage.text(busy ? "Checking…" : "Check for updates"), nil)
-        case (0, 2): pair = (NativeLanguage.text("Install DS Bot update"), update?["latest"]?.stringValue)
+        case (0, 2) where hasNotes: pair = (NativeLanguage.text("What is new"), update?["notes"]?.stringValue)
+        case (0, _): pair = (NativeLanguage.text("Install DS Bot update"), update?["latest"]?.stringValue)
         case (1, 0): pair = ("DSH \(dsh?["current"]?.stringValue ?? "")", status(dsh))
         case (1, 1): pair = (NativeLanguage.text("Install DSH update"), dsh?["verified"]?.stringValue ?? dsh?["latest"]?.stringValue)
         case (2, 0): pair = (NativeLanguage.text("Log entries"), diagnostics?["total"]?.intValue.map(String.init) ?? "—")
-        case (2, 1): pair = (NativeLanguage.text("Diagnostics log"), NativeLanguage.text("View"))
+        case (2, 1) where lastEntry != nil: pair = (NativeLanguage.text("Last entry"), lastEntry)
+        case (2, let row) where row == (lastEntry == nil ? 1 : 2):
+            pair = (NativeLanguage.text("Diagnostics log"), NativeLanguage.text("View"))
         default: pair = (NativeLanguage.text("Clear diagnostics"), nil)
         }
         cell.textLabel?.text = pair.0
         cell.detailTextLabel?.text = pair.1
-        if indexPath == IndexPath(row: 1, section: 0) || indexPath.row == 2 && indexPath.section == 0
-            || indexPath == IndexPath(row: 1, section: 1) || indexPath.section == 2 && indexPath.row > 0 {
+        if indexPath == IndexPath(row: 1, section: 0)
+            || indexPath.section == 0 && indexPath.row == (hasNotes ? 3 : 2) && update?["available"] == .bool(true)
+            || indexPath == IndexPath(row: 1, section: 1)
+            || indexPath.section == 2 && indexPath.row >= (lastEntry == nil ? 1 : 2) {
             cell.selectionStyle = .default
             cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         }
@@ -91,10 +101,12 @@ final class UpdatesSettingsViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         switch (indexPath.section, indexPath.row) {
         case (0, 1): Task { await load() }
-        case (0, 2): confirm("Install DS Bot update?", endpoint: "update-install")
+        case (0, 2) where !hasNotes: confirm("Install DS Bot update?", endpoint: "update-install")
+        case (0, 3) where hasNotes: confirm("Install DS Bot update?", endpoint: "update-install")
         case (1, 1): confirm("Install DSH update?", endpoint: "dsh-update-install")
-        case (2, 1): Task { await showLog() }
-        case (2, 2): confirm("Clear diagnostics?", endpoint: "diagnostics-clear")
+        case (2, let row) where row == (lastEntry == nil ? 1 : 2): Task { await showLog() }
+        case (2, let row) where row == (lastEntry == nil ? 2 : 3):
+            confirm("Clear diagnostics?", endpoint: "diagnostics-clear")
         default: break
         }
     }

@@ -1312,6 +1312,12 @@ extension ChatViewController: UITableViewDelegate {
             tableView.reloadRows(at: [indexPath], with: .none)
             return
         }
+        if let record = rows[indexPath.row].viewRecord {
+            let card = PendingViewController(sessionID: chatSessionID ?? "", record: record,
+                                             session: session, readOnly: true)
+            present(UINavigationController(rootViewController: card), animated: true)
+            return
+        }
         if let attachmentID = rows[indexPath.row].imageRefs.first {
             openPhoto(attachmentID)
             return

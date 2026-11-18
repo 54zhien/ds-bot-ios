@@ -7,6 +7,7 @@ final class PendingViewController: UIViewController {
     private let sessionID: String
     private let record: JSONValue
     private let session: LinkSession
+    private let readOnly: Bool
     private let scroll = UIScrollView()
     private let body = UIStackView()
     private var inputs: [String: JSONValue] = [:]
@@ -19,10 +20,11 @@ final class PendingViewController: UIViewController {
     private var computedData: [(UIStackView, JSONValue)] = []
     private var busy = false
 
-    init(sessionID: String, record: JSONValue, session: LinkSession) {
+    init(sessionID: String, record: JSONValue, session: LinkSession, readOnly: Bool = false) {
         self.sessionID = sessionID
         self.record = record
         self.session = session
+        self.readOnly = readOnly
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -60,8 +62,10 @@ final class PendingViewController: UIViewController {
             DeepViewFormula.collectInputs(root, into: &inputs)
             if let content = render(root) { body.addArrangedSubview(content) }
         }
-        let dismiss = button("Dismiss", prominent: false) { [weak self] in self?.dismissCard() }
-        body.addArrangedSubview(dismiss)
+        if !readOnly {
+            let dismiss = button("Dismiss", prominent: false) { [weak self] in self?.dismissCard() }
+            body.addArrangedSubview(dismiss)
+        }
     }
 
     @objc private func close() { dismiss(animated: true) }
@@ -251,6 +255,7 @@ final class PendingViewController: UIViewController {
             guard case .array(let options)? = node["options"] else { return nil }
             let labels = options.map { $0["label"]?.stringValue ?? $0.stringValue ?? scalar($0["value"]) }
             let choice = UISegmentedControl(items: labels)
+            choice.isEnabled = !readOnly
             if let selected = options.firstIndex(where: { scalar($0["value"] ?? $0) == scalar(node["value"]) }) {
                 choice.selectedSegmentIndex = selected
             }
@@ -264,6 +269,7 @@ final class PendingViewController: UIViewController {
             return column([boundLabel(node["label"]), choice])
         case "toggle":
             let toggle = UISwitch()
+            toggle.isEnabled = !readOnly
             toggle.isOn = node["value"] == .bool(true)
             inputs[id] = .bool(toggle.isOn)
             toggle.addAction(UIAction { [weak self] _ in
@@ -273,6 +279,7 @@ final class PendingViewController: UIViewController {
             return column([boundLabel(node["label"]), toggle], horizontal: true)
         case "slider":
             let slider = UISlider()
+            slider.isEnabled = !readOnly
             slider.minimumValue = Float(node["min"]?.intValue ?? 0)
             slider.maximumValue = Float(node["max"]?.intValue ?? 100)
             slider.value = Float(node["value"]?.intValue ?? Int(slider.minimumValue))
@@ -285,6 +292,7 @@ final class PendingViewController: UIViewController {
             return column([boundLabel(node["label"]), slider])
         case "number":
             let field = UITextField()
+            field.isEnabled = !readOnly
             field.borderStyle = .roundedRect
             field.keyboardType = .decimalPad
             if case .number(let value)? = node["value"] {
@@ -314,17 +322,20 @@ final class PendingViewController: UIViewController {
                         self.submit(action: id, values: ["selected": .array([.string(choice)])])
                     }
                 }
+                control.isEnabled = !readOnly
                 return control
             }
             if multi {
-                controls.append(button("Submit", prominent: true) { [weak self] in
+                let submit = button("Submit", prominent: true) { [weak self] in
                     guard let self else { return }
                     let selected = self.selections[id] ?? []
                     let ordered = options.compactMap {
                         $0["value"]?.stringValue ?? $0["label"]?.stringValue ?? $0.stringValue
                     }.filter { selected.contains($0) }
                     self.submit(action: id, values: ["selected": .array(ordered.map(JSONValue.string))])
-                })
+                }
+                submit.isEnabled = !readOnly
+                controls.append(submit)
             }
             return column(controls)
         case "confirm":
@@ -334,18 +345,21 @@ final class PendingViewController: UIViewController {
             let confirm = button(node["confirmLabel"]?.stringValue ?? "Confirm", prominent: true) { [weak self] in
                 self?.submit(action: id, values: ["confirmed": .bool(true)])
             }
+            cancel.isEnabled = !readOnly
+            confirm.isEnabled = !readOnly
             return column([cancel, confirm], horizontal: true)
         case "form":
             guard case .array(let definitions)? = node["fields"] else { return nil }
             var controls: [UIView] = definitions.enumerated().map { index, field in
                 let key = field["id"]?.stringValue ?? String(index)
                 let input = UITextField()
+                input.isEnabled = !readOnly
                 input.borderStyle = .roundedRect
                 input.placeholder = field["placeholder"]?.stringValue
                 fields[key] = input
                 return column([label(field["label"]?.stringValue ?? key), input])
             }
-            controls.append(button(node["submitLabel"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
+            let submit = button(node["submitLabel"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
                 guard let self else { return }
                 var answers: [String: JSONValue] = [:]
                 for (index, definition) in definitions.enumerated() {
@@ -353,17 +367,22 @@ final class PendingViewController: UIViewController {
                     answers[key] = .string(self.fields[key]?.text ?? "")
                 }
                 self.submit(action: id, values: ["fields": .object(answers)])
-            })
+            }
+            submit.isEnabled = !readOnly
+            controls.append(submit)
             return column(controls)
-        case "submit": return button(node["label"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
-            self?.submit(action: id, values: [:])
-        }
+        case "submit":
+            let submit = button(node["label"]?.stringValue ?? "Submit", prominent: true) { [weak self] in
+                self?.submit(action: id, values: [:])
+            }
+            submit.isEnabled = !readOnly
+            return submit
         default: return nil
         }
     }
 
     private func submit(action: String, values: [String: JSONValue]) {
-        guard !busy, let viewID = record["id"]?.stringValue else { return }
+        guard !readOnly, !busy, let viewID = record["id"]?.stringValue else { return }
         busy = true
         var sent = values
         for key in numericFields {
@@ -386,7 +405,7 @@ final class PendingViewController: UIViewController {
     }
 
     private func dismissCard() {
-        guard !busy else { return }
+        guard !readOnly, !busy else { return }
         busy = true
         Task {
             do {

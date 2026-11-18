@@ -93,6 +93,7 @@ struct ChatRow {
     let imageCount: Int
     let imageRefs: [String]
     let files: [ChatFile]
+    let viewRecord: JSONValue?
     let stepSummary: String?
     let stepDetails: [String]
     let time: Date?
@@ -128,6 +129,9 @@ struct ChatRow {
             attached.append(ChatFile(title: "Read full message", value: whole))
         }
         files = attached
+        if kind == "view", let root = value["view"], root != .null {
+            viewRecord = .object(["title": .string(title), "view": root])
+        } else { viewRecord = nil }
         if kind == "steps" {
             let tools: [JSONValue]
             if case .array(let entries)? = value["tools"] { tools = entries } else { tools = [] }
@@ -215,6 +219,7 @@ struct ChatRow {
         self.imageCount = imageCount
         imageRefs = []
         files = []
+        viewRecord = nil
         stepSummary = nil
         stepDetails = []
         self.text = imageCount == 0 ? text : text.isEmpty ? "Photos: \(imageCount)" : "\(text)\nPhotos: \(imageCount)"
