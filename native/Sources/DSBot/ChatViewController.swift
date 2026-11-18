@@ -37,6 +37,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var rows: [ChatRow] = []
     private var olderRows: [ChatRow] = []
     private var latestRows: [ChatRow] = []
+    /// The newest page per conversation, so switching back renders immediately.
+    /// Memory only: a cold start shows nothing until the first read lands.
+    private let pageCache = ChatPageCache()
     private var stream = ChatStream()
     private struct Outgoing {
         let id: UUID
@@ -869,6 +872,11 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             updateSideButton()
             updatePending(state, sessionID: nextSessionID)
             latestRows = page.items
+            // The fresh page overwrites whatever the cache held for this chat.
+            if let key = chatKey {
+                pageCache.store(key: key, older: olderRows, rows: page.items,
+                                cursor: cursor, sessionID: nextSessionID)
+            }
             rebuildRows()
             if nearBottom && !rows.isEmpty {
                 list.layoutIfNeeded()
@@ -1129,12 +1137,20 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         // the outgoing rows still on screen, and no half-typed text rides into the new
         // target's send.
         composer.clear()
+        // What the outgoing chat last showed is worth coming back to: the page as it
+        // stood, including anything paged older since the last read.
+        if let key = chatKey {
+            pageCache.store(key: key, older: olderRows, rows: latestRows,
+                            cursor: cursor, sessionID: chatSessionID)
+        }
         selectedTarget = target
-        botID = nil
-        roomID = nil
+        // The fields name the incoming chat right away: the restored page below then
+        // lives under the same key the reads use, and the refresh's own reset block is
+        // skipped, so what the cache restored survives until the fresh read lands.
+        botID = target.kind == .bot ? target.id : nil
+        roomID = target.kind == .room ? target.id : nil
         chatSessionID = nil
         stream.clear()
-        updateSideButton()
         olderRows = []
         latestRows = []
         rows = []
@@ -1150,8 +1166,17 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         workStatusView.configure(nil)
         roomGoalView.configure(nil)
         updateBottomInset()
-        list.reloadData()
-        updateEmptyState()
+        // The cached page renders in this same frame and the read that follows replaces
+        // it. A page past the cache's age is not shown at all, so nothing stale flashes.
+        if let key = ChatPageCache.key(host: savedOffer?.hostDeviceId, target: target),
+           let cached = pageCache.retrieve(key) {
+            olderRows = cached.older
+            latestRows = cached.rows
+            cursor = cached.cursor
+            chatSessionID = cached.sessionID
+        }
+        updateSideButton()
+        rebuildRows()
         Task { await refreshLatest(for: sessionID) }
     }
 
