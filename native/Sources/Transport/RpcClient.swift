@@ -17,6 +17,7 @@ public actor RpcClient {
     private var deadlines: [String: Task<Void, Never>] = [:]
     private var closed = false
     private var onEvent: (@Sendable (String, JSONValue) -> Void)?
+    private var onInvalidMessage: (@Sendable (String) -> Void)?
 
     public init(options: Options = Options(), send: @escaping @Sendable (Data) async throws -> Void) {
         self.options = options
@@ -25,6 +26,12 @@ public actor RpcClient {
 
     public func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) {
         onEvent = handler
+    }
+
+    /// A message that could not be read used to vanish here; a stuck RPC looked like
+    /// a slow host. The handler makes it visible.
+    public func setInvalidMessageHandler(_ handler: @escaping @Sendable (String) -> Void) {
+        onInvalidMessage = handler
     }
 
     /// Sends one request and waits for its reply or its deadline.
@@ -59,13 +66,19 @@ public actor RpcClient {
               let fields = value as? [String: Any],
               let type = fields["type"] as? String,
               let payload = fields["payload"] as? [String: Any]
-        else { return }
+        else {
+            onInvalidMessage?("unreadable message, \(message.count) bytes")
+            return
+        }
         if type == MessageType.event.rawValue {
             guard let event = payload["event"] as? String else { return }
             onEvent?(event, RpcClient.jsonValue(payload["data"]))
             return
         }
-        guard let requestId = payload["requestId"] as? String else { return }
+        guard let requestId = payload["requestId"] as? String else {
+            onInvalidMessage?("message of type \(type) carried no requestId")
+            return
+        }
         switch type {
         case MessageType.rpcResponse.rawValue:
             let result = payload["result"]

@@ -39,6 +39,9 @@ public actor SecureTransport {
     private var noise: NoiseIKHandshake?
     private var sending: NoiseCipherState?
     private var receiving: NoiseCipherState?
+    // One codec per direction: fragments are numbered and reassembled per sender.
+    private var outgoingFragments = SecureMessageCodec()
+    private var incomingFragments = SecureMessageCodec()
     private var waitingForStepTwo: CheckedContinuation<Data, Error>?
     private var handshakeTimer: Task<Void, Never>?
     private var onMessage: (@Sendable (Data) -> Void)?
@@ -123,9 +126,13 @@ public actor SecureTransport {
         guard var sending else {
             throw TransportError(.invalidFrame, "The secure channel is not ready.")
         }
-        let ciphertext = try sending.encrypt(plaintext)
-        self.sending = sending
-        try await relay.send(ciphertext)
+        // Split first, then encrypt each fragment on its own: one Noise message cannot
+        // carry more than 65 535 bytes, and a large state reply is bigger than that.
+        for fragment in try outgoingFragments.encode(plaintext) {
+            let ciphertext = try sending.encrypt(fragment)
+            self.sending = sending
+            try await relay.send(ciphertext)
+        }
     }
 
     public var isReady: Bool { sending != nil }
@@ -153,6 +160,8 @@ public actor SecureTransport {
             let keys = try noise.split()
             sending = NoiseCipherState(key: keys.sending)
             receiving = NoiseCipherState(key: keys.receiving)
+            outgoingFragments.reset()
+            incomingFragments.reset()
             continuation.resume(returning: remoteHello)
         } catch {
             continuation.resume(throwing: error)
@@ -162,9 +171,12 @@ public actor SecureTransport {
     private func handleSecure(_ data: Data) {
         guard var receiving else { return }
         do {
-            let plaintext = try receiving.decrypt(data)
+            let fragment = try receiving.decrypt(data)
             self.receiving = receiving
-            onMessage?(plaintext)
+            // nil while a message is still arriving in pieces.
+            if let plaintext = try incomingFragments.decode(fragment) {
+                onMessage?(plaintext)
+            }
         } catch {
             // A ciphertext that does not open ends the session; the supervisor reconnects.
             self.receiving = nil
