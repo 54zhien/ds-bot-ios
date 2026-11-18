@@ -293,9 +293,6 @@ enum Metrics {
     /// A sheet header: the grabber's 14pt lead plus the 52pt row.
     static let sheetHead: CGFloat = 66
 
-    /// One light status line: the small type's line box plus the standard gap. The
-    /// status row only exists while it has something to say.
-    static let statusRow: CGFloat = TypeScale.small.lineHeight + Glass.gap
 
     /// The drawer footer fade: the 44pt control, its 16pt lead and 36pt of run-out.
     static let gearFade: CGFloat = Glass.control + 16 + 36

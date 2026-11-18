@@ -11,9 +11,20 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let emptyChatView = EmptyChatView()
     private let latestButton = UIButton(type: .system)
     private let composer = NativeComposerView()
-    private var computerItem: UIBarButtonItem!
-    private var sideItem: UIBarButtonItem!
-    private let titleButton = UIButton(type: .system)
+    private let header = PassthroughHeader()
+    private let headerRow = UIStackView()
+    private let drawerControl = GlassControlView(
+        label: NativeLanguage.text("Team"),
+        icon: OriginalSidebarIcon())
+    private let sideControl = GlassControlView(
+        label: NativeLanguage.text("Side chat"),
+        icon: OriginalSideIcon())
+    private let sidePlaceholder = UIView()
+    private let headerCenter = UIControl()
+    private let headerTitle = UILabel()
+    private let headerPill = GlassPillView(height: Glass.control)
+    private let pillAvatar = UILabel()
+    private let pillName = UILabel()
     private var composerHeight: NSLayoutConstraint!
     private let pendingDock = PendingDockView()
     private let blockedView = BotBlockedView()
@@ -21,15 +32,18 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let workStatusView = WorkStatusView()
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
-    private let statusBar = UIStackView()
-    private var statusHeight: NSLayoutConstraint!
+    private let statusPill = GlassPillView(height: 30)
+    private let pillSpinner = UIActivityIndicatorView(style: .medium)
+    private let pillLabel = UILabel()
+    private let pillAction = UIButton(type: .system)
 
     /// The palette follows the appearance, so no token values are copied here.
     private var palette: Palette { Palette.make(dark: traitCollection.userInterfaceStyle == .dark) }
     private let roomGoalView = RoomGoalView()
     private var goalHiddenHeight: NSLayoutConstraint!
-    private let statusLabel = UILabel()
-    private let retryButton = UIButton(type: .system)
+    private var goalShown: NSLayoutConstraint!
+    private var goalHidden: NSLayoutConstraint!
+
     private let pairingStore = PairingStore()
     private var session = LinkSession()
     private var sessionID = UUID()
@@ -133,8 +147,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func updateSideButton() {
-        navigationItem.rightBarButtonItems = botID != nil && chatSessionID != nil
-            ? [sideItem, computerItem] : [computerItem]
+        let available = botID != nil && chatSessionID != nil
+        sideControl.isHidden = !available
+        sidePlaceholder.isHidden = available
     }
 
     private func loadPreview(_ attachmentID: String, sessionID: String) {
@@ -209,69 +224,13 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = tr("Chat")
-        titleButton.titleLabel?.font = TypeScale.headerTitle.font
-        titleButton.setTitleColor(palette.ink, for: .normal)
-        titleButton.setTitle(tr("Chat"), for: .normal)
-        titleButton.accessibilityLabel = tr("Conversation details")
-        titleButton.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
-        navigationItem.titleView = titleButton
-        updateTitleButton()
+        // The chat has no navigation bar: the header floats, pushed screens get it back.
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         view.backgroundColor = palette.main
         configureNoticeBanner()
-        // An icon, not a worded capsule: the label carries the meaning for VoiceOver.
-        computerItem = UIBarButtonItem(
-            image: UIImage(systemName: "desktopcomputer"), style: .plain,
-            target: self, action: #selector(showPairing)
-        )
-        computerItem.accessibilityLabel = tr("Computers")
-        let sideButton = UIButton(type: .system)
-        sideButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        NSLayoutConstraint.activate([
-            sideButton.widthAnchor.constraint(equalToConstant: 44),
-            sideButton.heightAnchor.constraint(equalToConstant: 44),
-        ])
-        sideButton.accessibilityLabel = tr("Side chat")
-        sideButton.addTarget(self, action: #selector(showSideChat), for: .touchUpInside)
-        let sideIcon = OriginalSideIcon()
-        sideIcon.translatesAutoresizingMaskIntoConstraints = false
-        sideIcon.isOpaque = false
-        sideIcon.backgroundColor = .clear
-        sideIcon.isUserInteractionEnabled = false
-        sideIcon.tintColor = palette.ink
-        sideButton.addSubview(sideIcon)
-        NSLayoutConstraint.activate([
-            sideIcon.centerXAnchor.constraint(equalTo: sideButton.centerXAnchor),
-            sideIcon.centerYAnchor.constraint(equalTo: sideButton.centerYAnchor),
-            sideIcon.widthAnchor.constraint(equalToConstant: 28),
-            sideIcon.heightAnchor.constraint(equalToConstant: 28),
-        ])
-        sideItem = UIBarButtonItem(customView: sideButton)
+        configureHeader()
         updateSideButton()
-        let teamButton = UIButton(type: .system)
-        teamButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        NSLayoutConstraint.activate([
-            teamButton.widthAnchor.constraint(equalToConstant: 44),
-            teamButton.heightAnchor.constraint(equalToConstant: 44),
-        ])
-        teamButton.accessibilityLabel = tr("Team")
-        teamButton.addTarget(self, action: #selector(showTeam), for: .touchUpInside)
-        let teamIcon = OriginalSidebarIcon()
-        teamIcon.translatesAutoresizingMaskIntoConstraints = false
-        teamIcon.isOpaque = false
-        teamIcon.isUserInteractionEnabled = false
-        teamIcon.backgroundColor = .clear
-        teamIcon.tintColor = palette.ink
-        teamButton.addSubview(teamIcon)
-        NSLayoutConstraint.activate([
-            teamIcon.centerXAnchor.constraint(equalTo: teamButton.centerXAnchor),
-            teamIcon.centerYAnchor.constraint(equalTo: teamButton.centerYAnchor),
-            teamIcon.widthAnchor.constraint(equalToConstant: 28),
-            teamIcon.heightAnchor.constraint(equalToConstant: 28),
-        ])
-        navigationItem.leftBarButtonItem = UIBarButtonItem(customView: teamButton)
-        configureStatusBar()
         configureDiagnosticsMenu()
         configureRoomGoal()
         configureList()
@@ -282,72 +241,156 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         drawerEdge.cancelsTouchesInView = false
         view.addGestureRecognizer(drawerEdge)
         savedOffer = pairingStore.load()
-        computerItem.accessibilityLabel = tr(savedOffer == nil ? "Pair" : "Computers")
         updateEmptyState()
-        if let savedOffer { connect(to: savedOffer, pairingCode: nil) }
+        if let savedOffer {
+            connect(to: savedOffer, pairingCode: nil)
+        } else {
+            setStatus(tr("Not paired"))
+            pillAction.setTitle(tr("Pair"), for: .normal)
+            pillAction.isHidden = false
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         if selectedTarget == nil { title = tr("Chat") }
-        computerItem?.title = tr(savedOffer == nil ? "Pair" : "Computers")
-        retryButton.setTitle(tr("Retry"), for: .normal)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
         retryLoadButton.setTitle(tr("Retry"), for: .normal)
         latestButton.setTitle(tr("Latest messages"), for: .normal)
         updateTitleButton()
         updateEmptyState()
         updatePendingButton()
-        refreshStatus()
+        refreshStatusPill()
     }
 
-    private func configureStatusBar() {
-        statusBar.translatesAutoresizingMaskIntoConstraints = false
-        statusBar.axis = .horizontal
-        statusBar.alignment = .center
-        statusBar.spacing = Glass.gap
-        statusBar.isLayoutMarginsRelativeArrangement = true
-        statusBar.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: Glass.margin, bottom: 0, trailing: Glass.margin)
-        statusBar.backgroundColor = .clear
-        view.addSubview(statusBar)
-        statusLabel.font = TypeScale.small.font
-        statusLabel.textColor = palette.ink2
-        statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        statusBar.addArrangedSubview(statusLabel)
-        retryButton.titleLabel?.font = TypeScale.small.font
-        retryButton.setTitleColor(palette.accent, for: .normal)
-        retryButton.setTitle(tr("Retry"), for: .normal)
-        retryButton.addTarget(self, action: #selector(retryConnection), for: .touchUpInside)
-        statusBar.addArrangedSubview(retryButton)
-        retryButton.isHidden = true
-        // Plain assignment: setStatus would read statusHeight, which is made below.
-        statusLabel.text = tr("Not paired")
-        statusHeight = statusBar.heightAnchor.constraint(equalToConstant: Metrics.statusRow)
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if isMovingFromParent || navigationController?.topViewController !== self {
+            navigationController?.setNavigationBarHidden(false, animated: animated)
+        }
+    }
+
+    /// The floating header ShellB.tsx draws: no navigation bar, glass over content.
+    private func configureHeader() {
+        header.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(header)
+        headerRow.axis = .horizontal
+        headerRow.alignment = .center
+        headerRow.spacing = Glass.gap
+        headerRow.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(headerRow)
+
+        drawerControl.addTarget(self, action: #selector(showTeam), for: .touchUpInside)
+        sideControl.addTarget(self, action: #selector(showSideChat), for: .touchUpInside)
+        sidePlaceholder.translatesAutoresizingMaskIntoConstraints = false
+        sidePlaceholder.widthAnchor.constraint(equalToConstant: Glass.control).isActive = true
+        sidePlaceholder.heightAnchor.constraint(equalToConstant: Glass.control).isActive = true
+
+        headerCenter.translatesAutoresizingMaskIntoConstraints = false
+        headerCenter.accessibilityTraits = .button
+        headerCenter.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
+        headerTitle.font = TypeScale.headerTitle.font
+        headerTitle.textColor = palette.ink
+        headerTitle.textAlignment = .center
+        headerTitle.lineBreakMode = .byTruncatingTail
+        headerTitle.translatesAutoresizingMaskIntoConstraints = false
+        headerCenter.addSubview(headerTitle)
+        headerPill.isHidden = true
+        headerPill.translatesAutoresizingMaskIntoConstraints = false
+        headerCenter.addSubview(headerPill)
+        pillAvatar.font = .systemFont(ofSize: TypeScale.small.size, weight: .medium)
+        pillAvatar.textAlignment = .center
+        pillAvatar.textColor = .white
+        pillAvatar.layer.cornerRadius = 14
+        pillAvatar.clipsToBounds = true
+        pillAvatar.translatesAutoresizingMaskIntoConstraints = false
+        headerPill.content.addArrangedSubview(pillAvatar)
+        pillName.font = .systemFont(ofSize: 15, weight: .medium)
+        pillName.textColor = palette.ink
+        pillName.lineBreakMode = .byTruncatingTail
+        pillName.translatesAutoresizingMaskIntoConstraints = false
+        headerPill.content.addArrangedSubview(pillName)
+        headerRow.addArrangedSubview(drawerControl)
+        headerRow.addArrangedSubview(headerCenter)
+        headerRow.addArrangedSubview(sideControl)
+        headerRow.addArrangedSubview(sidePlaceholder)
+        sideControl.isHidden = true
+
         NSLayoutConstraint.activate([
-            statusBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            statusHeight,
+            header.topAnchor.constraint(equalTo: view.topAnchor),
+            header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            header.bottomAnchor.constraint(equalTo: headerRow.bottomAnchor),
+            headerRow.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            headerRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Glass.margin),
+            headerRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Glass.margin),
+            headerRow.heightAnchor.constraint(equalToConstant: Glass.control),
+            headerCenter.widthAnchor.constraint(lessThanOrEqualToConstant: 260),
+            headerTitle.topAnchor.constraint(equalTo: headerCenter.topAnchor),
+            headerTitle.bottomAnchor.constraint(equalTo: headerCenter.bottomAnchor),
+            headerTitle.leadingAnchor.constraint(equalTo: headerCenter.leadingAnchor),
+            headerTitle.trailingAnchor.constraint(equalTo: headerCenter.trailingAnchor),
+            headerPill.topAnchor.constraint(equalTo: headerCenter.topAnchor),
+            headerPill.bottomAnchor.constraint(equalTo: headerCenter.bottomAnchor),
+            headerPill.leadingAnchor.constraint(equalTo: headerCenter.leadingAnchor),
+            headerPill.trailingAnchor.constraint(equalTo: headerCenter.trailingAnchor),
+            pillAvatar.widthAnchor.constraint(equalToConstant: 28),
+            pillAvatar.heightAnchor.constraint(equalToConstant: 28),
         ])
-        refreshStatus()
+        configureStatusPill()
+        updateTitleButton()
+    }
+
+    /// The 30pt GlassPill ShellB puts under the header while the link is not online.
+    private func configureStatusPill() {
+        statusPill.translatesAutoresizingMaskIntoConstraints = false
+        statusPill.isHidden = true
+        view.addSubview(statusPill)
+        pillSpinner.color = palette.ink3
+        pillSpinner.hidesWhenStopped = true
+        pillLabel.font = TypeScale.caption.font
+        pillLabel.textColor = palette.ink3
+        pillAction.titleLabel?.font = .systemFont(ofSize: TypeScale.caption.size, weight: .semibold)
+        pillAction.setTitleColor(palette.accent, for: .normal)
+        pillAction.contentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        pillAction.addTarget(self, action: #selector(statusPillAction), for: .touchUpInside)
+        statusPill.content.addArrangedSubview(pillSpinner)
+        statusPill.content.addArrangedSubview(pillLabel)
+        statusPill.content.addArrangedSubview(pillAction)
+        pillAction.isHidden = true
+        NSLayoutConstraint.activate([
+            statusPill.topAnchor.constraint(equalTo: headerRow.bottomAnchor),
+            statusPill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+        ])
+        pillLabel.text = tr("Not paired")
+    }
+
+    /// The pill's button is the entry the deleted bar item used to carry: never
+    /// paired opens pairing, anything else retries the link.
+    @objc private func statusPillAction() {
+        if savedOffer == nil && pendingOffer == nil { showPairing() } else { retryConnection() }
     }
 
     private func setStatus(_ text: String) {
-        statusLabel.text = text
-        refreshStatus()
+        pillLabel.text = text
+        refreshStatusPill()
     }
 
-    /// Online is the quiet state: nothing on screen, no row reserved for it.
-    private func refreshStatus() {
-        let text = statusLabel.text ?? ""
+    /// Online is the quiet state: nothing on screen, nothing reserved for it.
+    private func refreshStatusPill() {
+        let text = pillLabel.text ?? ""
         let quiet = text.isEmpty || text == tr("Online")
-        statusBar.isHidden = quiet
-        statusHeight.constant = quiet ? 0 : Metrics.statusRow
+        statusPill.isHidden = quiet
+        let spinning = text == tr("Connecting…") || text == tr("Checking computer…")
+            || text == tr("Offline · reconnecting")
+        if spinning && !pillSpinner.isAnimating { pillSpinner.startAnimating() }
+        if !spinning { pillSpinner.stopAnimating() }
     }
 
     /// A build on a phone has no console, so a long press is the only way to get the dump
     /// out. It sits on the title and the status bar because both are always on screen.
     private func configureDiagnosticsMenu() {
-        for target in [titleButton, statusBar] as [UIView] {
+        for target in [headerCenter, drawerControl] as [UIView] {
             let press = UILongPressGestureRecognizer(target: self, action: #selector(showDiagnosticsMenu(_:)))
             press.minimumPressDuration = 0.6
             target.addGestureRecognizer(press)
@@ -393,18 +436,38 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         present(alert, animated: true)
     }
 
+    /// Messages start under the glass: the inset is the header's height when no goal
+    /// card sits above the list, and zero when the goal already pushes it down.
+    private func updateTopInset() {
+        list.contentInset.top = roomGoalView.isHidden
+            ? Metrics.headerHeight(view.safeAreaInsets.top) : 0
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        updateTopInset()
+    }
+
     private func configureRoomGoal() {
         roomGoalView.translatesAutoresizingMaskIntoConstraints = false
         goalHiddenHeight = roomGoalView.heightAnchor.constraint(equalToConstant: 0)
         goalHiddenHeight.isActive = true
+        // With no goal the card collapses to the very top so the list runs under
+        // the glass; with one it sits just below the header, as ShellB pads it.
+        goalShown = roomGoalView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
+                                                     constant: Glass.control + Glass.gap)
+        goalHidden = roomGoalView.topAnchor.constraint(equalTo: view.topAnchor)
         roomGoalView.onHeightChange = { [weak self] in
             guard let self else { return }
             goalHiddenHeight.isActive = roomGoalView.isHidden
+            goalShown.isActive = !roomGoalView.isHidden
+            goalHidden.isActive = roomGoalView.isHidden
+            updateTopInset()
             view.setNeedsLayout()
         }
         view.addSubview(roomGoalView)
         NSLayoutConstraint.activate([
-            roomGoalView.topAnchor.constraint(equalTo: statusBar.bottomAnchor),
+
             roomGoalView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             roomGoalView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
         ])
@@ -416,6 +479,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         list.delegate = self
         list.separatorStyle = .none
         list.contentInset.bottom = 76
+        updateTopInset()
         list.estimatedRowHeight = 88
         list.rowHeight = UITableView.automaticDimension
         list.register(ChatMessageCell.self, forCellReuseIdentifier: "row")
@@ -605,7 +669,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         list.reloadData()
         updateEmptyState()
         setStatus(tr("Connecting…"))
-        retryButton.isHidden = true
+        pillAction.isHidden = true
         let phone = PhoneIdentityStore.loadOrCreate()
         let pairing = LinkSession.Pairing(
             serverURL: offer.serverURL,
@@ -727,14 +791,14 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         switch status {
         case .connecting:
             setStatus(tr("Connecting…"))
-            retryButton.isHidden = true
+            pillAction.isHidden = true
         case .online:
             setStatus(tr("Checking computer…"))
-            retryButton.isHidden = true
+            pillAction.isHidden = true
             Task { await checkComputer(for: id) }
         case .offline:
             setStatus(tr("Offline · reconnecting"))
-            retryButton.isHidden = true
+            pillAction.isHidden = true
             composer.canSend = false
             composer.running = false
             polling?.cancel()
@@ -745,12 +809,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             if linkNeedsPairing {
                 // The saved offer is dead until a new pairing link says otherwise.
                 setStatus(tr("This phone is not paired with the computer yet."))
-                retryButton.setTitle(tr("Pair"), for: .normal)
-                retryButton.isHidden = false
+                pillAction.setTitle(tr("Pair"), for: .normal)
+                pillAction.isHidden = false
             } else {
                 setStatus(tr(savedOffer == nil && pendingOffer == nil ? "Not paired" : "Offline"))
-                retryButton.setTitle(tr("Retry"), for: .normal)
-                retryButton.isHidden = savedOffer == nil && pendingOffer == nil
+                pillAction.setTitle(tr(savedOffer == nil && pendingOffer == nil ? "Pair" : "Retry"), for: .normal)
+                pillAction.isHidden = false
             }
             composer.canSend = false
             composer.running = false
@@ -782,8 +846,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 pairingStore.save(pendingOffer)
                 savedOffer = pendingOffer
                 self.pendingOffer = nil
-                computerItem.accessibilityLabel = tr("Computers")
-        computerItem.image = UIImage(systemName: "desktopcomputer")
+        
                 updateEmptyState()
                 presentedViewController?.dismiss(animated: true)
             }
@@ -1082,7 +1145,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                     list.reloadData()
                     updateEmptyState()
                     setStatus(tr("Not paired"))
-                    computerItem.title = tr("Pair")
+            
                     Task { await old.disconnect() }
                 }
             }
@@ -1163,8 +1226,29 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func updateTitleButton() {
-        titleButton.setTitle((title ?? tr("Chat")) + (botID != nil || roomID != nil ? "  ⌄" : ""), for: .normal)
-        titleButton.isEnabled = teamState != nil && (botID != nil || roomID != nil)
+        let named = teamState != nil && (botID != nil || roomID != nil)
+        headerCenter.isEnabled = named
+        headerTitle.isHidden = named
+        headerPill.isHidden = !named
+        if named, let name = title {
+            pillName.text = name
+            pillAvatar.text = String(name.prefix(1)).uppercased()
+            if roomID == nil {
+                let botColor = teamState?["bots"].flatMap { value -> String? in
+                    guard case .array(let bots) = value else { return nil }
+                    return bots.first { $0["id"]?.stringValue == botID }?["color"]?.stringValue
+                }
+                pillAvatar.backgroundColor = Inks.bot(botColor, dark: traitCollection.userInterfaceStyle == .dark)
+                pillAvatar.textColor = .white
+            } else {
+                pillAvatar.backgroundColor = palette.card
+                pillAvatar.textColor = palette.ink
+            }
+            headerCenter.accessibilityLabel = name
+        } else {
+            headerTitle.text = title ?? tr("Chat")
+            headerCenter.accessibilityLabel = tr("Conversation details")
+        }
     }
 
     @objc private func showDetails() {
@@ -1422,6 +1506,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         if pendingDock.update(pendingItems, session: session) {
             resizePendingDock(animated: view.window != nil)
         }
+        drawerControl.showsDot = !pendingItems.isEmpty
     }
 
     private func resizePendingDock(animated: Bool) {
