@@ -159,15 +159,25 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         let role: String
         let pinned: Bool
         let lastAt: Int
+        let ink: String?
     }
     private var sections: [(String, [Entry])] = []
     private var mainEntries: [Entry] = []
     private var query = ""
+    private var palette = Palette.make(dark: false)
+
+    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        guard traitCollection.hasDifferentColorAppearance(comparedTo: previous) else { return }
+        palette = Palette.make(dark: traitCollection.userInterfaceStyle == .dark)
+        tableView.backgroundColor = palette.sidebar
+        tableView.reloadData()
+    }
 
     init(state: JSONValue) {
         self.state = state
         pendingCount = NeedsYouViewController.count(in: state)
-        super.init(style: .insetGrouped)
+        super.init(style: .plain)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -175,18 +185,25 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "DS Bot"
+        tableView.register(TeamRowCell.self, forCellReuseIdentifier: "team")
+        tableView.separatorStyle = .none
+        tableView.rowHeight = UITableView.automaticDimension
+        tableView.estimatedRowHeight = 52
+        tableView.sectionHeaderTopPadding = 0
+        tableView.backgroundColor = palette.sidebar
+        tableView.tableFooterView = UIView()
         let settings = UIButton(type: .system)
         settings.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         settings.accessibilityLabel = tr("Settings")
         settings.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
-        let icon = OriginalGearIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
+        let icon = OriginalGearIcon(frame: CGRect(x: 9, y: 9, width: Glass.iconXL, height: Glass.iconXL))
         icon.isUserInteractionEnabled = false
         settings.addSubview(icon)
         let create = UIButton(type: .system)
         create.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         create.accessibilityLabel = tr("Create")
         create.addTarget(self, action: #selector(showCreate), for: .touchUpInside)
-        let plus = OriginalPlusIcon(frame: CGRect(x: 10, y: 10, width: 24, height: 24))
+        let plus = OriginalPlusIcon(frame: CGRect(x: 9, y: 9, width: Glass.iconXL, height: Glass.iconXL))
         plus.isUserInteractionEnabled = false
         create.addSubview(plus)
         navigationItem.rightBarButtonItems = [
@@ -287,7 +304,8 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             }
             return Entry(target: target, preview: preview, role: value["role"]?.stringValue ?? "",
                          pinned: value["pinned"] == .bool(true),
-                         lastAt: value["lastAt"]?.intValue ?? value["createdAt"]?.intValue ?? 0)
+                         lastAt: value["lastAt"]?.intValue ?? value["createdAt"]?.intValue ?? 0,
+                         ink: value["color"]?.stringValue)
         }
         let main = bots.filter { visible($0) && mains.contains($0["id"]?.stringValue ?? "") }
             .compactMap { entry($0, kind: .bot) }
@@ -334,7 +352,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         layout.axis = .vertical
         layout.spacing = 8
         layout.isLayoutMarginsRelativeArrangement = true
-        layout.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 10, trailing: 16)
+        layout.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 4, leading: Glass.margin, bottom: 10, trailing: Glass.margin)
         layout.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(layout)
         NSLayoutConstraint.activate([
@@ -369,11 +387,9 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
 
     private func mainTile(_ entry: Entry) -> UIControl {
         let tile = UIControl()
-        tile.backgroundColor = .tertiarySystemGroupedBackground
-        tile.layer.cornerRadius = 20
-        tile.layer.borderWidth = 0.5
-        tile.layer.borderColor = UIColor.separator.cgColor
-        tile.heightAnchor.constraint(equalToConstant: 112).isActive = true
+        tile.backgroundColor = .clear
+        tile.layer.cornerRadius = Radius.card
+        tile.heightAnchor.constraint(equalToConstant: 104).isActive = true
         tile.accessibilityLabel = "\(entry.target.name), \(tr("Main Bot"))"
         let content = UIStackView()
         content.axis = .vertical
@@ -392,24 +408,26 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         avatar.text = String(entry.target.name.prefix(1)).uppercased()
         avatar.textAlignment = .center
         avatar.textColor = .white
-        avatar.font = .systemFont(ofSize: 22, weight: .semibold)
-        avatar.backgroundColor = .systemBlue
-        avatar.layer.cornerRadius = 26
+        avatar.font = TypeScale.headerTitle.font
+        avatar.textColor = palette.accentInk
+        avatar.backgroundColor = Inks.bot(entry.ink, dark: traitCollection.userInterfaceStyle == .dark)
+        avatar.layer.cornerRadius = 22
         avatar.clipsToBounds = true
-        avatar.widthAnchor.constraint(equalToConstant: 52).isActive = true
-        avatar.heightAnchor.constraint(equalToConstant: 52).isActive = true
+        avatar.widthAnchor.constraint(equalToConstant: Glass.control).isActive = true
+        avatar.heightAnchor.constraint(equalToConstant: Glass.control).isActive = true
         content.addArrangedSubview(avatar)
         let name = UILabel()
         name.text = entry.target.name
-        name.font = .preferredFont(forTextStyle: .subheadline)
+        name.font = .systemFont(ofSize: TypeScale.small.size, weight: .semibold)
+        name.textColor = palette.ink
         name.textAlignment = .center
         name.lineBreakMode = .byTruncatingTail
         content.addArrangedSubview(name)
         if !entry.role.isEmpty {
             let role = UILabel()
             role.text = entry.role
-            role.font = .preferredFont(forTextStyle: .caption2)
-            role.textColor = .secondaryLabel
+            role.font = .systemFont(ofSize: 11, weight: .regular)
+            role.textColor = palette.ink2
             role.textAlignment = .center
             role.lineBreakMode = .byTruncatingTail
             content.addArrangedSubview(role)
@@ -425,6 +443,13 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         dismiss(animated: true)
     }
 
+    private func rowState(_ preview: String) -> TeamRowCell.State {
+        if preview == tr("Waiting for your answer") { return .waiting }
+        if preview == tr("Waiting for your approval") { return .approval }
+        if preview.hasSuffix("…") { return .working }
+        return .none
+    }
+
     private var sectionOffset: Int { pendingCount > 0 ? 1 : 0 }
     override func numberOfSections(in tableView: UITableView) -> Int { sections.count + sectionOffset }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -434,25 +459,21 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         section < sectionOffset ? nil : tr(sections[section - sectionOffset].0)
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "team")
-            ?? UITableViewCell(style: .subtitle, reuseIdentifier: "team")
+        let cell = tableView.dequeueReusableCell(withIdentifier: "team", for: indexPath) as! TeamRowCell
+        let dark = traitCollection.userInterfaceStyle == .dark
         if indexPath.section < sectionOffset {
-            cell.textLabel?.text = "\(tr("Needs you")) · \(pendingCount)"
-            cell.textLabel?.textColor = view.tintColor
-            cell.detailTextLabel?.text = nil
-            cell.accessoryType = .disclosureIndicator
-            cell.accessoryView = nil
+            cell.configureNeeds(title: "\(tr("Needs you")) · \(pendingCount)", ink: palette.accent, palette: palette)
             return cell
         }
         let entry = sections[indexPath.section - sectionOffset].1[indexPath.row]
-        cell.textLabel?.textColor = .label
-        cell.textLabel?.text = entry.target.name + (entry.pinned ? " · \(tr("Pinned"))" : "")
-        cell.detailTextLabel?.text = entry.preview.isEmpty
-            ? tr(entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview
-        cell.accessoryType = .none
-        cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
         let seen = UserDefaults.standard.integer(forKey: "dsbot.seen.\(entry.target.id)")
-        cell.textLabel?.font = .systemFont(ofSize: 17, weight: entry.lastAt > seen ? .semibold : .regular)
+        cell.configure(
+            name: entry.target.name,
+            preview: entry.preview.isEmpty ? tr(entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview,
+            ink: Inks.bot(entry.ink, dark: dark),
+            unread: entry.lastAt > seen,
+            state: rowState(entry.preview),
+            palette: palette)
         return cell
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -484,3 +505,130 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         return UISwipeActionsConfiguration(actions: [edit])
     }
 }
+
+/// One team row: avatar, name, preview, and the unread or state mark, at the sizes
+/// mobile/src/screens/TeamList.tsx gives them.
+final class TeamRowCell: UITableViewCell {
+    enum State { case none, working, waiting, approval }
+
+    private let avatar = UILabel()
+    private let nameLabel = UILabel()
+    private let previewLabel = UILabel()
+    private let unreadDot = UIView()
+    // The badge sits in a transparent gap: no ring, no plate behind it.
+    private let gap = UIView()
+    private let badge = UIView()
+    private let badgeLabel = UILabel()
+    private let workingDot = UIView()
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        let hover = UIView()
+        hover.layer.cornerRadius = Radius.row
+        selectedBackgroundView = hover
+
+        avatar.translatesAutoresizingMaskIntoConstraints = false
+        avatar.font = .systemFont(ofSize: TypeScale.rowName.size, weight: .medium)
+        avatar.textAlignment = .center
+        avatar.clipsToBounds = true
+        avatar.layer.cornerRadius = 16
+        avatar.isAccessibilityElement = false
+
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+        nameLabel.lineBreakMode = .byTruncatingTail
+        previewLabel.translatesAutoresizingMaskIntoConstraints = false
+        previewLabel.lineBreakMode = .byTruncatingTail
+
+        unreadDot.translatesAutoresizingMaskIntoConstraints = false
+        unreadDot.layer.cornerRadius = 4
+
+        gap.translatesAutoresizingMaskIntoConstraints = false
+        gap.backgroundColor = .clear
+        badge.translatesAutoresizingMaskIntoConstraints = false
+        badge.layer.cornerRadius = 6
+        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+        badgeLabel.text = "?"
+        badgeLabel.textAlignment = .center
+        badgeLabel.font = .systemFont(ofSize: 8, weight: .semibold)
+        workingDot.translatesAutoresizingMaskIntoConstraints = false
+        workingDot.layer.cornerRadius = 4
+
+        contentView.addSubview(avatar)
+        contentView.addSubview(nameLabel)
+        contentView.addSubview(previewLabel)
+        contentView.addSubview(unreadDot)
+        contentView.addSubview(gap)
+        gap.addSubview(badge)
+        gap.addSubview(workingDot)
+        badge.addSubview(badgeLabel)
+        NSLayoutConstraint.activate([
+            contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: Glass.control + Glass.gap),
+            avatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: Glass.margin),
+            avatar.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            avatar.widthAnchor.constraint(equalToConstant: 32),
+            avatar.heightAnchor.constraint(equalToConstant: 32),
+            gap.centerXAnchor.constraint(equalTo: avatar.trailingAnchor, constant: -1),
+            gap.centerYAnchor.constraint(equalTo: avatar.bottomAnchor, constant: -1),
+            gap.widthAnchor.constraint(equalToConstant: 16),
+            gap.heightAnchor.constraint(equalToConstant: 16),
+            badge.centerXAnchor.constraint(equalTo: gap.centerXAnchor),
+            badge.centerYAnchor.constraint(equalTo: gap.centerYAnchor),
+            badge.widthAnchor.constraint(equalToConstant: 12),
+            badge.heightAnchor.constraint(equalToConstant: 12),
+            badgeLabel.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+            badgeLabel.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+            workingDot.centerXAnchor.constraint(equalTo: gap.centerXAnchor),
+            workingDot.centerYAnchor.constraint(equalTo: gap.centerYAnchor),
+            workingDot.widthAnchor.constraint(equalToConstant: 8),
+            workingDot.heightAnchor.constraint(equalToConstant: 8),
+            nameLabel.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
+            nameLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
+            nameLabel.trailingAnchor.constraint(equalTo: unreadDot.leadingAnchor, constant: -8),
+            previewLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            previewLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor),
+            previewLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
+            previewLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
+            unreadDot.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -Glass.margin),
+            unreadDot.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            unreadDot.widthAnchor.constraint(equalToConstant: 8),
+            unreadDot.heightAnchor.constraint(equalToConstant: 8),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(name: String, preview: String, ink: UIColor, unread: Bool, state: State, palette: Palette) {
+        nameLabel.attributedText = NSAttributedString(string: name, attributes: TypeScale.rowName.attributes)
+        nameLabel.textColor = palette.ink
+        previewLabel.attributedText = NSAttributedString(string: preview, attributes: TypeScale.rowPreview.attributes)
+        previewLabel.textColor = palette.ink2
+        avatar.text = String(name.prefix(1)).uppercased()
+        avatar.textColor = .white
+        avatar.backgroundColor = ink
+        unreadDot.isHidden = !unread
+        unreadDot.backgroundColor = palette.accent
+        selectedBackgroundView?.backgroundColor = palette.hover
+        gap.isHidden = state == .none
+        badge.isHidden = state != .waiting
+        workingDot.isHidden = state != .working
+        badge.backgroundColor = palette.accent
+        badgeLabel.textColor = palette.accentInk
+        isAccessibilityElement = true
+        accessibilityLabel = name + ", " + preview
+    }
+
+    func configureNeeds(title: String, ink: UIColor, palette: Palette) {
+        nameLabel.attributedText = NSAttributedString(string: title, attributes: TypeScale.rowName.attributes)
+        nameLabel.textColor = ink
+        previewLabel.attributedText = nil
+        avatar.text = nil
+        avatar.backgroundColor = .clear
+        unreadDot.isHidden = true
+        gap.isHidden = true
+        selectedBackgroundView?.backgroundColor = palette.hover
+        isAccessibilityElement = true
+        accessibilityLabel = title
+    }
+}
+
