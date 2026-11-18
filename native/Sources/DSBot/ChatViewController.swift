@@ -533,6 +533,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             NSLayoutConstraint(item: emptyChatView, attribute: .top, relatedBy: .equal,
                                toItem: view, attribute: .height, multiplier: EmptyChatView.topPercent, constant: 0),
         ])
+        // The header and its pill float over the list, so they must be the frontmost.
+        view.bringSubviewToFront(header)
+        view.bringSubviewToFront(statusPill)
     }
 
     @objc private func retryChatLoad() { Task { await refreshLatest(for: sessionID) } }
