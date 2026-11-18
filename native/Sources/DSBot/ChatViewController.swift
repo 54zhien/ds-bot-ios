@@ -561,7 +561,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         if event == "notice" { showNoticeBanner(data) }
         let hadStream = !stream.text.isEmpty
         if event == "stream", stream.receive(data, for: chatSessionID) {
-            let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
+            let nearBottom = ScrollAnchor.atBottom(
+                contentSize: list.contentSize.height, offset: list.contentOffset.y, viewport: list.bounds.height)
             if hadStream, !stream.text.isEmpty, !rows.isEmpty {
                 let last = rows.count - 1
                 rows[last] = ChatRow(.object(["kind": .string("bot"), "text": .string(stream.text)]))
@@ -859,7 +860,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                   roomID == (target.kind == .room ? target.id : nil) else { return }
             let page = ChatPage(value, inRoom: target.kind == .room)
             retryLoadButton.isHidden = true
-            let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
+            let nearBottom = ScrollAnchor.atBottom(
+                contentSize: list.contentSize.height, offset: list.contentOffset.y, viewport: list.bounds.height)
             let nextSessionID = page.sessionID ?? target.id
             if chatSessionID != nextSessionID {
                 olderRows = []
@@ -899,8 +901,6 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         let parameter = isRoom ? "roomId" : "botId"
         loadingOlder = true
         let id = sessionID
-        let oldHeight = list.contentSize.height
-        let oldOffset = list.contentOffset.y
         Task {
             defer { loadingOlder = false }
             do {
@@ -912,10 +912,23 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                       (isRoom ? roomID : botID) == targetID else { return }
                 let page = ChatPage(value, inRoom: isRoom)
                 self.cursor = page.cursor
+                // An exhausted page only moves the cursor; reloading an unchanged list
+                // would blink the reader's rows for nothing.
+                guard !page.items.isEmpty else { return }
+                // Captured at the moment of insertion, not when the read left: a
+                // rebuild in between must not move the reader's rows.
+                let oldHeight = list.contentSize.height
+                let oldOffset = list.contentOffset.y
                 olderRows.insert(contentsOf: page.items, at: 0)
                 rebuildRows()
                 list.layoutIfNeeded()
-                list.contentOffset.y = oldOffset + list.contentSize.height - oldHeight
+                // The page arrived above the viewport, so the offset moves down by
+                // what the content grew; the same rows stay under the reader's eyes.
+                // The full refresh below never does this: it replaces the newest rows
+                // and either follows a pinned reader or leaves the offset alone.
+                list.contentOffset.y = ScrollAnchor.offset(
+                    keepingFocus: oldOffset, oldHeight: oldHeight,
+                    newHeight: list.contentSize.height)
             } catch {
                 // The next upward scroll can request the same page again.
             }
@@ -1177,6 +1190,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         updateSideButton()
         rebuildRows()
+        // A conversation opens with its newest rows in view, restored page or empty
+        // alike; the read that follows then keeps it pinned to the bottom.
+        if !rows.isEmpty {
+            list.layoutIfNeeded()
+            list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: false)
+        }
         Task { await refreshLatest(for: sessionID) }
     }
 
