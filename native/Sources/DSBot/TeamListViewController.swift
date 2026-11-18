@@ -506,6 +506,10 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         let tile = UIControl()
         tile.backgroundColor = .clear
         tile.layer.cornerRadius = Radius.card
+        // TeamList.tsx:147: a 1pt transparent rim keeps the pressed and rest
+        // states the same width.
+        tile.layer.borderWidth = 1
+        tile.layer.borderColor = UIColor.clear.cgColor
         tile.heightAnchor.constraint(equalToConstant: 104).isActive = true
         tile.accessibilityLabel = "\(entry.target.name), \(tr("Main Bot"))"
         let content = UIStackView()
@@ -517,7 +521,9 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         tile.addSubview(content)
         NSLayoutConstraint.activate([
             content.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
-            content.centerYAnchor.constraint(equalTo: tile.centerYAnchor),
+            // TeamList.tsx:147: the tile pads 10 above its content and 8 below.
+            content.topAnchor.constraint(equalTo: tile.topAnchor, constant: 10),
+            content.bottomAnchor.constraint(lessThanOrEqualTo: tile.bottomAnchor, constant: -8),
             content.leadingAnchor.constraint(greaterThanOrEqualTo: tile.leadingAnchor, constant: 6),
             content.trailingAnchor.constraint(lessThanOrEqualTo: tile.trailingAnchor, constant: -6),
         ])
@@ -528,10 +534,11 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         avatar.font = TypeScale.headerTitle.font
         avatar.textColor = palette.accentInk
         avatar.backgroundColor = Inks.bot(entry.ink, dark: traitCollection.userInterfaceStyle == .dark)
-        avatar.layer.cornerRadius = 22
+        avatar.layer.cornerRadius = 26
         avatar.clipsToBounds = true
-        avatar.widthAnchor.constraint(equalToConstant: Glass.control).isActive = true
-        avatar.heightAnchor.constraint(equalToConstant: Glass.control).isActive = true
+        // TeamList.tsx:80: the tile's avatar is 52pt, not the row's 32.
+        avatar.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        avatar.heightAnchor.constraint(equalToConstant: 52).isActive = true
         content.addArrangedSubview(avatar)
         let name = UILabel()
         name.text = entry.target.name
@@ -540,14 +547,30 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         name.textAlignment = .center
         name.lineBreakMode = .byTruncatingTail
         content.addArrangedSubview(name)
+        // TeamList.tsx:81-82: 6 under the avatar, 3 above the role chip.
+        content.setCustomSpacing(6, after: avatar)
+        content.setCustomSpacing(3, after: name)
         if !entry.role.isEmpty {
+            // TeamList.tsx:82,:148: the role rides on an active chip.
+            let chip = UIView()
+            chip.backgroundColor = palette.active
+            chip.layer.cornerRadius = 6
             let role = UILabel()
             role.text = entry.role
-            role.font = .systemFont(ofSize: 11, weight: .regular)
+            role.font = .systemFont(ofSize: 11)
             role.textColor = palette.ink2
             role.textAlignment = .center
             role.lineBreakMode = .byTruncatingTail
-            content.addArrangedSubview(role)
+            chip.addSubview(role)
+            role.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                role.topAnchor.constraint(equalTo: chip.topAnchor, constant: 2),
+                role.bottomAnchor.constraint(equalTo: chip.bottomAnchor, constant: -2),
+                role.leadingAnchor.constraint(equalTo: chip.leadingAnchor, constant: 6),
+                role.trailingAnchor.constraint(lessThanOrEqualTo: chip.trailingAnchor, constant: -6),
+            ])
+            chip.widthAnchor.constraint(lessThanOrEqualToConstant: 92).isActive = true
+            content.addArrangedSubview(chip)
         }
         tile.addAction(UIAction { [weak self] _ in self?.open(entry) }, for: .touchUpInside)
         return tile
