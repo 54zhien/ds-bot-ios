@@ -251,6 +251,10 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The release notes list the commits since the previous ios-native-v* tag, and a
+          # depth-1 clone has neither that tag nor the commits behind it.
+          fetch-depth: 0
 
       # Mason's skeleton lands on its own schedule. A run that goes green over an empty
       # directory would read as "the native pipeline works" when nothing was archived.
@@ -568,6 +572,81 @@ jobs:
             echo "- $DSBOT_XCODE, $DSBOT_XCODEGEN"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The IPA artifact is the only thing a person keeps, and until now it said nothing
+      # about what went into it: which commits, which version, which Xcode. These notes are
+      # written from the same facts as build-info-native.json and travel with the IPA, so
+      # one download answers "what is this build" without opening the run.
+      - name: Write the release notes
+        run: |
+          file_sha="$(cut -d' ' -f1 dist/DS-Bot-native-unsigned.sha256)"
+          json_sha="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["sha256"])' dist/build-info-native.json)"
+          if [ "$file_sha" != "$json_sha" ]; then
+            echo "::error::the sha256 file and build-info-native.json disagree ($file_sha vs $json_sha)"
+            exit 1
+          fi
+
+          # The newest ios-native-v* tag that is a strict ancestor of this commit. On a tag
+          # build that is the previous release, so the notes still list what went into this
+          # one. With no tag, or nothing new, the last 20 commits are listed instead.
+          prev_tag=""
+          head_tag=""
+          head_commit="$(git rev-parse HEAD)"
+          for candidate in $(git tag --list 'ios-native-v*' --sort=-creatordate); do
+            tag_commit="$(git rev-parse "$candidate^{commit}" 2>/dev/null || echo '')"
+            if [ -n "$tag_commit" ] && [ "$tag_commit" = "$head_commit" ]; then
+              # A tag build: remember the tag, then keep looking for the release before it,
+              # so the notes describe what this release adds rather than the tag itself.
+              head_tag="$candidate"
+              continue
+            fi
+            if [ -n "$tag_commit" ] && git merge-base --is-ancestor "$tag_commit" HEAD; then
+              prev_tag="$candidate"
+              break
+            fi
+          done
+
+          range=""
+          if [ -n "$prev_tag" ]; then
+            git log --no-merges --format='- %h %s' "$prev_tag..HEAD" > dist/release-commits.txt
+            range="since $prev_tag"
+          fi
+          if [ -z "$range" ] || [ ! -s dist/release-commits.txt ]; then
+            git log --no-merges -20 --format='- %h %s' HEAD > dist/release-commits.txt
+            if [ -n "$prev_tag" ]; then
+              range="the last 20 commits, $prev_tag is this commit"
+            elif [ -n "$head_tag" ]; then
+              range="the last 20 commits, $head_tag is this commit"
+            else
+              range="the last 20 commits, no ios-native-v* tag yet"
+            fi
+          fi
+          count="$(wc -l < dist/release-commits.txt | tr -d ' ')"
+
+          {
+            echo "# DS-Bot for iOS $DSBOT_VERSION (build $DSBOT_BUILD_NUMBER)"
+            echo ''
+            echo "Unsigned native IPA built from \`$GITHUB_SHA\` on \`$GITHUB_REF\`."
+            echo ''
+            echo "## Build"
+            echo ''
+            python3 - dist/build-info-native.json <<'PY'
+          import json
+          import sys
+
+          info = json.load(open(sys.argv[1]))
+          for key in ("built_at", "commit", "ref", "run", "version", "build_number",
+                      "bundle_id", "minimum_ios", "scheme", "generator", "xcode",
+                      "signed", "sha256", "ipa"):
+              print("- **" + key + "**: " + str(info.get(key)))
+          PY
+            echo ''
+            echo "## Commits ($count, $range)"
+            echo ''
+            cat dist/release-commits.txt
+          } > dist/release-notes.md
+
+          echo "release notes: $(wc -l < dist/release-notes.md | tr -d ' ') lines, $(wc -c < dist/release-notes.md | tr -d ' ') bytes"
+          sed -n '1,14p' dist/release-notes.md
       - name: Upload the native IPA
         uses: actions/upload-artifact@v4
         with:
@@ -576,6 +655,7 @@ jobs:
             dist/DS-Bot-*-native-unsigned.ipa
             dist/DS-Bot-native-unsigned.sha256
             dist/build-info-native.json
+            dist/release-notes.md
           retention-days: 30
           if-no-files-found: error
           compression-level: 0
