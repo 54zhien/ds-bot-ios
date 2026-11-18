@@ -305,7 +305,9 @@ enum Metrics {
     /// Approximate display corner radius: iOS devices with a home indicator round the
     /// display at about 55pt, SE-class screens are square. Swap in a real value once the
     /// platform exposes one.
-    static func screenRadius(bottomInset: CGFloat, bounds: CGRect = UIScreen.main.bounds) -> CGFloat {
+    // The bounds are passed in: UIScreen.main is main-actor isolated, and these metrics
+    // are read from layout code that is not.
+    static func screenRadius(bottomInset: CGFloat, bounds: CGRect) -> CGFloat {
         if min(bounds.width, bounds.height) >= 600 { return 18 }
         return bottomInset >= 20 ? 55 : 0
     }
