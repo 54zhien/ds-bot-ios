@@ -19,8 +19,11 @@ final class SecretsSettingsViewController: UITableViewController {
                                                             target: self, action: #selector(add))
         refreshControl = UIRefreshControl()
         refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
+        SettingsStyle.prepare(tableView)
         Task { await load() }
     }
+
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
 
     @objc private func refresh() { Task { await load() } }
 
@@ -41,9 +44,11 @@ final class SecretsSettingsViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "secret")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "secret")
         cell.selectionStyle = .none
+        SettingsStyle.styleSubtitle(cell, palette: palette)
         if secrets.isEmpty {
             cell.textLabel?.text = tr("Nothing saved yet")
             cell.detailTextLabel?.text = tr("Tap + to add a secret")
+            cell.detailTextLabel?.textColor = palette.ink3
         } else {
             let secret = secrets[indexPath.row]
             cell.textLabel?.text = secret["name"]?.stringValue
