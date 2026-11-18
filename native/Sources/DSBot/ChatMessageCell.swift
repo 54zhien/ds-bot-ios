@@ -15,6 +15,9 @@ final class ChatMessageCell: UITableViewCell {
     private var trailing: NSLayoutConstraint!
     private var centered: NSLayoutConstraint!
     private var wideWidth: NSLayoutConstraint!
+
+    /// items.tsx reads every colour and size from the palette and the type scale.
+    private var palette: Palette { Palette.make(dark: traitCollection.userInterfaceStyle == .dark) }
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
@@ -26,11 +29,11 @@ final class ChatMessageCell: UITableViewCell {
         selectionStyle = .none
         backgroundColor = .clear
         bubble.translatesAutoresizingMaskIntoConstraints = false
-        bubble.layer.cornerRadius = 18
+        bubble.layer.cornerRadius = Radius.bubble
         contentView.addSubview(bubble)
-        authorLabel.font = .preferredFont(forTextStyle: .caption1)
-        authorLabel.textColor = .secondaryLabel
-        messageLabel.font = .preferredFont(forTextStyle: .body)
+        authorLabel.font = TypeScale.caption.font
+        authorLabel.textColor = palette.ink3
+        messageLabel.font = TypeScale.bubble.font
         messageLabel.numberOfLines = 0
         photoScroll.showsHorizontalScrollIndicator = false
         photoStack.translatesAutoresizingMaskIntoConstraints = false
@@ -48,8 +51,8 @@ final class ChatMessageCell: UITableViewCell {
         ])
         fileStack.axis = .vertical
         fileStack.spacing = 6
-        timeLabel.font = .preferredFont(forTextStyle: .caption2)
-        timeLabel.textColor = .tertiaryLabel
+        timeLabel.font = TypeScale.caption.font
+        timeLabel.textColor = palette.ink3
         let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, markdownView, photoScroll, fileStack, timeLabel])
         text.translatesAutoresizingMaskIntoConstraints = false
         text.axis = .vertical
@@ -86,8 +89,8 @@ final class ChatMessageCell: UITableViewCell {
         } else {
             leading.isActive = true
         }
-        bubble.backgroundColor = row.isNotice || row.kind == "steps" ? .clear
-            : row.isUser ? tintColor.withAlphaComponent(0.12) : .secondarySystemBackground
+        // The asymmetry is deliberate: a user message is a bubble, a Bot message is text.
+        bubble.backgroundColor = row.isUser ? palette.user : .clear
         authorLabel.isHidden = row.isNotice || row.kind == "steps"
         authorLabel.text = row.author
         let wideBlock = !row.isNotice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
@@ -118,8 +121,8 @@ final class ChatMessageCell: UITableViewCell {
         for reference in row.imageRefs {
             let button = UIButton(type: .custom)
             button.clipsToBounds = true
-            button.layer.cornerRadius = 12
-            button.backgroundColor = .tertiarySystemBackground
+            button.layer.cornerRadius = Radius.card
+            button.backgroundColor = palette.hover
             button.imageView?.contentMode = .scaleAspectFill
             button.setImage(images[reference], for: .normal)
             button.accessibilityLabel = NativeLanguage.text("Open photo")
@@ -131,7 +134,7 @@ final class ChatMessageCell: UITableViewCell {
             let thumbnail = UIImageView(image: UIImage(data: data))
             thumbnail.contentMode = .scaleAspectFill
             thumbnail.clipsToBounds = true
-            thumbnail.layer.cornerRadius = 12
+            thumbnail.layer.cornerRadius = Radius.card
             thumbnail.widthAnchor.constraint(equalToConstant: 150).isActive = true
             photoStack.addArrangedSubview(thumbnail)
         }
@@ -145,15 +148,18 @@ final class ChatMessageCell: UITableViewCell {
             button.setTitle(file.title, for: .normal)
             button.contentHorizontalAlignment = .leading
             button.titleLabel?.lineBreakMode = .byTruncatingMiddle
-            button.backgroundColor = .tertiarySystemBackground
-            button.layer.cornerRadius = 10
+            button.backgroundColor = palette.hover
+            button.layer.cornerRadius = Radius.row
             button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
             button.addAction(UIAction { [weak self] _ in self?.onOpenFile?(file) }, for: .touchUpInside)
             fileStack.addArrangedSubview(button)
         }
         fileStack.isHidden = row.files.isEmpty
         messageLabel.textAlignment = row.isNotice || row.kind == "steps" ? .center : .left
-        messageLabel.textColor = row.isNotice || row.kind == "steps" ? .secondaryLabel : .label
+        messageLabel.textColor = row.isUser ? palette.userInk
+            : (row.isNotice || row.kind == "steps" ? palette.ink3 : palette.ink)
+        messageLabel.font = row.stepSummary == nil ? TypeScale.bubble.font : TypeScale.small.font
+        authorLabel.textColor = palette.ink3
         if row.localID == nil {
             timeLabel.text = row.time.map { Self.clock.string(from: $0) }
         } else if row.failed {
@@ -163,6 +169,7 @@ final class ChatMessageCell: UITableViewCell {
             timeLabel.text = NativeLanguage.text("Sending…")
         }
         timeLabel.numberOfLines = row.failed ? 2 : 1
+        timeLabel.textColor = row.failed ? palette.danger : palette.ink3
         timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps"
         accessibilityLabel = [row.author, row.text, row.failureReason ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     }
