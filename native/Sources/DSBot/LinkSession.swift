@@ -83,6 +83,9 @@ public actor LinkSession {
         public var disconnectedAfterMs: Int = 60_000
         public var handshakeTimeoutMs: Int = 10_000
         public var callTimeoutMs: Int = 30_000
+        /// A wake probe is the one round trip the user waits on: the status bar has to
+        /// stop lying inside the two seconds after the app comes back.
+        public var probeTimeoutMs: Int = 1_500
 
         public init() {}
     }
@@ -92,6 +95,7 @@ public actor LinkSession {
         func call(_ method: String, params: JSONValue) async throws -> JSONValue
         func send(_ data: Data) async throws
         func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) async
+        func probe(timeoutMs: Int) async -> Bool
         func close() async
     }
 
@@ -108,6 +112,10 @@ public actor LinkSession {
     private var onStatus: (@Sendable (Status) -> Void)?
     private var onError: (@Sendable (String) -> Void)?
     private var onEvent: (@Sendable (String, JSONValue) -> Void)?
+    /// Bumped with every channel, so a probe that outlives its channel cannot take
+    /// down the one that replaced it.
+    private var channelEpoch = 0
+    private var wakeToken: NSObjectProtocol?
 
     public init(
         options: Options = Options(),
@@ -141,11 +149,13 @@ public actor LinkSession {
         guard !wanted else { return }
         wanted = true
         setStatus(.connecting)
+        listenForWake()
         loop = Task { await runLoop(pairing) }
     }
 
     public func disconnect() async {
         wanted = false
+        stopListeningForWake()
         dropWaiter?.resume()
         dropWaiter = nil
         let current = channel
@@ -180,6 +190,20 @@ public actor LinkSession {
         }
     }
 
+    /// A phone that comes back to the foreground still holds the socket it went away
+    /// with, and a half-open one answers nothing. One short question is what keeps the
+    /// status bar honest instead of letting the next call wait out its whole timeout.
+    public func probe() async {
+        guard status == .online, let channel else { return }
+        let epoch = channelEpoch
+        let alive = await channel.probe(timeoutMs: options.probeTimeoutMs)
+        guard !alive, epoch == channelEpoch, status == .online else { return }
+        Diagnostics.shared.recordLinkError("The wake probe went unanswered, so the link is being rebuilt.")
+        self.channel = nil
+        dropped()
+        await channel.close()
+    }
+
     /// Uptime, not the wall clock: a clock change must not turn a call into a huge number.
     private static func elapsed(since start: UInt64) -> Int {
         Int((DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
@@ -206,6 +230,7 @@ public actor LinkSession {
                 }
                 if let onEvent { await opened.setEventHandler(onEvent) }
                 channel = opened
+                channelEpoch += 1
                 setStatus(.online)
                 // A pairing code is valid for the first handshake only. A later
                 // reconnect authenticates with the phone's stored identity.
@@ -236,6 +261,7 @@ public actor LinkSession {
             }
             await sleep(delay)
         }
+        stopListeningForWake()
         setStatus(.disconnected)
     }
 
@@ -254,6 +280,26 @@ public actor LinkSession {
         guard next != status else { return }
         status = next
         onStatus?(next)
+    }
+
+    /// UIKit's name, spelled out so the actor never reaches into a main-actor type.
+    private static let didBecomeActive = Notification.Name("UIApplicationDidBecomeActiveNotification")
+
+    private func listenForWake() {
+        guard wakeToken == nil else { return }
+        wakeToken = NotificationCenter.default.addObserver(
+            forName: LinkSession.didBecomeActive,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { await self?.probe() }
+        }
+    }
+
+    private func stopListeningForWake() {
+        guard let wakeToken else { return }
+        NotificationCenter.default.removeObserver(wakeToken)
+        self.wakeToken = nil
     }
 
     // MARK: - The real channel
@@ -318,6 +364,10 @@ private struct LiveChannel: LinkSession.Channel {
         await rpc.setEventHandler(handler)
     }
 
+    func probe(timeoutMs: Int) async -> Bool {
+        await secure.probe(timeoutMs: timeoutMs)
+    }
+
     func close() async {
         await rpc.close()
         await secure.close()
@@ -326,4 +376,8 @@ private struct LiveChannel: LinkSession.Channel {
 
 public extension LinkSession.Channel {
     func setEventHandler(_ handler: @escaping @Sendable (String, JSONValue) -> Void) async {}
+
+    /// A channel with no liveness path of its own has nothing to report, so it counts
+    /// as alive; only the live one can find a half-open socket.
+    func probe(timeoutMs: Int) async -> Bool { true }
 }

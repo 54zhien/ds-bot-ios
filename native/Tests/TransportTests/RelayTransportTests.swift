@@ -87,6 +87,40 @@ final class RelayTransportTests: XCTestCase {
         }
     }
 
+    func testAProbeRidesAPingAndAnyFrameBackAnswersIt() async throws {
+        let socket = FakeRelaySocket()
+        let transport = RelayTransport(options: options, socket: socket)
+        let started = Task { try await transport.start() }
+        try await waitForSent(socket, count: 1)
+        await socket.push(helloAck())
+        try await waitForSent(socket, count: 2)
+        await socket.push(accepted(connectionId: "conn-1"))
+        try await started.value
+
+        let answered = Task { await transport.probe(timeoutMs: 1_000) }
+        try await waitForSent(socket, count: 3)
+        let ping = try await socket.sentFrames()[2]
+        XCTAssertEqual(ping.type, .ping)
+
+        await socket.push(pong())
+        let alive = await answered.value
+        XCTAssertTrue(alive)
+    }
+
+    func testAProbeNobodyAnswersReportsTheLinkDead() async throws {
+        let socket = FakeRelaySocket()
+        let transport = RelayTransport(options: options, socket: socket)
+        let started = Task { try await transport.start() }
+        try await waitForSent(socket, count: 1)
+        await socket.push(helloAck())
+        try await waitForSent(socket, count: 2)
+        await socket.push(accepted(connectionId: "conn-1"))
+        try await started.value
+
+        let alive = await transport.probe(timeoutMs: 20)
+        XCTAssertFalse(alive, "a socket that says nothing back is the half-open case")
+    }
+
     // MARK: - Scripts
 
     private var options: RelayOptions {
@@ -116,6 +150,16 @@ final class RelayTransportTests: XCTestCase {
             type: .connectAccepted,
             payload: ConnectAcceptedPayload(connectionId: connectionId),
             id: "acc-1",
+            timestamp: 1
+        )
+        return (try? FrameCodec.encode(frame)) ?? ""
+    }
+
+    private func pong() -> String {
+        let frame = ControlFrame(
+            type: .pong,
+            payload: JSONValue.object(["nonce": .number(1)]),
+            id: "pong-1",
             timestamp: 1
         )
         return (try? FrameCodec.encode(frame)) ?? ""

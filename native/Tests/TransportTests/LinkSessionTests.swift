@@ -105,6 +105,66 @@ final class LinkSessionTests: XCTestCase {
         XCTAssertEqual(log.values.suffix(3), [.offline, .connecting, .online])
     }
 
+    /// A wake has to settle the status now: a half-open socket answers nothing, so the
+    /// probe goes unanswered and the ladder takes the link back down.
+    func testAProbeThatGoesUnansweredTakesTheLinkDown() async throws {
+        let factory = ChannelBox(failuresBeforeSuccess: 0, probeAlive: false)
+        let session = LinkSession(
+            options: LinkSession.Options(),
+            makeChannel: factory.makeChannel,
+            sleep: { _ in }
+        )
+        let log = StatusLog()
+        await session.setStatusHandler { status in log.append(status) }
+        await session.connect(factory.pairing)
+        try await waitUntil { await session.currentStatus == .online }
+
+        await session.probe()
+
+        try await waitUntil { log.values.contains(.offline) }
+        XCTAssertEqual(Array(log.values.dropFirst().prefix(3)), [.connecting, .online, .offline])
+        try await waitUntil { await factory.attempts >= 2 }
+        await session.disconnect()
+    }
+
+    func testAProbeThatIsAnsweredLeavesTheLinkOnline() async throws {
+        let factory = ChannelBox(failuresBeforeSuccess: 0, probeAlive: true)
+        let session = LinkSession(
+            options: LinkSession.Options(),
+            makeChannel: factory.makeChannel,
+            sleep: { _ in }
+        )
+        await session.connect(factory.pairing)
+        try await waitUntil { await session.currentStatus == .online }
+
+        await session.probe()
+
+        let status = await session.currentStatus
+        XCTAssertEqual(status, .online)
+        XCTAssertEqual(factory.attempts, 1, "an answered probe must not rebuild the link")
+        await session.disconnect()
+    }
+
+    func testAProbeWithNoLinkDoesNothing() async throws {
+        let factory = ChannelBox(failuresBeforeSuccess: 0)
+        let session = LinkSession(
+            options: LinkSession.Options(),
+            makeChannel: factory.makeChannel,
+            sleep: { _ in }
+        )
+
+        await session.probe()
+
+        let status = await session.currentStatus
+        XCTAssertEqual(status, .disconnected)
+        XCTAssertEqual(factory.attempts, 0)
+    }
+
+    /// Two seconds is the longest a user should watch a bar that may already be wrong.
+    func testTheWakeProbeSettlesInsideTwoSeconds() {
+        XCTAssertLessThanOrEqual(LinkSession.Options().probeTimeoutMs, 2_000)
+    }
+
     // MARK: - Helpers
 
     private func waitUntil(_ condition: @escaping () async -> Bool) async throws {
@@ -136,12 +196,18 @@ private final class ChannelBox: @unchecked Sendable {
     private let lock = NSLock()
     private let failuresBeforeSuccess: Int
     private let failureCode: TransportError.Code
+    private let probeAlive: Bool
     private var attemptsStorage = 0
     private var dropHandler: (@Sendable () -> Void)?
 
-    init(failuresBeforeSuccess: Int, failureCode: TransportError.Code = .invalidFrame) {
+    init(
+        failuresBeforeSuccess: Int,
+        failureCode: TransportError.Code = .invalidFrame,
+        probeAlive: Bool = true
+    ) {
         self.failuresBeforeSuccess = failuresBeforeSuccess
         self.failureCode = failureCode
+        self.probeAlive = probeAlive
     }
 
     var attempts: Int {
@@ -185,16 +251,20 @@ private final class ChannelBox: @unchecked Sendable {
         if failing {
             throw TransportError(failureCode, "attempt \(attempt) failed")
         }
-        return StubChannel()
+        return StubChannel(alive: probeAlive)
     }
 }
 
 private struct StubChannel: LinkSession.Channel {
+    var alive = true
+
     func call(_ method: String, params: JSONValue) async throws -> JSONValue {
         .null
     }
 
     func send(_ data: Data) async throws {}
+
+    func probe(timeoutMs: Int) async -> Bool { alive }
 
     func close() async {}
 }

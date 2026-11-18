@@ -80,6 +80,7 @@ public actor RelayTransport {
     private var onSecure: (@Sendable (Data) -> Void)?
     private var onHandshake: (@Sendable (Int, Data) -> Void)?
     private var onClose: (@Sendable (Error?) -> Void)?
+    private var probeWaiter: CheckedContinuation<Bool, Never>?
 
     public init(options: RelayOptions, socket: RelaySocket) {
         self.options = options
@@ -118,6 +119,25 @@ public actor RelayTransport {
         onClose = handler
     }
 
+    /// Asks the Server for a liveness reply. Any frame on the way back answers it; a
+    /// socket that has gone half-open answers nothing, which is the case this is for.
+    public func probe(timeoutMs: Int = 2_000) async -> Bool {
+        guard connectionId != nil, !closed else { return false }
+        // One question at a time: a second caller rides the first one's answer.
+        guard probeWaiter == nil else { return true }
+        return await withCheckedContinuation { continuation in
+            probeWaiter = continuation
+            let timeout = max(1, timeoutMs)
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000)
+                await self?.probeTimedOut()
+            }
+            Task { [weak self] in
+                do { try await self?.sendProbe() } catch { await self?.probeTimedOut() }
+            }
+        }
+    }
+
     /// One ciphertext frame; the counter is this direction's message index.
     public func send(_ ciphertext: Data) async throws {
         guard let connectionId else {
@@ -154,9 +174,29 @@ public actor RelayTransport {
     private func shutdown(reason: Error?) async {
         guard !closed else { return }
         closed = true
+        probeTimedOut()
         failReady(TransportError(.invalidFrame, "The relay transport closed."))
         await socket.close()
         onClose?(reason)
+    }
+
+    // MARK: - Probe
+
+    private func sendProbe() async throws {
+        let nonce = Double(Int(Date().timeIntervalSince1970 * 1000))
+        try await sendControl(.ping, payload: JSONValue.object(["nonce": .number(nonce)]))
+    }
+
+    private func probeTimedOut() {
+        guard let waiter = probeWaiter else { return }
+        probeWaiter = nil
+        waiter.resume(returning: false)
+    }
+
+    private func probeAnswered() {
+        guard let waiter = probeWaiter else { return }
+        probeWaiter = nil
+        waiter.resume(returning: true)
     }
 
     // MARK: - Control
@@ -190,6 +230,8 @@ public actor RelayTransport {
                 onClose?(error)
                 return
             }
+            // Traffic in either direction proves the socket is still there.
+            probeAnswered()
             do {
                 try await handle(text)
             } catch {

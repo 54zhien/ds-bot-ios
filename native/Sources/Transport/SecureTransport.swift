@@ -137,6 +137,12 @@ public actor SecureTransport {
 
     public var isReady: Bool { sending != nil }
 
+    /// The socket below is the only part that can still answer once the link has gone
+    /// quiet; asking it is what lets a wake decide instead of wait.
+    public func probe(timeoutMs: Int = 2_000) async -> Bool {
+        await relay.probe(timeoutMs: timeoutMs)
+    }
+
     public func close() async {
         handshakeTimer?.cancel()
         handshakeTimer = nil
