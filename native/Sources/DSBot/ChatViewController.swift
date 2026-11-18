@@ -106,6 +106,15 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         } else {
             rows = olderRows + latestRows
         }
+        // Chat.tsx stampOf: a run's time lands on its last bubble, so a bot/post row
+        // hides its stamp while the next row is the same name's bot/post. User rows
+        // keep their own, and rows without a time never had one to hide.
+        for index in rows.indices where index + 1 < rows.count {
+            let next = rows[index + 1]
+            rows[index].stampFolded = (rows[index].kind == "bot" || rows[index].kind == "post")
+                && (next.kind == "bot" || next.kind == "post")
+                && next.name == rows[index].name
+        }
         list.reloadData()
         updateEmptyState()
     }
