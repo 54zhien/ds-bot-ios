@@ -440,7 +440,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// card sits above the list, and zero when the goal already pushes it down.
     private func updateTopInset() {
         list.contentInset.top = roomGoalView.isHidden
-            ? Metrics.headerHeight(view.safeAreaInsets.top) : 0
+            ? Metrics.headerHeight(insetTop: view.safeAreaInsets.top) : 0
     }
 
     override func viewSafeAreaInsetsDidChange() {
@@ -516,7 +516,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             // Chat.tsx styles.empty pins the block at 28% of the screen; a position
             // anchored to a dimension needs the item API's multiplier.
             NSLayoutConstraint(item: emptyChatView, attribute: .top, relatedBy: .equal,
-                               toItem: view, attribute: .height, multiplier: EmptyChatView.topPercent),
+                               toItem: view, attribute: .height, multiplier: EmptyChatView.topPercent, constant: 0),
         ])
     }
 
