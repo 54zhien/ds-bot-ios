@@ -13,16 +13,17 @@ struct ComputerUsePresentation {
     let isActive: Bool
 
     init(bot: JSONValue, live: JSONValue?) {
-        botID = bot["id"]?.stringValue ?? ""
+        let selectedID = bot["id"]?.stringValue ?? ""
+        botID = selectedID
         botName = bot["name"]?.stringValue ?? ""
         if case .object(let values)? = live?["asks"] {
             asks = values.values.compactMap { ask in
-                guard ask["botId"]?.stringValue == botID,
+                guard ask["botId"]?.stringValue == selectedID,
                       let id = ask["id"]?.stringValue else { return nil }
                 return Ask(id: id, appName: ask["appName"]?.stringValue ?? "")
             }.sorted { $0.id < $1.id }
         } else { asks = [] }
-        let control = live?["bots"]?[botID]
+        let control = live?["bots"]?[selectedID]
         let state = control?["state"]?.stringValue
         isActive = state != nil && state != "idle"
         activeApp = control?["app"]?.stringValue

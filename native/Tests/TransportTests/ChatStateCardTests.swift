@@ -77,4 +77,19 @@ final class ChatStateCardTests: XCTestCase {
         XCTAssertEqual(card.number, "0/0")
         XCTAssertEqual(card.label, NativeLanguage.text("Final check"))
     }
+
+    func testWorkStatusUsesSelectedBotAndRoomWorker() {
+        let bot = ChatTarget(kind: .bot, id: "bot-1", name: "Aster")
+        let room = ChatTarget(kind: .room, id: "room-1", name: "Team")
+        let state: JSONValue = .object([
+            "bots": .array([.object(["id": .string("bot-1"), "name": .string("Aster")])]),
+            "work": .object([
+                "bots": .object(["bot-1": .object(["tool": .string("web_search")])]),
+                "rooms": .object(["room-1": .array([.object(["botId": .string("bot-1"), "said": .string("Reading")])])]),
+            ]),
+        ])
+        XCTAssertEqual(WorkStatusPresentation(target: bot, state: state)?.text,
+                       NativeLanguage.text("Searching online") + "…")
+        XCTAssertEqual(WorkStatusPresentation(target: room, state: state)?.text, "Aster · Reading…")
+    }
 }

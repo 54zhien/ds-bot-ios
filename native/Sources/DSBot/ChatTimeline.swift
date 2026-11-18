@@ -27,7 +27,10 @@ struct ChatPage {
     init(_ value: JSONValue) {
         sessionID = value["sessionId"]?.stringValue
         if case .array(let items)? = value["items"] {
-            self.items = items.map(ChatRow.init)
+            self.items = items.compactMap { item in
+                if item["kind"]?.stringValue == "relay", ChatEventText.relay(item["reply"]) == nil { return nil }
+                return ChatRow(item)
+            }
         } else {
             items = []
         }
@@ -38,6 +41,48 @@ struct ChatPage {
 struct ChatFile {
     let title: String
     let value: JSONValue
+}
+
+enum ChatEventText {
+    static func round(name: String, event: String?, text: String?, code: String?) -> String? {
+        guard let event else { return nil }
+        let values = ["name": name, "reason": text ?? code ?? "", "text": text ?? ""]
+        switch event {
+        case "failed": return NativeLanguage.text("{name} could not answer: {reason}", values)
+        case "lookup": return NativeLanguage.text(text == nil || text == ""
+            ? "{name} looked up its own chat" : "{name} looked up its own chat for “{text}”", values)
+        case "missed": return NativeLanguage.text("{name} didn't answer in time", values)
+        case "admin-passed": return NativeLanguage.text("{name} did not answer or call anyone; call a member with @Name", values)
+        case "resumed": return NativeLanguage.text("{name} was cut off by a restart and picked its work back up", values)
+        case "cut": return NativeLanguage.text("{name} was cut off by a restart again and stopped", values)
+        case "approval": return NativeLanguage.text("{name} paused for your approval", values)
+        case "working": return NativeLanguage.text("{name} started on it", values)
+        case "folder", "schedule": return text ?? ""
+        case "stopped": return NativeLanguage.text("You stopped {name}'s work", values)
+        case "done": return NativeLanguage.text("{name} finished its work", values)
+        default: return nil
+        }
+    }
+
+    static func relay(_ reply: JSONValue?) -> String? {
+        guard let reply else { return nil }
+        let kind = reply["kind"]?.stringValue ?? reply["event"]?.stringValue
+        let name = reply["name"]?.stringValue ?? NativeLanguage.text("a Bot")
+        if kind == "paused" {
+            let names = (reply["names"]?.stringArrayValue ?? []).joined(separator: NativeLanguage.text(" and "))
+            let count = reply["count"]?.intValue ?? 0
+            if reply["idle"] == .bool(true) {
+                let all = ([name] + (reply["names"]?.stringArrayValue ?? []))
+                    .joined(separator: NativeLanguage.text(" and "))
+                return NativeLanguage.text("{names} went back and forth {count} times without progress and paused. Write here to go on",
+                                           ["names": all, "count": String(count)])
+            }
+            return NativeLanguage.text("Paused after {count} Bot relays. Waiting: {names}",
+                                       ["count": String(count), "names": names])
+        }
+        return round(name: name, event: kind, text: reply["text"]?.stringValue,
+                     code: reply["code"]?.stringValue)
+    }
 }
 
 struct ChatRow {
@@ -104,7 +149,25 @@ struct ChatRow {
         let base = !parts.isEmpty ? parts.joined(separator: "\n\n") : !body.isEmpty ? body : title
         messageText = base
         var display = base
-        if kind == "closed" {
+        if kind == "relay" {
+            display = ChatEventText.relay(value["reply"]) ?? ""
+        } else if kind == "event" {
+            if value["role"]?.stringValue == "paused" {
+                display = NativeLanguage.text("Paused after {count} Bot relays. Waiting: {names}",
+                                              ["count": String(value["ms"]?.intValue ?? 0), "names": body])
+            } else if let event = ChatEventText.round(name: name.isEmpty ? NativeLanguage.text("a Bot") : name,
+                                                      event: value["event"]?.stringValue, text: body,
+                                                      code: value["code"]?.stringValue) {
+                display = event
+            } else {
+                let role = value["role"]?.stringValue ?? ""
+                let action = ["request": "asked for work", "reply": "replied", "report": "reported back",
+                              "stopped": "stopped"][role] ?? role
+                display = NativeLanguage.text("{name} {event}",
+                                              ["name": name.isEmpty ? NativeLanguage.text("a Bot") : name,
+                                               "event": NativeLanguage.text(action)])
+            }
+        } else if kind == "closed" {
             let prompt = value["question"]?["question"]?.stringValue ?? title
             let state = value["closed"]?.stringValue == "replied" ? "Answered by message" : "Dismissed"
             display = prompt.isEmpty ? state : "\(prompt)\n\(state)"

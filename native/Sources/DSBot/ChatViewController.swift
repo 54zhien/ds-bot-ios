@@ -7,6 +7,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
+    private let retryLoadButton = UIButton(type: .system)
     private let latestButton = UIButton(type: .system)
     private let composer = NativeComposerView()
     private var computerItem: UIBarButtonItem!
@@ -16,6 +17,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let pendingDock = PendingDockView()
     private let blockedView = BotBlockedView()
     private let computerUseView = ComputerUseView()
+    private let workStatusView = WorkStatusView()
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusBar = UIStackView()
@@ -308,6 +310,11 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         emptyState.numberOfLines = 0
         emptyState.font = .preferredFont(forTextStyle: .subheadline)
         view.addSubview(emptyState)
+        retryLoadButton.translatesAutoresizingMaskIntoConstraints = false
+        retryLoadButton.setTitle(tr("Retry"), for: .normal)
+        retryLoadButton.addTarget(self, action: #selector(retryChatLoad), for: .touchUpInside)
+        retryLoadButton.isHidden = true
+        view.addSubview(retryLoadButton)
         NSLayoutConstraint.activate([
             list.topAnchor.constraint(equalTo: roomGoalView.bottomAnchor),
             list.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -317,8 +324,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             emptyState.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
             emptyState.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyState.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            retryLoadButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            retryLoadButton.topAnchor.constraint(equalTo: emptyState.bottomAnchor, constant: 8),
         ])
     }
+
+    @objc private func retryChatLoad() { Task { await refreshLatest(for: sessionID) } }
 
     private func configureLatestButton() {
         latestButton.translatesAutoresizingMaskIntoConstraints = false
@@ -333,7 +344,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         view.addSubview(latestButton)
         NSLayoutConstraint.activate([
             latestButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            latestButton.bottomAnchor.constraint(equalTo: computerUseView.topAnchor, constant: -8),
+            latestButton.bottomAnchor.constraint(equalTo: workStatusView.topAnchor, constant: -8),
         ])
     }
 
@@ -348,6 +359,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             : botID == nil && roomID == nil ? "No Bot yet" : rows.isEmpty ? "No messages yet" : nil
         emptyState.text = message.map(tr)
         emptyState.isHidden = rows.count > 0
+        if !rows.isEmpty { retryLoadButton.isHidden = true }
     }
 
     private func connect(to offer: PairingOffer, pairingCode: String?) {
@@ -369,6 +381,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         teamState = nil
         blockedView.configure(nil)
         computerUseView.configure(nil)
+        workStatusView.configure(nil)
         roomGoalView.configure(nil)
         pendingItems = []
         updatePendingButton()
@@ -624,6 +637,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 updatePendingButton()
                 blockedView.configure(nil)
                 computerUseView.configure(nil)
+                workStatusView.configure(nil)
                 roomGoalView.configure(nil)
                 updateBottomInset()
                 rows = []
@@ -660,6 +674,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             if target.kind == .room, let goal = chosen?["goal"], goal != .null {
                 roomGoalView.configure(RoomGoalPresentation(goal: goal))
             } else { roomGoalView.configure(nil) }
+            workStatusView.configure(WorkStatusPresentation(target: target, state: state))
             updateBottomInset()
             if target.kind == .bot {
                 let work = state["work"]?["bots"]?[target.id]
@@ -679,6 +694,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                   botID == (target.kind == .bot ? target.id : nil),
                   roomID == (target.kind == .room ? target.id : nil) else { return }
             let page = ChatPage(value)
+            retryLoadButton.isHidden = true
             let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
             let nextSessionID = page.sessionID ?? target.id
             if chatSessionID != nextSessionID {
@@ -702,6 +718,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             if rows.isEmpty {
                 emptyState.text = error.localizedDescription
                 emptyState.isHidden = false
+                retryLoadButton.isHidden = false
             }
         }
     }
@@ -772,6 +789,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                     updateSideButton()
                     selectedTarget = nil
                     teamState = nil
+                    blockedView.configure(nil)
+                    computerUseView.configure(nil)
+                    workStatusView.configure(nil)
+                    roomGoalView.configure(nil)
                     pendingItems = []
                     updatePendingButton()
                     chatSessionID = nil
@@ -779,6 +800,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                     olderRows = []
                     latestRows = []
                     rows = []
+                    latestButton.isHidden = true
                     list.reloadData()
                     updateEmptyState()
                     statusLabel.text = tr("Not paired")
@@ -951,6 +973,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updatePendingButton()
         blockedView.configure(nil)
         computerUseView.configure(nil)
+        workStatusView.configure(nil)
         roomGoalView.configure(nil)
         updateBottomInset()
         list.reloadData()
@@ -1007,6 +1030,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         computerUseView.onStop = { [weak self] botID in self?.stopComputerUse(botID: botID) }
         view.addSubview(computerUseView)
+        workStatusView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(workStatusView)
         if #available(iOS 17.0, *) {
             view.keyboardLayoutGuide.usesBottomSafeArea = true
         }
@@ -1025,6 +1050,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             computerUseView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
             computerUseView.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
             computerUseView.bottomAnchor.constraint(equalTo: blockedView.topAnchor, constant: -8),
+            workStatusView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+            workStatusView.trailingAnchor.constraint(lessThanOrEqualTo: composer.trailingAnchor),
+            workStatusView.bottomAnchor.constraint(equalTo: computerUseView.topAnchor, constant: -8),
         ])
     }
 
@@ -1037,7 +1065,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             CGSize(width: max(1, view.bounds.width - 32), height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
         ).height + 8
-        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + blockedHeight + computerHeight + 22
+        let workHeight = workStatusView.isHidden ? 0 : workStatusView.systemLayoutSizeFitting(
+            CGSize(width: max(1, view.bounds.width - 32), height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
+        ).height + 8
+        list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + blockedHeight
+            + computerHeight + workHeight + 22
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {
