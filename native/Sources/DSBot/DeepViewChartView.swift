@@ -12,7 +12,7 @@ final class DeepViewChartView: UIView {
     private let series: [Series]
     private let unit: String
     private var pinned: Int?
-    private var hidden = Set<Int>()
+    private var hiddenSeries = Set<Int>()
     private var legendButtons: [UIButton] = []
     private let detail = UILabel()
     private let plot = PlotView()
@@ -148,11 +148,11 @@ final class DeepViewChartView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func toggleSeries(_ index: Int) {
-        if hidden.contains(index) { hidden.remove(index) }
-        else { hidden.insert(index) }
-        legendButtons[index].alpha = hidden.contains(index) ? 0.35 : 1
-        legendButtons[index].accessibilityValue = NativeLanguage.text(hidden.contains(index) ? "Hidden" : "Visible")
-        plot.hiddenSeries = hidden
+        if hiddenSeries.contains(index) { hiddenSeries.remove(index) }
+        else { hiddenSeries.insert(index) }
+        legendButtons[index].alpha = hiddenSeries.contains(index) ? 0.35 : 1
+        legendButtons[index].accessibilityValue = NativeLanguage.text(hiddenSeries.contains(index) ? "Hidden" : "Visible")
+        plot.hiddenSeries = hiddenSeries
         pinned = nil
         plot.pinned = nil
         detail.isHidden = true
@@ -248,7 +248,7 @@ final class DeepViewChartView: UIView {
             var angle = atan2(point.y - center.y, point.x - center.x) + .pi / 2
             if angle < 0 { angle += 2 * .pi }
             let values = categories.indices.map { item in
-                max(0, hidden.contains(item) ? 0 : first.values.indices.contains(item) ? first.values[item] : 0)
+                max(0, hiddenSeries.contains(item) ? 0 : first.values.indices.contains(item) ? first.values[item] : 0)
             }
             let total = max(0.000001, values.reduce(0, +))
             var running: CGFloat = 0
@@ -266,7 +266,7 @@ final class DeepViewChartView: UIView {
         plot.pinned = pinned
         if let pinned {
             let values = series.enumerated().compactMap { index, item -> String? in
-                guard !hidden.contains(index) else { return nil }
+                guard !hiddenSeries.contains(index) else { return nil }
                 let value = item.values.indices.contains(pinned)
                     ? Double(item.values[pinned]).formatted() : "—"
                 return "\(item.name) \(value)\(unit)"
