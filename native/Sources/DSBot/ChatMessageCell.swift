@@ -1,5 +1,53 @@
 import UIKit
 
+/// Photos in a square grid. The height comes from the count and the width only, so a
+/// late image decode never changes the row height under the thumb.
+final class PhotoGridView: UIView {
+    private var tiles: [UIView] = []
+
+    /// Width / (smallest tile + gap), capped at three columns.
+    static func columns(for width: CGFloat) -> Int {
+        guard width > 0 else { return 1 }
+        return max(1, min(3, Int((width + Glass.gap) / (100 + Glass.gap))))
+    }
+
+    static func height(forWidth width: CGFloat, count: Int) -> CGFloat {
+        guard count > 0 else { return 0 }
+        let columns = CGFloat(columns(for: width))
+        let side = (width - Glass.gap * (columns - 1)) / columns
+        let rows = CGFloat((count + Int(columns) - 1) / Int(columns))
+        return rows * side + Glass.gap * (rows - 1)
+    }
+
+    func setViews(_ views: [UIView]) {
+        for tile in tiles { tile.removeFromSuperview() }
+        tiles = views
+        for tile in views { addSubview(tile) }
+        invalidateIntrinsicContentSize()
+        setNeedsLayout()
+    }
+
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric,
+               height: Self.height(forWidth: bounds.width > 0 ? bounds.width : 280, count: tiles.count))
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard !tiles.isEmpty else { return }
+        let columns = Self.columns(for: bounds.width)
+        let side = (bounds.width - Glass.gap * CGFloat(columns - 1)) / CGFloat(columns)
+        for (index, tile) in tiles.enumerated() {
+            let column = index % columns
+            let row = index / columns
+            tile.frame = CGRect(x: CGFloat(column) * (side + Glass.gap),
+                                y: CGFloat(row) * (side + Glass.gap),
+                                width: side, height: side)
+        }
+    }
+}
+
+
 final class ChatMessageCell: UITableViewCell {
     var onOpenFile: ((ChatFile) -> Void)?
     var onOpenPhoto: ((String) -> Void)?
@@ -7,8 +55,7 @@ final class ChatMessageCell: UITableViewCell {
     private let authorLabel = UILabel()
     private let messageLabel = MarkdownLinkLabel()
     private let markdownView = ChatMarkdownView()
-    private let photoScroll = UIScrollView()
-    private let photoStack = UIStackView()
+    private let photos = PhotoGridView()
     private let fileStack = UIStackView()
     private let timeLabel = UILabel()
     private var leading: NSLayoutConstraint!
@@ -35,25 +82,12 @@ final class ChatMessageCell: UITableViewCell {
         authorLabel.textColor = palette.ink3
         messageLabel.font = TypeScale.bubble.font
         messageLabel.numberOfLines = 0
-        photoScroll.showsHorizontalScrollIndicator = false
-        photoStack.translatesAutoresizingMaskIntoConstraints = false
-        photoStack.axis = .horizontal
-        photoStack.spacing = 6
-        photoScroll.addSubview(photoStack)
-        NSLayoutConstraint.activate([
-            photoScroll.heightAnchor.constraint(equalToConstant: 150),
-            photoScroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 150),
-            photoStack.topAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.topAnchor),
-            photoStack.bottomAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.bottomAnchor),
-            photoStack.leadingAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.leadingAnchor),
-            photoStack.trailingAnchor.constraint(equalTo: photoScroll.contentLayoutGuide.trailingAnchor),
-            photoStack.heightAnchor.constraint(equalTo: photoScroll.frameLayoutGuide.heightAnchor),
-        ])
+        photos.translatesAutoresizingMaskIntoConstraints = false
         fileStack.axis = .vertical
         fileStack.spacing = 6
         timeLabel.font = TypeScale.caption.font
         timeLabel.textColor = palette.ink3
-        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, markdownView, photoScroll, fileStack, timeLabel])
+        let text = UIStackView(arrangedSubviews: [authorLabel, messageLabel, markdownView, photos, fileStack, timeLabel])
         text.translatesAutoresizingMaskIntoConstraints = false
         text.axis = .vertical
         text.spacing = 4
@@ -91,7 +125,7 @@ final class ChatMessageCell: UITableViewCell {
         }
         // The asymmetry is deliberate: a user message is a bubble, a Bot message is text.
         bubble.backgroundColor = row.isUser ? palette.user : .clear
-        authorLabel.isHidden = row.isNotice || row.kind == "steps"
+        authorLabel.isHidden = row.isNotice || row.kind == "steps" || row.continuesPrevious
         authorLabel.text = row.author
         let wideBlock = !row.isNotice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
         wideWidth.isActive = wideBlock
@@ -117,7 +151,7 @@ final class ChatMessageCell: UITableViewCell {
             messageLabel.isHidden = false
             markdownView.isHidden = true
         }
-        for view in photoStack.arrangedSubviews { photoStack.removeArrangedSubview(view); view.removeFromSuperview() }
+        var tiles: [UIView] = []
         for reference in row.imageRefs {
             let button = UIButton(type: .custom)
             button.clipsToBounds = true
@@ -126,19 +160,18 @@ final class ChatMessageCell: UITableViewCell {
             button.imageView?.contentMode = .scaleAspectFill
             button.setImage(images[reference], for: .normal)
             button.accessibilityLabel = NativeLanguage.text("Open photo")
-            button.widthAnchor.constraint(equalToConstant: 150).isActive = true
             button.addAction(UIAction { [weak self] _ in self?.onOpenPhoto?(reference) }, for: .touchUpInside)
-            photoStack.addArrangedSubview(button)
+            tiles.append(button)
         }
         for data in row.localImageData {
             let thumbnail = UIImageView(image: UIImage(data: data))
             thumbnail.contentMode = .scaleAspectFill
             thumbnail.clipsToBounds = true
             thumbnail.layer.cornerRadius = Radius.card
-            thumbnail.widthAnchor.constraint(equalToConstant: 150).isActive = true
-            photoStack.addArrangedSubview(thumbnail)
+            tiles.append(thumbnail)
         }
-        photoScroll.isHidden = row.imageRefs.isEmpty && row.localImageData.isEmpty
+        photos.setViews(tiles)
+        photos.isHidden = tiles.isEmpty
         if row.text.isEmpty && (!row.imageRefs.isEmpty || !row.localImageData.isEmpty) {
             messageLabel.isHidden = true
         }
@@ -170,7 +203,7 @@ final class ChatMessageCell: UITableViewCell {
         }
         timeLabel.numberOfLines = row.failed ? 2 : 1
         timeLabel.textColor = row.failed ? palette.danger : palette.ink3
-        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps"
+        timeLabel.isHidden = (row.time == nil && row.localID == nil) || row.isNotice || row.kind == "steps" || row.continuesPrevious
         accessibilityLabel = [row.author, row.text, row.failureReason ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     }
 }

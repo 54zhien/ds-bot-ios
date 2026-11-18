@@ -102,6 +102,8 @@ struct ChatRow {
     let localID: UUID?
     let failed: Bool
     let failureReason: String?
+    /// True when the previous row has the same author, so this row draws no name or time.
+    var continuesPrevious = false
 
     init(_ value: JSONValue) {
         kind = value["kind"]?.stringValue ?? "event"
