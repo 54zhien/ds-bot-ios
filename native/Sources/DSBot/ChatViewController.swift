@@ -301,7 +301,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         retryButton.addTarget(self, action: #selector(retryConnection), for: .touchUpInside)
         statusBar.addArrangedSubview(retryButton)
         retryButton.isHidden = true
-        setStatus(tr("Not paired"))
+        // Plain assignment: setStatus would read statusHeight, which is made below.
+        statusLabel.text = tr("Not paired")
         statusHeight = statusBar.heightAnchor.constraint(equalToConstant: Metrics.statusRow)
         NSLayoutConstraint.activate([
             statusBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
