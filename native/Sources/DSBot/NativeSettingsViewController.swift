@@ -23,7 +23,10 @@ final class NativeSettingsViewController: UITableViewController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done, target: self, action: #selector(close)
         )
+        SettingsStyle.prepare(tableView)
     }
+
+    private var palette: Palette { SettingsStyle.palette(of: traitCollection) }
 
     @objc private func close() { dismiss(animated: true) }
 
@@ -31,14 +34,16 @@ final class NativeSettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         [4, 7, 1][section]
     }
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Phone", "Team", "DS Bot"].map(tr)[section]
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { 38 }
+    override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        SettingsStyle.headerView(title: ["Phone", "Team", "DS Bot"].map(tr)[section], palette: palette)
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "setting")
             ?? UITableViewCell(style: .value1, reuseIdentifier: "setting")
         cell.accessoryType = .none
         cell.accessoryView = OriginalChevronRightIcon(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+        SettingsStyle.style(cell, palette: palette)
         switch (indexPath.section, indexPath.row) {
         case (0, 0):
             cell.textLabel?.text = tr("Computers")
@@ -53,6 +58,7 @@ final class NativeSettingsViewController: UITableViewController {
             cell.accessoryView = nil
             let toggle = UISwitch()
             toggle.isOn = UserDefaults.standard.string(forKey: "dsbot.banners") != "off"
+            toggle.onTintColor = palette.accent
             toggle.addTarget(self, action: #selector(changeBanners(_:)), for: .valueChanged)
             cell.accessoryView = toggle
         case (0, 3):
