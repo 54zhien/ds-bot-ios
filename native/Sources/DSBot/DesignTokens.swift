@@ -329,6 +329,10 @@ enum Metrics {
     /// The drawer footer fade: the 44pt control, its 16pt lead and 36pt of run-out.
     static let gearFade: CGFloat = Glass.control + 16 + 36
 
+    /// ShellB.tsx:48-50: the drawer's footer gear sits concentric with the panel's
+    /// corner, R - 22 in from the edge, floored at the standard margin.
+    static func gearInset(screenR: CGFloat) -> CGFloat { max(Glass.margin, screenR - 22) }
+
     /// A resting composer is inset and lifted by R - h/2, so its end circles share the
     /// display corner's centre. Clamped: never sneak toward the middle, never hug the edge.
     static func concentricInset(screenR: CGFloat, height: CGFloat) -> CGFloat {

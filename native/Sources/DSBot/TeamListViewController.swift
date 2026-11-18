@@ -92,9 +92,29 @@ final class OriginalSideIcon: OriginalIconView {
     }
 }
 
+/// SearchIcon path from mobile/src/ui/icons.tsx: the lens and its handle.
+final class OriginalSearchIcon: OriginalIconView {
+    override func draw(_ rect: CGRect) {
+        let context = UIGraphicsGetCurrentContext()
+        context?.saveGState()
+        context?.scaleBy(x: rect.width / 20, y: rect.height / 20)
+        tintColor.setStroke()
+        let lens = UIBezierPath(ovalIn: CGRect(x: 3, y: 3, width: 11, height: 11))
+        lens.lineWidth = 1.8
+        lens.stroke()
+        let handle = UIBezierPath()
+        handle.move(to: CGPoint(x: 13, y: 13))
+        handle.addLine(to: CGPoint(x: 17, y: 17))
+        handle.lineWidth = 1.8
+        handle.lineCapStyle = .round
+        handle.stroke()
+        context?.restoreGState()
+    }
+}
+
 /// The mobile team's navigation data, in the same main/bot/room order as
 /// mobile/src/screens/TeamList.tsx.
-final class TeamListViewController: UITableViewController, UISearchResultsUpdating {
+final class TeamListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
     private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     var onSelect: ((ChatTarget) -> Void)?
     var onSettings: (() -> Void)?
@@ -119,6 +139,18 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     private var palette = Palette.make(dark: false)
     private let gearButtonIcon = IconView(icon: .gear, size: Glass.iconXL)
     private let plusButtonIcon = IconView(icon: .plus, size: Glass.iconXL)
+    private let table = UITableView(frame: .zero, style: .plain)
+    private let drawerHead = UIStackView()
+    private let headTitle = UILabel()
+    private let searchPill = GlassPillView(height: Glass.control)
+    private let pillIcon = OriginalSearchIcon()
+    private let searchField = UITextField()
+    private var searchControl: GlassControlView!
+    private var newControl: GlassControlView!
+    private var gear: GlassControlView?
+    private var tableBelowHead: NSLayoutConstraint!
+    private var tableBelowPill: NSLayoutConstraint!
+    private var searching = false
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
@@ -126,57 +158,95 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         palette = ThemeStore.palette(trait: traitCollection)
         gearButtonIcon.color = palette.ink2
         plusButtonIcon.color = palette.ink2
-        tableView.backgroundColor = palette.sidebar
-        tableView.reloadData()
+        headTitle.textColor = palette.ink
+        searchField.textColor = palette.ink
+        pillIcon.tintColor = palette.ink3
+        view.backgroundColor = palette.sidebar
+        table.reloadData()
     }
 
     init(state: JSONValue) {
         self.state = state
         pendingCount = NeedsYouViewController.count(in: state)
-        super.init(style: .plain)
+        super.init(nibName: nil, bundle: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "DS Bot"
         palette = ThemeStore.palette(trait: traitCollection)
-        tableView.register(TeamRowCell.self, forCellReuseIdentifier: "team")
-        tableView.separatorStyle = .none
-        tableView.rowHeight = UITableView.automaticDimension
-        tableView.estimatedRowHeight = 52
-        tableView.sectionHeaderTopPadding = 0
-        tableView.backgroundColor = palette.sidebar
-        tableView.tableFooterView = UIView()
-        let settings = UIButton(type: .system)
-        settings.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        settings.accessibilityLabel = tr("Settings")
-        settings.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
-        gearButtonIcon.color = palette.ink2
-        gearButtonIcon.frame.origin = CGPoint(x: 9, y: 9)
-        settings.addSubview(gearButtonIcon)
-        let create = UIButton(type: .system)
-        create.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        create.accessibilityLabel = tr("Create")
-        create.addTarget(self, action: #selector(showCreate), for: .touchUpInside)
-        plusButtonIcon.color = palette.ink2
-        plusButtonIcon.frame.origin = CGPoint(x: 9, y: 9)
-        create.addSubview(plusButtonIcon)
-        navigationItem.rightBarButtonItems = [
-            UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close)),
-            UIBarButtonItem(customView: settings),
-            UIBarButtonItem(customView: create),
-        ]
-        let search = UISearchController(searchResultsController: nil)
-        search.searchResultsUpdater = self
-        search.obscuresBackgroundDuringPresentation = false
-        search.searchBar.placeholder = tr("Search the team")
-        navigationItem.searchController = search
+        view.backgroundColor = palette.sidebar
+        table.register(TeamRowCell.self, forCellReuseIdentifier: "team")
+        table.dataSource = self
+        table.delegate = self
+        table.separatorStyle = .none
+        table.rowHeight = UITableView.automaticDimension
+        table.estimatedRowHeight = 52
+        table.sectionHeaderTopPadding = 0
+        table.backgroundColor = .clear
+        // TeamList.tsx:71: the list's own padding keeps rows above the footer fade.
+        table.contentInsetAdjustmentBehavior = .never
+        table.contentInset.bottom = Metrics.gearFade
+        table.tableFooterView = UIView()
+        table.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(table)
+
+        // ShellB.tsx:71-79: the drawer's head is the product name plus two glass
+        // controls, not a navigation bar.
+        drawerHead.axis = .horizontal
+        drawerHead.alignment = .center
+        drawerHead.spacing = Glass.gap
+        drawerHead.isLayoutMarginsRelativeArrangement = true
+        drawerHead.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: Glass.margin, bottom: 10, trailing: Glass.margin)
+        drawerHead.translatesAutoresizingMaskIntoConstraints = false
+        headTitle.text = "DS Bot"
+        headTitle.font = .systemFont(ofSize: 17, weight: .semibold)
+        headTitle.textColor = palette.ink
+        headTitle.setContentHuggingPriority(UILayoutPriority(249), for: .horizontal)
+        drawerHead.addArrangedSubview(headTitle)
+        searchControl = GlassControlView(label: tr("Search"), icon: OriginalSearchIcon())
+        searchControl.addTarget(self, action: #selector(toggleSearch), for: .touchUpInside)
+        drawerHead.addArrangedSubview(searchControl)
+        newControl = GlassControlView(label: tr("New"), icon: plusButtonIcon)
+        newControl.addTarget(self, action: #selector(showCreate), for: .touchUpInside)
+        drawerHead.addArrangedSubview(newControl)
+        view.addSubview(drawerHead)
+
+        // ShellB.tsx:80-86: searching swaps the head control for a glass pill.
+        searchPill.isHidden = true
+        searchPill.translatesAutoresizingMaskIntoConstraints = false
+        pillIcon.tintColor = palette.ink3
+        pillIcon.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        pillIcon.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        searchPill.content.addArrangedSubview(pillIcon)
+        searchField.font = .systemFont(ofSize: 15)
+        searchField.textColor = palette.ink
+        searchField.placeholder = tr("Search the team")
+        searchField.autocapitalizationType = .none
+        searchField.autocorrectionType = .no
+        searchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        searchField.addTarget(self, action: #selector(searchChanged(_:)), for: .editingChanged)
+        searchPill.content.addArrangedSubview(searchField)
+        view.addSubview(searchPill)
+
+        tableBelowHead = table.topAnchor.constraint(equalTo: drawerHead.bottomAnchor, constant: 0)
+        tableBelowPill = table.topAnchor.constraint(equalTo: searchPill.bottomAnchor, constant: 8)
+        tableBelowHead.isActive = true
+        NSLayoutConstraint.activate([
+            drawerHead.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+            drawerHead.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            drawerHead.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            searchPill.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Glass.margin),
+            searchPill.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Glass.margin),
+            searchPill.heightAnchor.constraint(equalToConstant: Glass.control),
+            table.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
         rebuild()
     }
 
-    @objc private func close() { dismiss(animated: true) }
     @objc private func openSettings() {
         let action = onSettings
         dismiss(animated: true) { action?() }
@@ -194,12 +264,54 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             dismiss(animated: true) { action?() }
         })
         sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
-        sheet.popoverPresentationController?.barButtonItem = navigationItem.rightBarButtonItems?.last
+        sheet.popoverPresentationController?.sourceView = newControl
+        sheet.popoverPresentationController?.sourceRect = newControl.bounds
         present(sheet, animated: true)
     }
 
-    func updateSearchResults(for searchController: UISearchController) {
-        query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    /// ShellB.tsx:115-121: settings is the drawer's footer control, concentric with
+    /// the panel's corner. The presentation calls this once its fade sublayer is in
+    /// place, so the addSubview here lands above the gradient.
+    func installFooterGear() {
+        guard gear?.superview == nil else { return }
+        let control = GlassControlView(label: tr("Settings"), icon: gearButtonIcon)
+        control.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        gear = control
+        view.addSubview(control)
+        positionFooterGear()
+    }
+
+    private func positionFooterGear() {
+        let screenR = Metrics.screenRadius(bottomInset: view.safeAreaInsets.bottom, bounds: view.bounds)
+        let inset = Metrics.gearInset(screenR: screenR)
+        gear?.frame = CGRect(x: inset, y: view.bounds.height - inset - Glass.control,
+                             width: Glass.control, height: Glass.control)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        positionFooterGear()
+    }
+
+    /// ShellB.tsx:73-86,:98: the head control swaps the pill in; a closed search
+    /// drops its query, as TeamList only sees it while searching.
+    @objc private func toggleSearch() {
+        searching.toggle()
+        searchPill.isHidden = !searching
+        tableBelowHead.isActive = !searching
+        tableBelowPill.isActive = searching
+        if searching {
+            searchField.becomeFirstResponder()
+        } else {
+            searchField.resignFirstResponder()
+            searchField.text = nil
+            query = ""
+        }
+        view.setNeedsLayout()
+    }
+
+    @objc private func searchChanged(_ field: UITextField) {
+        query = field.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         rebuild()
     }
 
@@ -276,7 +388,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         mainEntries = main
         sections = [("Conversations", conversations)].filter { !$0.1.isEmpty }
         if bots.isEmpty && rooms.isEmpty { buildEmptyHeader() } else { buildMainTiles() }
-        tableView.reloadData()
+        table.reloadData()
     }
 
     private func workPhrase(_ value: JSONValue) -> String {
@@ -304,7 +416,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     /// The team itself is empty: one line and one way forward, not a blank drawer.
     /// TeamList.tsx parks its empty text 40pt below the list top.
     private func buildEmptyHeader() {
-        let width = tableView.bounds.width > 0 ? tableView.bounds.width : min(view.bounds.width * 0.85, 340)
+        let width = table.bounds.width > 0 ? table.bounds.width : min(view.bounds.width * 0.85, 340)
         let header = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 1))
         let column = UIStackView()
         column.axis = .vertical
@@ -346,12 +458,12 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
         ).height + 40
         header.frame.size.height = height
-        tableView.tableHeaderView = header
+        table.tableHeaderView = header
     }
 
     private func buildMainTiles() {
-        guard !mainEntries.isEmpty else { tableView.tableHeaderView = nil; return }
-        let width = tableView.bounds.width > 0 ? tableView.bounds.width : min(view.bounds.width * 0.85, 340)
+        guard !mainEntries.isEmpty else { table.tableHeaderView = nil; return }
+        let width = table.bounds.width > 0 ? table.bounds.width : min(view.bounds.width * 0.85, 340)
         let header = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 1))
         let layout = UIStackView()
         layout.axis = .vertical
@@ -387,7 +499,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
         ).height
         header.frame.size.height = height
-        tableView.tableHeaderView = header
+        table.tableHeaderView = header
     }
 
     private func mainTile(_ entry: Entry) -> UIControl {
@@ -456,14 +568,14 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
     }
 
     private var sectionOffset: Int { pendingCount > 0 ? 1 : 0 }
-    override func numberOfSections(in tableView: UITableView) -> Int { sections.count + sectionOffset }
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    func numberOfSections(in tableView: UITableView) -> Int { sections.count + sectionOffset }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         section < sectionOffset ? 1 : sections[section - sectionOffset].1.count
     }
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         section < sectionOffset ? nil : tr(sections[section - sectionOffset].0)
     }
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "team", for: indexPath) as! TeamRowCell
         let dark = traitCollection.userInterfaceStyle == .dark
         if indexPath.section < sectionOffset {
@@ -481,7 +593,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
             palette: palette)
         return cell
     }
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if indexPath.section < sectionOffset {
             let action = onNeeds
             dismiss(animated: true) { action?() }
@@ -491,7 +603,7 @@ final class TeamListViewController: UITableViewController, UISearchResultsUpdati
         open(entry)
     }
 
-    override func tableView(
+    func tableView(
         _ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
     ) -> UISwipeActionsConfiguration? {
         guard indexPath.section >= sectionOffset else { return nil }

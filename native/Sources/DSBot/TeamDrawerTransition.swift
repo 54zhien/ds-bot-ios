@@ -51,6 +51,11 @@ private final class TeamDrawerPresentationController: UIPresentationController, 
             fade.locations = [0, 1]
             panel.layer.addSublayer(fade)
         }
+        // The list melts into the fade and the gear rides above it, so the gear is
+        // added once the fade sublayer is in place: addSubview lands on top of it.
+        if let list = presentedViewController as? TeamListViewController {
+            list.installFooterGear()
+        }
         presentedViewController.transitionCoordinator?.animate(alongsideTransition: { _ in
             self.scrim.alpha = 1
         })

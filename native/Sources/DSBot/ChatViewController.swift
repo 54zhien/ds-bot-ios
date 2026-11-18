@@ -1244,13 +1244,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         team.onCreateGroup = { [weak self] in self?.showGroupEditor(id: nil) }
         team.onEditBot = { [weak self] id in self?.showBotEditor(id: id) }
         team.onEditGroup = { [weak self] id in self?.showGroupEditor(id: id) }
-        let navigation = UINavigationController(rootViewController: team)
-        let closePan = UIPanGestureRecognizer(target: self, action: #selector(closeDrawerFromHeader(_:)))
-        closePan.cancelsTouchesInView = false
-        navigation.navigationBar.addGestureRecognizer(closePan)
-        navigation.modalPresentationStyle = .custom
-        navigation.transitioningDelegate = drawerTransition
-        present(navigation, animated: true)
+        // ShellB.tsx:354: the drawer is the bare list panel, no navigation stack.
+        team.modalPresentationStyle = .custom
+        team.transitioningDelegate = drawerTransition
+        present(team, animated: true)
     }
 
     private func showNeedsYou() {
@@ -1272,13 +1269,6 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         guard pan.state == .ended else { return }
         let distance = pan.translation(in: view).x
         if distance > 80 || pan.velocity(in: view).x > 350 { showTeam() }
-    }
-
-    @objc private func closeDrawerFromHeader(_ pan: UIPanGestureRecognizer) {
-        guard pan.state == .ended else { return }
-        if pan.translation(in: pan.view).x < -60 || pan.velocity(in: pan.view).x < -350 {
-            presentedViewController?.dismiss(animated: true)
-        }
     }
 
     @objc private func showSideChat() {
