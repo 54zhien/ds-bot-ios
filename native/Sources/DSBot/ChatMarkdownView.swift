@@ -82,7 +82,13 @@ enum ChatMarkdownBlock: Equatable {
                 var items: [ChatMarkdownListItem] = []
                 var indents = [first.indent]
                 while index < lines.count {
-                    if let item = listItem(lines[index]) {
+                    if let last = items.last, unclosedFence(in: last.text) != nil {
+                        let removed = min(leadingSpaces(lines[index]), first.indent + 2)
+                        items[items.count - 1] = ChatMarkdownListItem(
+                            text: last.text + "\n" + String(lines[index].dropFirst(removed)),
+                            marker: last.marker, depth: last.depth)
+                        index += 1
+                    } else if let item = listItem(lines[index]) {
                         if item.indent > indents.last! { indents.append(item.indent) }
                         else {
                             while indents.count > 1 && item.indent < indents.last! { indents.removeLast() }
@@ -91,7 +97,13 @@ enum ChatMarkdownBlock: Equatable {
                                                           depth: indents.count - 1))
                         index += 1
                     } else if lines[index].trimmingCharacters(in: .whitespaces).isEmpty,
-                              index + 1 < lines.count, listItem(lines[index + 1]) != nil {
+                              index + 1 < lines.count,
+                              listItem(lines[index + 1]) != nil
+                                || leadingSpaces(lines[index + 1]) > indents.first! {
+                        if let last = items.last, listItem(lines[index + 1]) == nil {
+                            items[items.count - 1] = ChatMarkdownListItem(
+                                text: last.text + "\n", marker: last.marker, depth: last.depth)
+                        }
                         index += 1
                     } else if let last = items.last, !lines[index].trimmingCharacters(in: .whitespaces).isEmpty,
                               leadingSpaces(lines[index]) > indents.first! {
@@ -113,6 +125,19 @@ enum ChatMarkdownBlock: Equatable {
 
     private static func isRule(_ line: String) -> Bool {
         line.range(of: "^([-*_]\\s*){3,}$", options: .regularExpression) != nil
+    }
+
+    private static func unclosedFence(in text: String) -> String? {
+        var opened: String?
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let current = opened {
+                if trimmed.hasPrefix(current) { opened = nil }
+            } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                opened = String(trimmed.prefix(3))
+            }
+        }
+        return opened
     }
 
     private static func heading(_ line: String) -> (Int, String)? {
@@ -228,7 +253,9 @@ final class ChatMarkdownView: UIStackView {
             marker.font = .preferredFont(forTextStyle: .body)
             marker.textAlignment = .right
             marker.widthAnchor.constraint(equalToConstant: item.marker == "•" ? 18 : 30).isActive = true
-            let row = UIStackView(arrangedSubviews: [marker, markdownLabel(item.text)])
+            let body = ChatMarkdownView()
+            body.configure(item.text)
+            let row = UIStackView(arrangedSubviews: [marker, body])
             row.axis = .horizontal
             row.alignment = .top
             row.spacing = 6
@@ -248,7 +275,9 @@ final class ChatMarkdownView: UIStackView {
         let stripe = UIView()
         stripe.backgroundColor = UIColor.label.withAlphaComponent(0.14)
         stripe.widthAnchor.constraint(equalToConstant: 3).isActive = true
-        let quote = UIStackView(arrangedSubviews: [stripe, markdownLabel(value)])
+        let body = ChatMarkdownView()
+        body.configure(value)
+        let quote = UIStackView(arrangedSubviews: [stripe, body])
         quote.axis = .horizontal
         quote.spacing = 10
         return quote

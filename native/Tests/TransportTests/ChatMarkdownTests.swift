@@ -39,4 +39,25 @@ final class ChatMarkdownTests: XCTestCase {
             ChatMarkdownListItem(text: "next", marker: "•", depth: 0),
         ])])
     }
+
+    @MainActor func testListItemKeepsFencedCodeAndBlankLineAsBlock() {
+        let source = "- explanation\n  ```swift\n  let x = 1\n\n  let y = 2\n  ```\n- next"
+        let blocks = ChatMarkdownBlock.parse(source)
+        guard case .list(let items) = blocks.first else { return XCTFail("Expected a list") }
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(ChatMarkdownBlock.parse(items[0].text), [
+            .text("explanation"), .code("let x = 1\n\nlet y = 2"),
+        ])
+        let view = ChatMarkdownView()
+        view.configure(source)
+        XCTAssertEqual(view.arrangedSubviews.count, 1)
+    }
+
+    @MainActor func testQuoteCanContainAnotherBlock() {
+        let source = "> explanation\n> ```\n> code\n> ```"
+        XCTAssertEqual(ChatMarkdownBlock.parse(source), [.quote("explanation\n```\ncode\n```")])
+        let view = ChatMarkdownView()
+        view.configure(source)
+        XCTAssertEqual(view.arrangedSubviews.count, 1)
+    }
 }
