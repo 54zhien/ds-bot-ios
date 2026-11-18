@@ -854,7 +854,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             guard id == sessionID, linkStatus == .online,
                   botID == (target.kind == .bot ? target.id : nil),
                   roomID == (target.kind == .room ? target.id : nil) else { return }
-            let page = ChatPage(value)
+            let page = ChatPage(value, inRoom: target.kind == .room)
             retryLoadButton.isHidden = true
             let nearBottom = list.contentSize.height - list.contentOffset.y - list.bounds.height < 120
             let nextSessionID = page.sessionID ?? target.id
@@ -902,7 +902,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 ]), on: session)
                 guard id == sessionID, linkStatus == .online,
                       (isRoom ? roomID : botID) == targetID else { return }
-                let page = ChatPage(value)
+                let page = ChatPage(value, inRoom: isRoom)
                 self.cursor = page.cursor
                 olderRows.insert(contentsOf: page.items, at: 0)
                 rebuildRows()
