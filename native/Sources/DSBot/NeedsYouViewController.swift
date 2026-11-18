@@ -90,14 +90,14 @@ final class NeedsYouViewController: UITableViewController {
         if case .object(let values)? = state["browserHolds"] {
             for (botID, hold) in values where hold["callId"]?.stringValue != nil {
                 handoffs.append(Row(target: botTarget(botID), summary: hold["note"]?.stringValue
-                                    ?? hold["reason"]?.stringValue ?? NativeLanguage.text("Browser handoff"))
+                                    ?? hold["reason"]?.stringValue ?? NativeLanguage.text("Browser handoff")))
             }
         }
         var views: [Row] = []
         if case .object(let values)? = state["views"] {
             for (sessionID, value) in values {
                 if let target = sessionTarget(sessionID) {
-                    views.append(Row(target: target, summary: value["title"]?.stringValue ?? NativeLanguage.text("View"))
+                    views.append(Row(target: target, summary: value["title"]?.stringValue ?? NativeLanguage.text("View")))
                 }
             }
         }
