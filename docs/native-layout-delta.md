@@ -1,6 +1,6 @@
 # 原生与布局表的差值（逐屏对照）
 
-对照 `docs/native-layout-map.md` 的 RN 事实；原生行号基于 `native/Sources/DSBot` @ `07e9013`。只记事实与行号，判定只分【一致】【差值】【未实现】，「原生扩展」= RN 没有而原生多出的；不含改法。
+对照 `docs/native-layout-map.md` 的 RN 事实；原生行号基于 `native/Sources/DSBot` @ `07e9013`。**图片网格 / settled 卡 / via 标 / 输入框休止态四行已按 `159c387`、`18eaf23`、`732c176`、`7df694c`、`1f0055b` 重新核对（见各条后缀 hash），其余行仍以 `07e9013` 为基线，接单前请自行重定位行号。** 只记事实与行号，判定只分【一致】【差值】【未实现】，「原生扩展」= RN 没有而原生多出的；不含改法。
 
 ## 1. 应用级 chrome
 
@@ -42,13 +42,13 @@
 - parts 间 partLine hairline → 无，parts 间 4pt 间距（:97）。【差值】
 - 时间戳 stampOf（user 每条 / run 末条 / 房间与本地不带）→ :202-206 判据 localID/inRoom/stampFolded/stampable。【一致】
 - 步骤行折叠胶囊 small、展开逐条 → :123-124 居中、:198、:136-141。【一致】
-- 图片 1 张 200 / 两列 120 / GAP 6 / tile r18 hairline / 失败 tile 文案 → PhotoGridView:9-20 统一方格（宽/(100+gap)、上限 3 列）、tile r12（:162/:174）、gap=8（:11/:43）、无失败占位文案（:163-167）。【差值：无 200 单张特例；gap 8 vs 6；tile 12 vs 18；无 hairline；无失败文案】
+- 图片 1 张 200 / 两列 120 / GAP 6 / tile r18 hairline / 失败 tile 文案 → PhotoGridView:9-20（单张 200、多图双列 120、gap 6、上限 2 列）、tile 圆角 = Radius.bubble 18（:236-251）。【差值：无 hairline 描边（RN 用 p.line）；无失败占位文案与加载 spinner】· `159c387`/`18eaf23`
 - 文件行 small 500 ink + caption（扩展·KB）→ :183-193 系统 button、p.hover 底、r10、≥44；无副行。【差值】
-- settled 卡（全宽 p.card r16 1pt line）→ 全仓无对应行类型。【未实现】
-- via 平台标（11/16 r6 hover/ink3）→ 全仓无。【未实现】
+- settled 卡（全宽 p.card r16 1pt line）→ SettledCard.swift 解析 + ChatMessageCell 卡栈：r16（Radius.dialog）、1pt palette.line、16×12 内距、全宽；虚线徽标用 CAShapeLayer 画（UIKit 无虚线边框）。【一致】· `732c176`
+- via 平台标（11/16 r6 hover/ink3）→ ViaTagLabel：11/16、左右各 6、r6（Radius.item）、p.hover 底、ink3；与时钟同排 6pt（ChatMessageCell:62,104-114,283-288）。【一致】· `7df694c`
 
 ### 输入框
-- 休止 62 r31 同心 / 底同心 / 键盘 12 → resting 62（DesignTokens:351）、r31（NativeComposerView:50/:234）、restInset=screenR-31（DesignTokens:355-357）、边随 ChatViewController:1508-1515、键盘 -12（:1483/:1514）。【一致】
+- 休止 62 r31 同心 / 底同心 / 键盘 12 → resting 62（DesignTokens:351）、r31（NativeComposerView:50/:234）、restInset=screenR-31（DesignTokens:355-357）、边随 ChatViewController:1508-1515、键盘 -12（:1483/:1514）。【一致】**注：「底同心」由 `1f0055b` 的结构修正才成立**——休止态原锚在 `keyboardLayoutGuide`，键盘不在时该 guide 停在安全区下沿，胶囊圆心与屏幕圆角圆心差 34pt；改为锚屏幕底边后同心。这是结构修正，不是内距微调。
 - 展开 124 起 / cap 46% / 圆角 max(26,R-16) / margin 16 / 底 12 / 文本区=card−14−media−52 内滚 → editing=124（:42）、cap 46%（:216-219）、预算与内滚（:228-235）、margin 16（ChatViewController:1511）；圆角 max(Radius.composer=22, R−16)（:251-255 + DesignTokens:361）。【差值：下限 22 vs RN 26】
 - 表面 frost 12 + rim 1pt → iOS26 UIGlassEffect 无 rim（:156-158）；<26 ultraThin/thick + 1pt line rim（:160-163）。【差值：按 SDK 双路径替代单一 frost】
 - editing ⇔ 聚焦||有字||附件；单 spring；Reduce Motion → :203-207、:258-262、:259。【一致】
