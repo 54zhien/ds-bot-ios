@@ -121,7 +121,10 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
 
     /// Foreground: no system banner. The link is live, so the message and its
     /// in-app notice banner are already on their way over the encrypted path.
-    func userNotificationCenter(
+    // The delegate requirements enter from a nonisolated context and their
+    // parameters are not Sendable, so the entry points stay nonisolated and the
+    // work hops onto the main actor with plain strings.
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
@@ -129,17 +132,23 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// The tap path, foreground, background and cold start alike.
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
+        // Routing keys only; the chat screen resolves the display name from team
+        // state, because the payload never carries one. Read them out of the
+        // notification before crossing to the main actor: the dictionary is not
+        // Sendable, the two strings are.
         let userInfo = response.notification.request.content.userInfo
-        // Routing keys only; the chat screen resolves the display name from
-        // team state, because the payload never carries one.
-        if let room = userInfo["roomId"] as? String, !room.isEmpty {
-            openChat?(.room, room)
-        } else if let bot = userInfo["botId"] as? String, !bot.isEmpty {
-            openChat?(.bot, bot)
+        let room = userInfo["roomId"] as? String
+        let bot = userInfo["botId"] as? String
+        await MainActor.run {
+            if let room, !room.isEmpty {
+                openChat?(.room, room)
+            } else if let bot, !bot.isEmpty {
+                openChat?(.bot, bot)
+            }
         }
     }
 }
