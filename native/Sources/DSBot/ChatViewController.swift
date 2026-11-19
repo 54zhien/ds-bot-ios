@@ -888,7 +888,11 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private func openNotice() {
         guard let target = noticeTarget else { return }
         noticeTarget = nil
-        route(to: target)
+        // A notice says there is something new, as a push does, so both land the
+        // same way. The guard at the top of selectTarget means a reader already
+        // in this chat never scrolls: the flag only acts when arriving from
+        // somewhere else, which is exactly the case this is for.
+        route(to: target, landsOnNewest: true)
     }
 
     /// A push tap carries ids only; the display name comes from team state.
