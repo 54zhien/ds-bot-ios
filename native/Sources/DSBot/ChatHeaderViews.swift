@@ -41,6 +41,9 @@ final class GlassControlView: UIControl {
         surface.layer.cornerRadius = Glass.control / 2
         surface.layer.borderWidth = 1
         surface.layer.masksToBounds = true
+        // A glass surface that takes touches would swallow them before the control
+        // ever tracks: the control must be the hit view, so the blur stays passive.
+        surface.isUserInteractionEnabled = false
         addSubview(surface)
         layer.cornerRadius = Glass.control / 2
 
@@ -134,8 +137,11 @@ final class GlassPillView: UIView {
         content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
+        // Same reason as the control: the pill sits on top of a button-bearing
+        // view, so the blur is passive and the content joins the pill directly.
+        surface.isUserInteractionEnabled = false
         addSubview(surface)
-        surface.contentView.addSubview(content)
+        addSubview(content)
         surface.translatesAutoresizingMaskIntoConstraints = false
         content.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -155,6 +161,13 @@ final class GlassPillView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// A pill is decoration except for the buttons it carries: answering for itself
+    /// would hide the control underneath, which is the tap the user meant.
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let hit = super.hitTest(point, with: event)
+        return hit === self ? nil : hit
+    }
 
     // The rim is a CGColor snapshot; repaint it when traits or the theme move.
     private func applyPalette() {
