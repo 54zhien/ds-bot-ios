@@ -592,6 +592,9 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         NSLayoutConstraint.activate([
             star.trailingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 3.6),
             star.bottomAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 3.6),
+            // Without a size of its own the star has nothing to trail from.
+            star.widthAnchor.constraint(equalToConstant: 19),
+            star.heightAnchor.constraint(equalToConstant: 19),
         ])
         let name = UILabel()
         name.text = entry.target.name
