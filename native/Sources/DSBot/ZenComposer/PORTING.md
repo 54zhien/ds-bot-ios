@@ -13,6 +13,7 @@
 | 传递闭包（放任继续跟） | **141 / 24,532** | 拉进 `ZenDatabase`、`PersistenceStore+*`、`Migrations`、`KeychainSecretBackend`、`URLSessionHTTPTransport`、`SSEParser`、`DeepSeekProvider`、`AppShellModel`——等于把 zen 的整个应用层塞进本 module |
 | 中途边界 | 56 / 10,896 | **不自足**：`SidebarSurfaceDecoration`(207)、`SidebarRailView`(162)、`SurfaceLiftController`(683) 在界内，但它们的引用在界外未闭合，第一层就可能编不过 |
 | 视觉脊柱 | 12 / 727 | 见第三节：逐件证明后发现 4 件仍有真代码级外部引用，按止损线应丢件 |
+| **本批执行（输入框全量）** | **43 / 6,922** | 用户改了口径：输入框相关的都要，包括菜单、引用、拖拽、控件入口与动画。`ComposerHostView` 的逐字闭包实测 **110 / 22,242**（多出的 67 件是 workspace 批与 runtime/persistence/provider/tool 脊柱），改由六处宿主替身收口，见第八节 |
 
 141 那一次的具体数据（供复核，不必重跑）：闭包内 **464 个顶层类型**，与本仓库 `native/Sources` 撞车 **12 个**：
 
@@ -56,12 +57,14 @@
 |---|---|---|
 | `Typography` | `ZenTypography` | 与本仓库 `DesignTokens.swift:204` 的 `struct Typography` 撞名 |
 | `TypographyRole` | `ZenTypographyRole` | 同上，配套改名 |
+| `TypographyFace` | `ZenTypographyFace` | 同上，配套改名（`Typography.swift` 整文件搬，不只 role） |
+| `TypographyToken` | `ZenTypographyToken` | 同上，配套改名 |
 
 改名只换标识符，不动取值、结构、顺序。除这两项外，本目录内不得再出现任何 zen 标识符改名，出现即视为改动 zen 代码，需另行报批。
 
-## 五、归档：两段抠体的分析（本批不用）
+## 五、归档：两段抠体的分析（本批改用替身，分析留档）
 
-B 路线不搬 `ComposerHostView`，因此下面两段表面宿主本批不移植。分析留档，供将来走 56 或 141 路线时直接使用。
+B 路线不搬 `ComposerHostView`，当时因此不移植下面两段。本批改口径后也没有搬它们，但原因变了：它们只在类型位置被引用，改用 `Boundary/` 的标记替身，见第八节表。分析留档，供将来真要接 workspace 时直接使用。
 
 - `SurfaceClipView`（`ConversationSurfaceHost.swift:1043` 起，逐字 **169 行**）：体内引用中，`validationViewport` / `validationContent`（`:1045-1046`）与 `recordMovement(_:)`（`:1157`，含 `#if DEBUG`）属于**②同文件 helper**，需一并带上（约 +11 行）；**④ 都不在 = 0**。→ 可独立搬，约 180 行，远小于整文件 1,253 行。
 - `ComposerDockContainer`（`WorkspaceComposerDock.swift:183`，逐字 **85 行**）：引用同文件的 `ComposerHostPortal`（`:94`）与 `WorkspaceComposerDockOutline`（`:176`）为**②**；`SidebarProgressPresentation`（`SidebarRailView.swift:64`）与 `SidebarSurfaceDecoration`（同文件 `:78`）为**③**；**④ = 0**。→ 可独立搬，带入约 182 行（`:94`–`:281`），小于整文件 282 行。
@@ -72,8 +75,10 @@ B 路线不搬 `ComposerHostView`，因此下面两段表面宿主本批不移�
 |---|---|---|
 | **字体非 zen 原字体**：用系统字 + 系统默认字重，不是 `AnthropicSansWebVariable-TextRegular` | zen 通过捆绑可变字体 + `kCTFontVariationAttribute`（`Typography.swift:27-36`、`:52-54`）表达字重；本仓库没有该字体 | 观感有差异；**几何不受影响**——`ComposerGeometry` 只消费 `pointSize`/`lineHeight` 数值（17 / `.body`，`Typography.swift:65`、`:92`），字号仍走 `UIFontMetrics(forTextStyle: .body)` 保住 Dynamic Type（`:107-108`） |
 | **未移植：plus/primary 落位形变** | `ComposerMorphGeometry.interpolate` 的插值字段含 `plus` 与 `primary` 两个落位框，而它依赖的 `ComposerContextAction` 因 `RunProjection`（GRDB 记录类型，`Records.swift` 422 行）超出「类型依附放行」预算而丢 | 「展开收起」只做输入框高度/圆角/内距随折叠进度插值；plus 按钮从落位框飞向 primary 的动画**这次不做**，也不在宿主里另写近似实现 |
-| `ComposerOverlayFocus` 未搬 | 它引用 `ComposerHostView`，而宿主由我们自己写 | **宿主替代**，不是功能缺失；焦点转移由宿主壳实现 |
+| `ComposerOverlayFocus` 曾按宿主替代 | 12 件口径时它引用 `ComposerHostView`，而宿主不搬 | **本批已作废**：宿主与它都已逐字搬入，焦点转移走 zen 原文（`Boundary/` 只补类型，不接管焦点） |
 | **`WindowCornerGeometry` 加了可用性守卫** | `cornerConfiguration` 与 `effectiveRadius` 只有 iOS 26 才有，我们的部署目标是 16.4（`native/project.yml:11`） | iOS 26 上走 zen 原文；**16.4–25.x 回落**为 `layer.cornerRadius` + `maskedCorners`（回落代码我们写的，已注释标明）。部署目标未改 |
+| **宿主替身六件**（`Boundary/`）：`SurfaceLiftController`、`ComposerDockContainer`、`SurfaceClipView`、`RunProjection`、`QuoteReferencePresentation` 对、`CredentialStoring` 协议 | 这六处 zen 都只在类型位置用到，而真类型分别拖进 workspace 批（5,444 行）、runtime/persistence 脊柱（9,022 行）、GRDB（`Records.swift` 486 行）与 Keychain（451 行） | lift 手柄每次 `arm`/`drag` 都拒绝；两个标记视图让 `is` / `as?` 两条分支永不成立；`RunProjection` 只有 `.runID`/`.isActive`/`.canStop`；`CredentialStoring` 只取协议原文。每件文件头有 `// deviation:` |
+| **玻璃走 `ZenGlass`** | `UIGlassEffect` 与 `cornerConfiguration` 是 iOS 26 API，本批落地的四个 zen 文件共 13 处调用 | 26 上执行 zen 原文；16.4–25.x 回落 `UIBlurEffect(style: .systemThinMaterial)` + 连续圆角 `layer.cornerRadius`。zen 文件只在调用点不同，其余逐字，已列在各自文件头 |
 
 ## 七、批次
 
@@ -84,4 +89,30 @@ B 路线不搬 `ComposerHostView`，因此下面两段表面宿主本批不移�
 3. 编辑器与控件（2）
 4. 数据模型（3）
 
-每层编过再进下一层。菜单、引用、拖拽三组本批不做——它们属于 `ComposerHostView`，我们只写薄宿主。
+每层编过再进下一层。
+
+本批改口径后追加五层，顺序是依赖序，不是重要性序：
+
+5. 宿主边界六件（`Boundary/`）：`SurfaceLiftController`、`ComposerDockContainer`、`SurfaceClipView`、`RunProjection`、`QuoteReferencePresentation` 对、`CredentialStoring`
+6. 排版整文件：`ZenTypography` 195 行，`ZenTypeMetrics` 改为读它的取值
+7. 输入框 UI：菜单、思考控件、引用拖拽与引用架、编辑器、provider 取值词汇（30 件）
+8. 玻璃三面与 `ZenGlass`、`ProviderError`
+9. 宿主 `ComposerHostView`（1,116 行）
+
+## 八、输入框全量移植（本批口径）
+
+用户把口径改成「输入框相关的全搬，包括控件入口和动画」，Warden 放行的上限是 56 文件 / 10,900 行。实测后本批不是 56，是 **43 文件 / 6,922 行**，落到 `ZenComposer/` 下共 **53 个 swift 文件 / 6,879 行**（含本目录的边界与解析器，不含 `PORTING.md`）。
+
+`ComposerHostView` 的逐字闭包是 **110 文件 / 22,242 行**，这次没有按它搬，原因是四处接缝只用到类型名：
+
+| 接缝 | zen 位置 | 拖进来的东西 |
+|---|---|---|
+| `SurfaceLiftController` | `QuoteDragBridge.swift:31/125/132`，零业务调用 | `SurfaceLiftController` 707 行 + workspace 批 5,444 行 + pane/store/runtime 脊柱 |
+| `ComposerDockContainer` | `ComposerHostView.swift:471`，一个 `is` | `WorkspaceComposerDock.swift` 282 行 |
+| `SurfaceClipView` | `ComposerHostView.swift:482`，一个 `as?` | `ConversationSurfaceHost.swift` 1,253 行 |
+| `RunProjection` | `ComposerContextAction.swift:30/38/39`，三个成员 | `Records.swift` 486 行（GRDB）+ `RequestConfigSeed` 200 + `CredentialTypes` 90 |
+
+另有两处在落地时才发现：`QuoteShelfView:15` 要的 `QuoteReferencePresentation` 在 `ConversationTimeline.swift`，而它引用 12 个 GRDB 记录类型；`ModelProvider.swift:69` 的签名里出现 `any CredentialStoring`。两处都按替身处理，理由同上——本 module 没有 GRDB，也没有 Keychain 实现。
+
+排版按「整文件搬 + 改名」，不再只搬 `TypographyRole`：`ZenTypeMetrics` 只保留解析，数值一律取自 `ZenTypography`，本目录里不存在第二份字号。
+
