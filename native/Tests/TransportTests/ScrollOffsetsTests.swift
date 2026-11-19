@@ -49,4 +49,16 @@ final class ScrollOffsetsTests: XCTestCase {
         pending.expect(nil, for: "c:bot:a")
         XCTAssertNil(pending.take(for: "c:bot:a"))
     }
+
+    /// A push opens a chat at its newest row, so the caller arms no position even
+    /// though the book still remembers one for that chat.
+    func testAPushArmsNoPositionForAChatThatHasOne() {
+        var book = ScrollOffsetBook()
+        book.keep(420, for: "c:bot:a")
+        var pending = PendingScroll()
+        pending.expect(nil, for: "c:bot:a")
+        XCTAssertNil(pending.take(for: "c:bot:a"))
+        // The recorded position survives for the next ordinary visit.
+        XCTAssertEqual(book.offset(for: "c:bot:a"), 420)
+    }
 }

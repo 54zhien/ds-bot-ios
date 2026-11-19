@@ -898,17 +898,21 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         if case .array(let values)? = records {
             name = values.first { $0["id"]?.stringValue == id }?["name"]?.stringValue ?? id
         }
-        route(to: ChatTarget(kind: kind, id: id, name: name))
+        route(to: ChatTarget(kind: kind, id: id, name: name), landsOnNewest: true)
     }
 
     /// The one landing door for banners and push taps: a sheet that happens to
     /// be open closes first, so the user sees the chat they were pointed at.
-    private func route(to target: ChatTarget) {
+    /// `landsOnNewest` travels with the target: a push means the chat has
+    /// something new, so it opens at the newest row rather than where it was left.
+    private func route(to target: ChatTarget, landsOnNewest: Bool = false) {
         let sheet = presentedViewController ?? navigationController?.presentedViewController
         if let sheet {
-            sheet.dismiss(animated: true) { [weak self] in self?.selectTarget(target) }
+            sheet.dismiss(animated: true) { [weak self] in
+                self?.selectTarget(target, landsOnNewest: landsOnNewest)
+            }
         } else {
-            selectTarget(target)
+            selectTarget(target, landsOnNewest: landsOnNewest)
         }
     }
 
@@ -1514,7 +1518,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         present(UINavigationController(rootViewController: usage), animated: true)
     }
 
-    private func selectTarget(_ target: ChatTarget) {
+    private func selectTarget(_ target: ChatTarget, landsOnNewest: Bool = false) {
         guard selectedTarget != target else { return }
         // The draft goes before the fields change: the height callback then fires with
         // the outgoing rows still on screen, and no half-typed text rides into the new
@@ -1570,7 +1574,11 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updateSideButton()
         // The incoming chat may have been left mid-history; the position is armed
         // before any row lands, and only answers for this chat's key.
-        pendingScroll.expect(chatKey.flatMap { scrollOffsets.offset(for: $0) }, for: chatKey)
+        // A push means there is something new to read, so it opens on the newest
+        // row even when this chat has a position on record; every other way in
+        // (a tap, a cold start, a not-found fallback) still returns to it.
+        pendingScroll.expect(landsOnNewest ? nil : chatKey.flatMap { scrollOffsets.offset(for: $0) },
+                             for: chatKey)
         rebuildRows()
         // A conversation opens at the newest row unless it has a position to
         // return to; the restore runs first so the bottom-follow cannot win.
