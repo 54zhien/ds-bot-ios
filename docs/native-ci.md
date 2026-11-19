@@ -58,7 +58,7 @@ mean luminance 252.1       (< 40 且 < 4 色 = black screen)
 | 来自 | artifact | 内容 | 保留 |
 |---|---|---|---|
 | compile | `DS-Bot-ios-native-compile-log` | `dist/compile.log`（仅失败） | 7 天 |
-| ipa | `DS-Bot-ios-native-unsigned` | **四个文件**：`DS-Bot-<ver>-native-unsigned.ipa`、`DS-Bot-native-unsigned.sha256`、`build-info-native.json`、`release-notes.md` | 30 天 |
+| ipa | `DS-Bot-ios-native-unsigned` | **五个文件**：`DS-Bot-<ver>-native-unsigned.ipa`、`DS-Bot-native-unsigned.sha256`、`build-info-native.json`、`release-notes.md`、`DSBot.entitlements`（重签的 entitlements 模板，`aps-environment` 实际值由企业 profile 定） | 30 天 |
 | ipa | `DS-Bot-ios-native-dSYMs` | `DSBotNative.xcarchive/dSYMs` | 30 天 |
 | ipa | `DS-Bot-ios-native-build-log` | `dist/xcodebuild-native.log`（仅失败） | 7 天 |
 | smoke | `ios-native-smoke-screen` / `-log` | `smoke/01-launch.png` / build、launch、device 日志（仅失败） | 7 天 |
