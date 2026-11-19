@@ -514,6 +514,32 @@ jobs:
           echo "DSBOT_BUNDLE_ID=$built" >> "$GITHUB_ENV"
           echo "DSBOT_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist" 2>/dev/null || echo '')" >> "$GITHUB_ENV"
 
+          # The push mode and the dsbot: scheme are load-bearing for the client work that
+          # rides along: a package whose plist is missing either one installs fine and then
+          # has a deep link that never fires and a silent push that never wakes the app.
+          # Asserted against the plist that ships inside the package, not against the spec.
+          python3 - "$app/Info.plist" <<'PY'
+          import plistlib
+          import sys
+
+          with open(sys.argv[1], "rb") as handle:
+              info = plistlib.load(handle)
+
+          modes = info.get("UIBackgroundModes") or []
+          if "remote-notification" not in modes:
+              print("::error::Info.plist carries no UIBackgroundModes with remote-notification; a silent push would never wake the app")
+              sys.exit(1)
+
+          schemes = []
+          for entry in info.get("CFBundleURLTypes") or []:
+              schemes.extend(entry.get("CFBundleURLSchemes") or [])
+          if "dsbot" not in schemes:
+              print("::error::Info.plist registers no dsbot URL scheme; openURLContexts would never fire")
+              sys.exit(1)
+
+          print("push mode + URL scheme: UIBackgroundModes=" + str(modes) + ", dsbot registered")
+          PY
+
           executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
           architectures="$(lipo -archs "$app/$executable")"
           echo "binary $executable: $architectures"
@@ -714,6 +740,7 @@ jobs:
             dist/DS-Bot-native-unsigned.sha256
             dist/build-info-native.json
             dist/release-notes.md
+            native/Support/DSBot.entitlements
           retention-days: 30
           if-no-files-found: error
           compression-level: 0

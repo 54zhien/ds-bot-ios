@@ -33,6 +33,16 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIRequiresFullScreen: true
+        # A silent push wakes the app through UIBackgroundModes; without the mode the
+        # push token still registers, but a notification never launches anything. And
+        # iOS hands a URL to openURLContexts only if its scheme is registered here -
+        # without CFBundleURLTypes the dsbot: deep link is dead code on the device.
+        UIBackgroundModes:
+          - remote-notification
+        CFBundleURLTypes:
+          - CFBundleURLName: io.github.fei2411.dsbot
+            CFBundleURLSchemes:
+              - dsbot
         # The phone talks to the Relay over ws:// - to 127.0.0.1 in the simulator, and to
         # the computer's LAN address when a real phone pairs by QR code. ATS blocks
         # cleartext by default, which shows up as an app that connects to nothing at all.
@@ -49,6 +59,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.fei2411.dsbot.native
         PRODUCT_NAME: DSBot
         TARGETED_DEVICE_FAMILY: "1,2"
+    # The resigning host reads the entitlements from this file: with
+    # CODE_SIGNING_ALLOWED=NO nothing is embedded into the binary (expected in an
+    # unsigned package), so the file itself is the carrier for aps-environment.
+    # "development" is the template value; the enterprise profile decides the real
+    # one at resign time.
+    entitlements:
+      path: Support/DSBot.entitlements
   DSBotTests:
     type: bundle.unit-test
     platform: iOS
