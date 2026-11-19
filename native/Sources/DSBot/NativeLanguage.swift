@@ -187,6 +187,11 @@ enum NativeLanguage {
         // the mobile screens' (Zen-Agent SidebarRailView.swift:117, :119).
         "New conversation": "新会话",
         "Recent conversations": "最近会话",
+        // The drawer's own words: two group titles, the fold row and its two states.
+        "Current": "当前",
+        "Older · {count}": "更早的 {count} 个",
+        "Expanded": "已展开",
+        "Collapsed": "已收起",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }
