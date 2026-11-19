@@ -40,11 +40,15 @@ final class SettledCardTests: XCTestCase {
     }
 
     func testAHandoffRidingTheTextNeedsQuestionsAndViewsEmpty() {
-        XCTAssertNil(SettledCard(item: .object([
+        // items.tsx:156-163 reads the text only when both lists are empty; with a
+        // question open the card is the questions branch, never a handoff.
+        let card = SettledCard(item: .object([
             "kind": .string("answer"),
             "questions": .array([.object(["question": .string("Still open?")])]),
             "text": .string(#"{"kind":"answer_to_pending_handoff","reason":"sign-in"}"#),
-        ])))
+        ]))
+        if case .handoff = card { XCTFail("the text must not become a handoff while a question is open") }
+        guard case .questions = card else { return XCTFail("expected the questions branch") }
     }
 
     func testPicksTakeTheirLettersFromTheOptions() {
