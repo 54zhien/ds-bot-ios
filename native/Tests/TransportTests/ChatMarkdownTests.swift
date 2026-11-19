@@ -60,4 +60,25 @@ final class ChatMarkdownTests: XCTestCase {
         view.configure(source)
         XCTAssertEqual(view.arrangedSubviews.count, 1)
     }
+
+    func testACodeSpanNextToHanGetsAThinSpaceOnThatSide() {
+        let thin = "\u{2006}"
+        XCTAssertEqual(MarkdownHanSpacing.apply("用 `ls` 看看"), "用 \(thin)`ls`\(thin) 看看")
+        XCTAssertEqual(MarkdownHanSpacing.apply("看`ls` ok"), "看\(thin)`ls` ok")
+        XCTAssertEqual(MarkdownHanSpacing.apply("run `ls`吧"), "run `ls`\(thin)吧")
+        XCTAssertEqual(MarkdownHanSpacing.apply("run `ls` ok"), "run `ls` ok")
+        XCTAssertEqual(MarkdownHanSpacing.apply("汉`字`码"), "汉\(thin)`字`\(thin)码")
+    }
+
+    func testFencedCodeKeepsItsBackticksUntouched() {
+        let source = "intro `x` 段\n```\necho `y` 汉\n```\nafter `z` 段"
+        let thin = "\u{2006}"
+        let spaced = MarkdownHanSpacing.apply(source)
+        XCTAssertTrue(spaced.hasSuffix("after \(thin)`z`\(thin) 段"))
+        XCTAssertTrue(spaced.contains("\n```\necho `y` 汉\n"))
+    }
+
+    func testAnUnpairedBacktickLeavesTheLineAlone() {
+        XCTAssertEqual(MarkdownHanSpacing.apply("ticked `ls`"), "ticked `ls`")
+    }
 }

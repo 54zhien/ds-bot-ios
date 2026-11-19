@@ -186,6 +186,53 @@ enum ChatMarkdownBlock: Equatable {
     }
 }
 
+/// markdown.tsx:479-480 puts a thin space beside an inline code span when the
+/// neighbouring character is Han, so a Latin mono span does not glue to the
+/// Chinese text around it. RN reads lexer token boundaries; this scan reads the
+/// characters next to the backticks, which covers the everyday shapes, and it
+/// leaves fenced code untouched the way a block-level lexer would.
+enum MarkdownHanSpacing {
+    static func apply(_ source: String) -> String {
+        var fence: String?
+        return source.components(separatedBy: "\n").map { line -> String in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let open = fence {
+                if trimmed.hasPrefix(open) { fence = nil }
+                return line
+            }
+            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                fence = String(trimmed.prefix(3))
+                return line
+            }
+            return spacedLine(line)
+        }.joined(separator: "\n")
+    }
+
+    private static func spacedLine(_ line: String) -> String {
+        var spaced = ""
+        var cursor = line.startIndex
+        while let open = line[cursor...].firstIndex(of: "`") {
+            guard let close = line.index(after: open)..<line.endIndex.firstIndex(of: "`") else { break }
+            let lead = open > line.startIndex && isHan(line[line.index(before: open)]) ? "\u{2006}" : ""
+            let after = line.index(after: close)
+            let trail = after < line.endIndex && isHan(line[after]) ? "\u{2006}" : ""
+            spaced += line[cursor..<open] + lead + line[open...close] + trail
+            cursor = after
+        }
+        if cursor < line.endIndex { spaced += line[cursor...] }
+        return spaced
+    }
+
+    /// markdown.tsx:470-471 treats a character as Han by the CJK Unified
+    /// Ideographs range alone.
+    private static func isHan(_ character: Character) -> Bool {
+        guard character.unicodeScalars.count == 1, let scalar = character.unicodeScalars.first else {
+            return false
+        }
+        return (0x4E00...0x9FFF).contains(scalar.value)
+    }
+}
+
 /// Scrollable fenced code and GFM tables inside a self-sizing chat bubble.
 final class ChatMarkdownView: UIStackView {
     private var source = ""
@@ -243,7 +290,7 @@ final class ChatMarkdownView: UIStackView {
         let paragraph = NSMutableParagraphStyle()
         paragraph.minimumLineHeight = lead
         paragraph.maximumLineHeight = lead
-        if let markdown = try? AttributedString(markdown: value) {
+        if let markdown = try? AttributedString(markdown: MarkdownHanSpacing.apply(value)) {
             let rendered = NSMutableAttributedString(attributedString: NSAttributedString(markdown))
             rendered.addAttributes([.font: type, .foregroundColor: ink, .paragraphStyle: paragraph],
                                    range: NSRange(location: 0, length: rendered.length))
@@ -357,7 +404,7 @@ final class ChatMarkdownView: UIStackView {
             for index in 0..<columnCount {
                 let value = index < values.count ? values[index] : ""
                 let label = UILabel()
-                if let markdown = try? AttributedString(markdown: value) {
+                if let markdown = try? AttributedString(markdown: MarkdownHanSpacing.apply(value)) {
                     label.attributedText = NSAttributedString(markdown)
                 } else { label.text = value }
                 label.font = .systemFont(ofSize: TypeScale.bubble.size - 1, weight: rowIndex == 0 ? .semibold : .regular)

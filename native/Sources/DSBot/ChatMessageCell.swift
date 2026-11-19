@@ -233,7 +233,7 @@ final class ChatMessageCell: UITableViewCell {
             messageLabel.isHidden = true
             markdownView.isHidden = false
             markdownView.configure(row.text)
-        } else if !row.isNotice, let markdown = try? AttributedString(markdown: row.text) {
+        } else if !row.isNotice, let markdown = try? AttributedString(markdown: MarkdownHanSpacing.apply(row.text)) {
             messageLabel.attributedText = NSAttributedString(markdown)
             messageLabel.isHidden = false
             markdownView.isHidden = true
