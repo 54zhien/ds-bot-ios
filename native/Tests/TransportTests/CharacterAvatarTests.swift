@@ -16,6 +16,11 @@ final class CharacterAvatarTests: XCTestCase {
         let width: Int
         let height: Int
         let sample: CGFloat
+        /// Which end of the buffer holds the top of the picture. Measured once by
+        /// `rowsStartAtTop` instead of assumed: the drawing space has y down
+        /// while the buffer's rows are its own business, and getting it the wrong way
+        /// round moves every vertical assertion to the far end of the mark.
+        let rowsStartAtTop: Bool
         let bytes: [UInt8]
 
         func alpha(column: Int, row: Int) -> UInt8 {
@@ -23,10 +28,19 @@ final class CharacterAvatarTests: XCTestCase {
             return bytes[(row * width + column) * 4 + 3]
         }
 
-        /// A point in the view's own coordinates; the bitmap's rows start at the bottom.
+        /// The buffer row holding a y in the view's own coordinates.
+        func row(at y: CGFloat) -> Int {
+            let drawn = Int((y * sample).rounded(.down))
+            return rowsStartAtTop ? drawn : height - 1 - drawn
+        }
+
+        /// The top-left corner of a buffer row, in points.
+        func y(ofRow row: Int) -> CGFloat {
+            CGFloat(rowsStartAtTop ? row : height - 1 - row) / sample
+        }
+
         func alpha(at point: CGPoint) -> UInt8 {
-            alpha(column: Int((point.x * sample).rounded(.down)),
-                  row: height - 1 - Int((point.y * sample).rounded(.down)))
+            alpha(column: Int((point.x * sample).rounded(.down)), row: row(at: point.y))
         }
 
         /// The box the drawing put ink in, in points, y down.
@@ -39,19 +53,20 @@ final class CharacterAvatarTests: XCTestCase {
                 }
             }
             guard maxX >= 0 else { return nil }
-            return CGRect(x: CGFloat(minX) / sample,
-                          y: CGFloat(height - 1 - maxRow) / sample,
+            let top = y(ofRow: minRow), bottom = y(ofRow: maxRow) + 1 / sample
+            return CGRect(x: CGFloat(minX) / sample, y: min(top, bottom),
                           width: CGFloat(maxX - minX + 1) / sample,
-                          height: CGFloat(maxRow - minRow + 1) / sample)
+                          height: abs(bottom - top))
         }
 
         /// How much of a rect holds ink, as a share of its area.
         func coverage(of rect: CGRect) -> CGFloat {
             var filled = 0, total = 0
+            let half = 0.5 / sample
             for row in 0..<height {
                 for column in 0..<width {
                     let point = CGPoint(x: (CGFloat(column) + 0.5) / sample,
-                                        y: (CGFloat(height - 1 - row) + 0.5) / sample)
+                                        y: y(ofRow: row) + half)
                     guard rect.contains(point) else { continue }
                     total += 1
                     if alpha(column: column, row: row) > 8 { filled += 1 }
@@ -60,6 +75,25 @@ final class CharacterAvatarTests: XCTestCase {
             return total == 0 ? 0 : CGFloat(filled) / CGFloat(total)
         }
     }
+
+    /// Measures which end of a bitmap's buffer holds the top of the picture. The
+    /// answer steers every sample below, so it is measured rather than assumed: a
+    /// context keeps rows in its own order even though the drawing space has y down.
+    private static let rowsStartAtTop: Bool = {
+        let side = 8
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
+                                      bytesPerRow: side * 4, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let buffer = context.data else { return true }
+        context.translateBy(x: 0, y: CGFloat(side))
+        context.scaleBy(x: 1, y: -1)
+        context.setFillColor(UIColor.white.cgColor)
+        // A strip along y = 0, which the flip puts at the top of the picture.
+        context.fill(CGRect(x: 0, y: 0, width: CGFloat(side), height: 1))
+        // Byte 3 is the alpha of the buffer's first pixel.
+        return buffer.bindMemory(to: UInt8.self, capacity: side * side * 4)[3] > 0
+    }()
 
     private func raster(_ size: CGFloat, _ paint: (CGContext) -> Void) -> Bitmap? {
         let side = Int((size * Self.sample).rounded())
@@ -75,6 +109,7 @@ final class CharacterAvatarTests: XCTestCase {
         UIGraphicsPopContext()
         let bytes = buffer.bindMemory(to: UInt8.self, capacity: side * side * 4)
         return Bitmap(width: side, height: side, sample: Self.sample,
+                      rowsStartAtTop: Self.rowsStartAtTop,
                       bytes: Array(UnsafeBufferPointer(start: bytes, count: side * side * 4)))
     }
 
@@ -220,6 +255,35 @@ final class CharacterAvatarTests: XCTestCase {
         XCTAssertNotEqual(first?.bytes, render(look("whale", "rose"), size: 64)?.bytes)
     }
 
+    /// The sampler has to agree with the context that drew the pixels. A read that
+    /// disagrees moves every vertical assertion to the far end of the mark and finds
+    /// paint where the mark has a hole — the shape the eye and the seat gap failed in.
+    func testTheSamplerReadsRowsFromTheTop() {
+        let size: CGFloat = 40
+        guard let bitmap = raster(size, { context in
+            context.setFillColor(UIColor.white.cgColor)
+            context.fill(CGRect(x: 4, y: 4, width: 8, height: 8))
+        }) else { return XCTFail("no bitmap") }
+        XCTAssertEqual(bitmap.alpha(at: CGPoint(x: 8, y: 8)), 255)
+        XCTAssertEqual(bitmap.alpha(at: CGPoint(x: 8, y: 32)), 0, "the square sits at the top")
+        XCTAssertEqual(bitmap.inkBox()?.minY ?? -1, 4, accuracy: 0.5)
+    }
+
+    /// The raster must keep an alpha channel and honour a clear blend, or a hole reads
+    /// as paint and no assertion about the eyes could tell the two apart.
+    func testTheRasterCanPunchAHole() {
+        let size: CGFloat = 20
+        guard let bitmap = raster(size, { context in
+            context.setFillColor(UIColor.white.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+            context.setBlendMode(.clear)
+            context.fill(CGRect(x: 6, y: 6, width: 8, height: 8))
+            context.setBlendMode(.normal)
+        }) else { return XCTFail("no bitmap") }
+        XCTAssertEqual(bitmap.alpha(at: CGPoint(x: 10, y: 10)), 0, "the hole is a hole")
+        XCTAssertEqual(bitmap.alpha(at: CGPoint(x: 2, y: 2)), 255, "the rest is still paint")
+    }
+
     func testTheEyesAreCutOutOfTheBodyNotPaintedOn() {
         let size: CGFloat = 128
         guard let bitmap = render(look("gumdrop", "blue"), size: size) else { return XCTFail("no bitmap") }
@@ -316,7 +380,7 @@ final class CharacterAvatarTests: XCTestCase {
         for row in 0..<bare.height {
             for column in 0..<bare.width {
                 let point = CGPoint(x: (CGFloat(column) + 0.5) / bare.sample,
-                                    y: (CGFloat(bare.height - 1 - row) + 0.5) / bare.sample)
+                                    y: bare.y(ofRow: row) + 0.5 / bare.sample)
                 guard bare.alpha(column: column, row: row) > 200 else { continue }
                 guard !seats[1].contains(point) else { continue }
                 guard hypot(point.x - cut.centre.x, point.y - cut.centre.y) < cut.radius - 0.5 else { continue }
