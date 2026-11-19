@@ -410,6 +410,14 @@ enum Icon {
 
     /// The paths as parsed, in the 20×20 frame: for the tests, which keep every
     /// glyph inside its viewBox and count what the d-strings command.
+    /// UIBezierPath turns a path with the mutating `apply`; there is no value
+    /// returning copy, so the turned glyph is a copy that was applied to.
+    private static func turned(_ path: UIBezierPath, by transform: CGAffineTransform) -> UIBezierPath {
+        let copy = UIBezierPath(cgPath: path.cgPath)
+        copy.apply(transform)
+        return copy
+    }
+
     func geometry() -> [UIBezierPath] {
         switch self {
         case .chevronLeft: return [SVGPath.parse("M12.5 4.5L7 10l5.5 5.5")]
@@ -436,8 +444,8 @@ enum Icon {
             let turn = CGAffineTransform(translationX: 10, y: 10)
                 .rotated(by: .pi / 4)
                 .translatedBy(x: -10, y: -10)
-            return [SVGPath.parse("M8 2.5h4a.9.9 0 0 1 0 1.8h-.4v4.1c0 1.4 1.1 2.6 2.6 3.1l.7.3v1.5H5.1v-1.5l.7-.3c1.5-.5 2.6-1.7 2.6-3.1V4.3H8a.9.9 0 0 1 0-1.8z").applying(turn),
-                    SVGPath.parse("M9.35 13.3h1.3v3.6L10 18l-.65-1.1z").applying(turn)]
+            return [Icon.turned(SVGPath.parse("M8 2.5h4a.9.9 0 0 1 0 1.8h-.4v4.1c0 1.4 1.1 2.6 2.6 3.1l.7.3v1.5H5.1v-1.5l.7-.3c1.5-.5 2.6-1.7 2.6-3.1V4.3H8a.9.9 0 0 1 0-1.8z"), by: turn),
+                    Icon.turned(SVGPath.parse("M9.35 13.3h1.3v3.6L10 18l-.65-1.1z"), by: turn)]
         case .mainStar: return [SVGPath.parse(Icon.star)]
         case .stop: return [UIBezierPath(roundedRect: CGRect(x: 3.5, y: 3.5, width: 13, height: 13), cornerRadius: 3)]
         case .dots: return [SVGPath.parse("M5 10h.01M10 10h.01M15 10h.01")]
