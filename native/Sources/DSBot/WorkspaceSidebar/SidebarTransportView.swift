@@ -16,7 +16,8 @@ final class SidebarTransportView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        translatesAutoresizingMaskIntoConstraints = false
+        // Left on: this is a view controller's root view in the app, where UIKit lays the
+        // frame out by autoresizing. Turning it off without constraints collapses it.
         backgroundColor = .clear
         // The page underneath keeps its own clips and shadows; this view only moves.
         clipsToBounds = false

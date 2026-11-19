@@ -16,11 +16,8 @@ final class TeamDrawerTransition: NSObject, UIViewControllerTransitioningDelegat
     }
 }
 
-private final class TeamDrawerPresentationController: UIPresentationController, UIGestureRecognizerDelegate {
+final class TeamDrawerPresentationController: UIPresentationController, UIGestureRecognizerDelegate {
     private let scrim = UIControl()
-    // The panel's own drag: installed once, only its enabled flag changes, so a
-    // dismissal never leaves the edge without a recogniser.
-    private let pan = UIPanGestureRecognizer()
     private let fade = CAGradientLayer()
 
     override var frameOfPresentedViewInContainerView: CGRect {
@@ -40,11 +37,6 @@ private final class TeamDrawerPresentationController: UIPresentationController, 
         scrim.addTarget(self, action: #selector(close), for: .touchUpInside)
         containerView.insertSubview(scrim, at: 0)
         if let panel = presentedView {
-            pan.addTarget(self, action: #selector(drag))
-            pan.delegate = self
-            pan.maximumNumberOfTouches = 1
-            pan.isEnabled = false
-            panel.addGestureRecognizer(pan)
             let dark = panel.traitCollection.userInterfaceStyle == .dark
             let sidebar = ThemeStore.palette(dark: dark).sidebar
             fade.colors = [sidebar.withAlphaComponent(0).cgColor, sidebar.cgColor]
@@ -56,56 +48,28 @@ private final class TeamDrawerPresentationController: UIPresentationController, 
         if let list = presentedViewController as? TeamListViewController {
             list.installFooterGear()
         }
-        presentedViewController.transitionCoordinator?.animate(alongsideTransition: { _ in
-            self.scrim.alpha = 1
-        })
-    }
-
-    override func presentationTransitionDidEnd(_ completed: Bool) {
-        super.presentationTransitionDidEnd(completed)
-        pan.isEnabled = completed
-    }
-
-    /// Leftward drags only, so the list keeps its vertical scrolling.
-    func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
-        guard gesture === pan, let panel = presentedView else { return true }
-        let velocity = pan.velocity(in: panel)
-        return velocity.x < 0 && abs(velocity.x) > abs(velocity.y)
-    }
-
-    /// mobile/src/nav/Drawer.tsx: the panel follows the finger, and past half the width
-    /// or a fast flick it goes away.
-    @objc private func drag(_ gesture: UIPanGestureRecognizer) {
-        guard let panel = presentedView, let container = containerView else { return }
-        let width = max(1, panel.bounds.width)
-        let x = min(0, max(-width, gesture.translation(in: container).x))
-        switch gesture.state {
-        case .changed:
-            panel.transform = CGAffineTransform(translationX: x, y: 0)
-            scrim.alpha = 1 + x / width
-        case .ended, .cancelled:
-            let flick = gesture.velocity(in: container).x < -350
-            if flick || x < -width / 2 {
-                pan.isEnabled = false
-                UIView.animate(withDuration: 0.22, animations: {
-                    panel.transform = CGAffineTransform(translationX: -width, y: 0)
-                    self.scrim.alpha = 0
-                }, completion: { _ in
-                    panel.transform = .identity
-                    self.presentedViewController.dismiss(animated: false)
-                })
-            } else {
-                let spring = Springs.shape
-                UIView.animate(withDuration: spring.settling, delay: 0, usingSpringWithDamping: spring.dampingRatio,
-                               initialSpringVelocity: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-                    panel.transform = .identity
-                    self.scrim.alpha = 1
-                }
-            }
-        default:
-            break
+        // The drawer is presented without an animation of its own, so the coordinator is
+        // often nil here. Without this branch the scrim stays invisible, which reads as
+        // "the drawer has no dimming" rather than as a bug.
+        let coordinator = presentedViewController.transitionCoordinator
+        if Self.scrimNeedsSettingByHand(coordinator) {
+            scrim.alpha = 1
+        } else {
+            coordinator?.animate(alongsideTransition: { _ in self.scrim.alpha = 1 })
         }
     }
+
+    /// A present with no animation has no coordinator to ride along with, and the scrim
+    /// has to be set by hand. Named so the rule is testable and so nobody "simplifies"
+    /// the branch away: TeamDrawerScrimTests holds both sides of it.
+    static func scrimNeedsSettingByHand(_ coordinator: UIViewControllerTransitionCoordinator?) -> Bool {
+        coordinator == nil
+    }
+
+    // The panel's own slide lived here: a pan that moved presentedView and a swipe that
+    // dismissed it. Both are gone. The page carries the motion now (SidebarTransportView),
+    // and the swipe that closes is the page's reverse gesture. Scrim, corner radius, the
+    // footer fade and the gear stay exactly as they were.
 
     override func dismissalTransitionWillBegin() {
         presentedViewController.transitionCoordinator?.animate(alongsideTransition: { _ in
