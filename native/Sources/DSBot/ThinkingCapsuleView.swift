@@ -122,6 +122,7 @@ final class ThinkingCapsuleView: UIView {
     private var markWidth: NSLayoutConstraint?
     private var markGap: NSLayoutConstraint?
     private var widthLimit: NSLayoutConstraint?
+    private var measuredWidth: NSLayoutConstraint?
     private var animator: UIViewPropertyAnimator?
 
     /// Fired once the capsule has shown or hidden itself, so a layout that reserves
@@ -136,6 +137,7 @@ final class ThinkingCapsuleView: UIView {
             let limit = widthAnchor.constraint(lessThanOrEqualToConstant: maximumWidth)
             limit.isActive = true
             widthLimit = limit
+            updateMeasuredWidth()
         }
     }
 
@@ -211,6 +213,8 @@ final class ThinkingCapsuleView: UIView {
         accessibilityLabel = presentation.text
         applyMarkRoom(shown: presentation.look != nil)
         if let look = presentation.look { mark.look = look }
+        // The line decides the width, so it is measured once the text is in place.
+        updateMeasuredWidth()
         show()
     }
 
@@ -220,6 +224,21 @@ final class ThinkingCapsuleView: UIView {
         mark.isHidden = !shown
         markWidth?.constant = shown ? Self.markSize : 0
         markGap?.constant = shown ? Self.gap : 0
+        updateMeasuredWidth()
+    }
+
+    /// Nothing above the pill constrains its width, and a stack view cannot report one,
+    /// so the pill states its own: the line plus the furniture, capped by maximumWidth.
+    /// Inferred layout left it free to collapse to zero, which looks exactly like a
+    /// truncated line and hid the difference from every test that only checked a cap.
+    private func updateMeasuredWidth() {
+        let room = Self.lead + (mark.isHidden ? 0 : Self.markSize + Self.gap) + Self.trail
+        let wanted = label.intrinsicContentSize.width + room
+        let capped = maximumWidth.map { min(wanted, $0) } ?? wanted
+        measuredWidth?.isActive = false
+        let width = widthAnchor.constraint(equalToConstant: max(capped, room))
+        width.isActive = true
+        measuredWidth = width
     }
 
     // MARK: - Moving in and out
@@ -304,6 +323,7 @@ final class ThinkingCapsuleView: UIView {
     private func applyFont() {
         label.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
             for: .systemFont(ofSize: Self.fontSize), maximumPointSize: Self.fontSizeCeiling)
+        updateMeasuredWidth()
     }
 
     @objc private func themeChanged() { applyPalette() }
