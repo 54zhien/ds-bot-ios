@@ -30,6 +30,8 @@ final class BotEditorViewController: UIViewController {
     // bot snapshot taken at init, which predates any upload.
     private var pendingAvatar: [String: JSONValue]?
     private var clashLabel: UILabel?
+    private let modelHint = UILabel()
+    private var pickedModel = false
 
     private static let colors = ["black", "brown", "red", "orange", "yellow", "green",
                                  "cyan", "blue", "violet", "magenta", "gray", "aurora"]
@@ -121,6 +123,11 @@ final class BotEditorViewController: UIViewController {
         }
         if case .array(let models)? = state["models"], !models.isEmpty {
             addPicker(modelButton, label: NativeLanguage.text("Model"), value: model ?? NativeLanguage.text("Default"), action: #selector(pickModel))
+            modelHint.font = .preferredFont(forTextStyle: .footnote)
+            modelHint.numberOfLines = 0
+            modelHint.isHidden = true
+            form.addArrangedSubview(modelHint)
+            updateModelHint()
             addPicker(effortButton, label: NativeLanguage.text("Thinking level"), value: effort ?? NativeLanguage.text("Default"), action: #selector(pickEffort))
             effortButton.isHidden = true
             loadEfforts()
@@ -205,8 +212,10 @@ final class BotEditorViewController: UIViewController {
         let refs = entries.compactMap { $0["ref"]?.stringValue }
         choose(NativeLanguage.text("Model"), values: refs, from: modelButton) { [weak self] value in
             self?.model = value
+            self?.pickedModel = true
             self?.modelButton.setTitle(NativeLanguage.text("Model") + " · " + value, for: .normal)
             self?.effort = nil
+            self?.updateModelHint()
             self?.loadEfforts()
         }
     }
@@ -254,7 +263,31 @@ final class BotEditorViewController: UIViewController {
         present(sheet, animated: true)
     }
 
-    @objc private func nameEdited() { updateClashState() }
+    @objc private func nameEdited() {
+        updateClashState()
+        updateModelHint()
+    }
+
+    /// model-menu.tsx:221: a Bot that has never run on a model says so under the
+    /// picker. A team default fills the button but is not the Bot's own choice, so
+    /// the note stays until one is picked here.
+    private func updateModelHint() {
+        guard bot != nil else { modelHint.isHidden = true; return }
+        let own = bot?["model"]?.stringValue != nil
+        let applied = bot?["appliedModel"]?.stringValue != nil
+        let shows = !pickedModel && !own && !applied
+        modelHint.isHidden = !shows
+        guard shows else { return }
+        modelHint.text = NativeLanguage.text("Pick a model and {name} can start.", ["name": finalBotName])
+        modelHint.textColor = ThemeStore.palette(trait: traitCollection).ink3
+    }
+
+    // The note's colour comes from the palette, which is resolved per trait.
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) else { return }
+        updateModelHint()
+    }
 
     private var finalBotName: String {
         let raw = nameField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
