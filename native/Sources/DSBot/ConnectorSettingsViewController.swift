@@ -5,6 +5,12 @@ final class ConnectorSettingsViewController: UITableViewController {
     private let session: LinkSession
     private var connectors: [JSONValue] = []
 
+    /// settings-pages.tsx:242 TOKEN_URLS: the connectors whose tokens are minted on
+    /// a public page, so the connect step can send people there first.
+    private static let tokenURLs: [String: String] = [
+        "github": "https://github.com/settings/personal-access-tokens/new",
+    ]
+
     init(session: LinkSession) {
         self.session = session
         super.init(style: .insetGrouped)
@@ -70,11 +76,20 @@ final class ConnectorSettingsViewController: UITableViewController {
         guard !connectors.isEmpty, let id = connectors[indexPath.row]["id"]?.stringValue else { return }
         let item = connectors[indexPath.row]
         let status = item["state"]?.stringValue ?? "off"
-        let sheet = UIAlertController(title: item["name"]?.stringValue ?? id,
+        let name = item["name"]?.stringValue ?? id
+        let sheet = UIAlertController(title: name,
                                       message: item["error"]?.stringValue, preferredStyle: .actionSheet)
         if status == "off" {
+            // Above Connect, where RN puts it: the sheet dismisses, so it cannot eat
+            // a half-typed token the way an action inside the token prompt would.
+            if let url = Self.tokenURLs[id].flatMap(URL.init(string:)) {
+                sheet.addAction(UIAlertAction(
+                    title: NativeLanguage.text("Create a token on {name}", ["name": name]),
+                    style: .default
+                ) { _ in UIApplication.shared.open(url) })
+            }
             sheet.addAction(UIAlertAction(title: tr("Connect"), style: .default) { [weak self] _ in
-                self?.askToken(for: id, name: item["name"]?.stringValue ?? id)
+                self?.askToken(for: id, name: name)
             })
         } else {
             if status == "error" {
