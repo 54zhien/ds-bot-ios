@@ -254,20 +254,18 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         dismiss(animated: true) { action?() }
     }
     @objc private func showCreate() {
-        let sheet = UIAlertController(title: tr("Create"), message: nil, preferredStyle: .actionSheet)
-        sheet.addAction(UIAlertAction(title: tr("New Bot"), style: .default) { [weak self] _ in
+        let sheet = NewChatSheetController()
+        sheet.onChoose = { [weak self] choice in
             guard let self else { return }
-            let action = onCreateBot
-            dismiss(animated: true) { action?() }
-        })
-        sheet.addAction(UIAlertAction(title: tr("Group chat"), style: .default) { [weak self] _ in
-            guard let self else { return }
-            let action = onCreateGroup
-            dismiss(animated: true) { action?() }
-        })
-        sheet.addAction(UIAlertAction(title: tr("Cancel"), style: .cancel))
-        sheet.popoverPresentationController?.sourceView = newControl
-        sheet.popoverPresentationController?.sourceRect = newControl.bounds
+            let botAction = onCreateBot
+            let groupAction = onCreateGroup
+            // ShellB.tsx:51: creating closes the drawer first, then navigates.
+            sheet.dismiss(animated: true) {
+                self.dismiss(animated: true) {
+                    if choice == .bot { botAction?() } else { groupAction?() }
+                }
+            }
+        }
         present(sheet, animated: true)
     }
 
@@ -830,3 +828,117 @@ final class TeamRowCell: UITableViewCell {
     }
 }
 
+
+/// ShellB.tsx:100-114,:389-392: the drawer's create card — a scrimmed sheet at the
+/// bottom with one row per thing to create, not a system action sheet.
+private final class NewChatSheetController: UIViewController {
+    enum Choice { case bot, group }
+    var onChoose: ((Choice) -> Void)?
+
+    init() {
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .overFullScreen
+        modalTransitionStyle = .crossDissolve
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let palette = ThemeStore.palette(trait: traitCollection)
+        view.backgroundColor = UIColor.black.withAlphaComponent(0.25)
+        let scrim = UITapGestureRecognizer(target: self, action: #selector(close))
+        view.addGestureRecognizer(scrim)
+
+        let card = UIView()
+        card.translatesAutoresizingMaskIntoConstraints = false
+        card.backgroundColor = palette.card
+        card.layer.cornerRadius = 16
+        card.layer.borderWidth = 1
+        card.layer.borderColor = palette.line.cgColor
+        Shadow.level3.apply(to: card.layer)
+        view.addSubview(card)
+
+        let newBot = row(icon: .plus, text: NativeLanguage.text("Create new Bot"), choice: .bot, palette: palette)
+        let divider = UIView()
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        divider.backgroundColor = palette.line
+        let group = row(icon: .people, text: NativeLanguage.text("Create group chat"), choice: .group, palette: palette)
+        card.addSubview(newBot)
+        card.addSubview(divider)
+        card.addSubview(group)
+        NSLayoutConstraint.activate([
+            card.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            card.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            card.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            newBot.topAnchor.constraint(equalTo: card.topAnchor),
+            newBot.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            newBot.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            newBot.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
+            divider.topAnchor.constraint(equalTo: newBot.bottomAnchor),
+            divider.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 64),
+            divider.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            divider.heightAnchor.constraint(equalToConstant: 1),
+            group.topAnchor.constraint(equalTo: divider.bottomAnchor),
+            group.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+            group.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            group.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            group.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
+        ])
+    }
+
+    /// ShellB.tsx:391: a 56pt row, a 36pt icon box on a hover fill, settingsRow text.
+    private func row(icon: Icon, text: String, choice: Choice, palette: Palette) -> UIControl {
+        let control = UIControl()
+        control.translatesAutoresizingMaskIntoConstraints = false
+        control.accessibilityLabel = text
+        let box = UIView()
+        box.translatesAutoresizingMaskIntoConstraints = false
+        box.backgroundColor = palette.hover
+        box.layer.cornerRadius = 18
+        // material.tsx rimSkin: the rim shows in the dark, not in the light.
+        box.layer.borderWidth = 1
+        box.layer.borderColor = traitCollection.userInterfaceStyle == .dark
+            ? palette.line.cgColor : UIColor.clear.cgColor
+        let glyph = IconView(icon: icon, size: 18, color: palette.ink)
+        glyph.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(glyph)
+        control.addSubview(box)
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.attributedText = NSAttributedString(string: text, attributes: TypeScale.settingsRow.attributes)
+        label.textColor = palette.ink
+        control.addSubview(label)
+        NSLayoutConstraint.activate([
+            box.leadingAnchor.constraint(equalTo: control.leadingAnchor, constant: 14),
+            box.centerYAnchor.constraint(equalTo: control.centerYAnchor),
+            box.widthAnchor.constraint(equalToConstant: 36),
+            box.heightAnchor.constraint(equalToConstant: 36),
+            glyph.centerXAnchor.constraint(equalTo: box.centerXAnchor),
+            glyph.centerYAnchor.constraint(equalTo: box.centerYAnchor),
+            label.leadingAnchor.constraint(equalTo: box.trailingAnchor, constant: 12),
+            label.centerYAnchor.constraint(equalTo: control.centerYAnchor),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: control.trailingAnchor, constant: -14),
+        ])
+        // RN dims a pressed row's fill, not its contents.
+        control.addTarget(self, action: #selector(pressedRow(_:)), for: [.touchDown, .touchDragEnter])
+        control.addTarget(self, action: #selector(restoredRow(_:)), for: [.touchDragExit, .touchCancel, .touchUpInside])
+        control.addAction(UIAction { [weak self] _ in self?.choose(choice) }, for: .touchUpInside)
+        return control
+    }
+
+    @objc private func pressedRow(_ control: UIControl) {
+        control.backgroundColor = ThemeStore.palette(trait: traitCollection).hover
+    }
+
+    @objc private func restoredRow(_ control: UIControl) {
+        control.backgroundColor = .clear
+    }
+
+    private func choose(_ choice: Choice) {
+        let action = onChoose
+        dismiss(animated: true) { action?(choice) }
+    }
+
+    @objc private func close() { dismiss(animated: true) }
+}
