@@ -129,14 +129,18 @@ final class ThinkingCapsuleView: UIView {
     /// its room can move with the fade instead of guessing when it ends.
     var onVisibilityChange: (() -> Void)?
 
-    /// The widest the capsule may get; the wiring points it at the composer.
+    /// The widest the capsule may get; the wiring points it at the composer. The pill
+    /// states its own width, so a caller caps it here rather than pinning both edges.
     var maximumWidth: CGFloat? {
         didSet {
             widthLimit?.isActive = false
-            guard let maximumWidth else { widthLimit = nil; return }
-            let limit = widthAnchor.constraint(lessThanOrEqualToConstant: maximumWidth)
-            limit.isActive = true
-            widthLimit = limit
+            widthLimit = nil
+            if let maximumWidth {
+                let limit = widthAnchor.constraint(lessThanOrEqualToConstant: maximumWidth)
+                limit.isActive = true
+                widthLimit = limit
+            }
+            // Clearing the cap has to lift the width it set, not leave it behind.
             updateMeasuredWidth()
         }
     }
@@ -144,8 +148,9 @@ final class ThinkingCapsuleView: UIView {
     /// The line's own width, so a test can tell a pill with no width from a cut line.
     var textWidth: CGFloat { label.intrinsicContentSize.width }
 
-    /// Whether the line is drawn whole. Only the tests read it: a truncated label
-    /// keeps its whole line in its intrinsic size while its frame stays narrow.
+    /// Whether the line is drawn whole: the frame against the line, never against the
+    /// cap. A pill with no width of its own reads the same as a cut line, so the tests
+    /// that read this one state the frame it was measured in.
     var textFits: Bool { label.bounds.width + 0.5 >= label.intrinsicContentSize.width }
 
     /// Whether the mark is on screen, again for the tests that check the two shapes.

@@ -166,4 +166,20 @@ final class ThinkingCapsuleTests: XCTestCase {
         XCTAssertGreaterThan(longer.bounds.width, short.bounds.width,
                              "a longer line makes a wider capsule")
     }
+
+    /// The cap is a ceiling the pill may take back: clearing it lifts the width it set,
+    /// and the line is then drawn whole again.
+    func testClearingTheCapGivesTheLineItsWidthBack() {
+        let view = ThinkingCapsuleView()
+        view.maximumWidth = 160
+        view.configure(ThinkingCapsulePresentation(
+            text: String(repeating: "检查记忆中的项目结构 ", count: 12), look: look))
+        let container = hosted(view)
+        XCTAssertEqual(view.bounds.width, 160, accuracy: 0.5)
+
+        view.maximumWidth = nil
+        container.layoutIfNeeded()
+        XCTAssertGreaterThan(view.bounds.width, 160, "the old cap must not survive it")
+        XCTAssertTrue(view.textFits, "with the cap gone the whole line is drawn")
+    }
 }
