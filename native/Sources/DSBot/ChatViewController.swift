@@ -29,7 +29,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var composerHeight: NSLayoutConstraint!
     private var composerLeading: NSLayoutConstraint!
     private var composerTrailing: NSLayoutConstraint!
-    private var composerBottom: NSLayoutConstraint!
+    private var composerBottomRest: NSLayoutConstraint!
+    private var composerBottomKeyboard: NSLayoutConstraint!
     private var keyboardUp = false
     private let pendingDock = PendingDockView()
     private let blockedView = BotBlockedView()
@@ -1542,11 +1543,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         composerLeading = composer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Glass.margin)
         composerTrailing = composer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Glass.margin)
-        composerBottom = composer.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12)
+        // Two anchors, one live at a time. With usesBottomSafeArea on, the guide's
+        // top rests on the safe-area edge, so a composer pinned to it floats a
+        // status bar high and its end circles miss the display corner's centre.
+        composerBottomRest = composer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -Glass.margin)
+        composerBottomKeyboard = composer.bottomAnchor.constraint(
+            equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12)
+        composerBottomRest.isActive = true
         NSLayoutConstraint.activate([
             composerLeading,
             composerTrailing,
-            composerBottom,
             composerHeight,
             pendingDock.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
             pendingDock.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
@@ -1573,7 +1579,21 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         let side = composer.isExpanded ? Glass.margin : Metrics.Composer.restInset(screenR: screenR)
         composerLeading.constant = side
         composerTrailing.constant = -side
-        composerBottom.constant = keyboardUp ? -12 : -side
+        composerBottomRest.constant = -side
+        composerBottomKeyboard.constant = -12
+        if keyboardUp {
+            composerBottomRest.isActive = false
+            composerBottomKeyboard.isActive = true
+        } else {
+            composerBottomKeyboard.isActive = false
+            composerBottomRest.isActive = true
+        }
+        updateBottomInset()
+    }
+
+    /// The composer's own distance from the bottom edge, so the list can clear it.
+    private var composerBottomGap: CGFloat {
+        keyboardUp ? 12 : -composerBottomRest.constant
     }
 
     private func updateBottomInset() {
@@ -1590,7 +1610,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
         ).height + 8
         list.contentInset.bottom = composerHeight.constant + pendingHeight.constant + blockedHeight
-            + computerHeight + workHeight + 22
+            + computerHeight + workHeight + composerBottomGap + 12
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {
@@ -1724,6 +1744,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 if !staged.isEmpty { payload["images"] = .array(staged) }
                 _ = try await BotAPI.call("send", payload: .object(payload), on: session)
                 guard id == self.sessionID else { return }
+                // Chat.tsx:371 buzzes once the send has landed, not when the
+                // button goes down, so a failed send never clicks.
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 if let index = outbox[key]?.firstIndex(where: { $0.id == entry.id }) {
                     outbox[key]?[index].delivered = true
                     outbox[key]?[index].failureReason = nil
