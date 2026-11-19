@@ -294,8 +294,8 @@
 
 | 功能项 | RN 出处 | 原生现状 | 判定 |
 |---|---|---|---|
-| 玻璃层的命中测试 | —（RN 玻璃是 view，不吞子控件触摸） | `UIVisualEffectView` 会把落在自己身上的触摸吃掉，压在它下面的按钮点不中；`332fb9c` 让玻璃把触摸透给控件，不再盖住整条顶栏 | 一致（原生特有坑，RN 无对应） |
-| 输入框玻璃自成形 | —（RN 用 border-radius + 背景，不存在父层裁切） | `229f796`：玻璃边不能靠父视图 `clipsToBounds` 切——圆角会被切出硬边、材质也失真；改为 `UIVisualEffectView` 自带形状（`cornerConfiguration`） | 一致（原生特有实现，无 RN 对照） |
+| 玻璃层的命中测试 | —（RN 玻璃是 view，不吞子控件触摸） | `UIVisualEffectView` 会把落在自己身上的触摸吃掉，压在它下面的按钮点不中；`332fb9c` 让玻璃自身 `isUserInteractionEnabled = false` 并在容器上重写 `hitTest` 把点透给控件，不再盖住整条顶栏 | 一致（原生特有坑，RN 无对应） |
+| 输入框玻璃自成形 | —（RN 用 border-radius + 背景，不存在父层裁切） | `229f796`：玻璃的圆角不能靠父视图 `clipsToBounds` 切——边会被切出硬边、材质也失真；改为给玻璃自身的 `surface.layer.cornerRadius`（`masksToBounds = true`）成形，并在展开/收起的动画里同步改这个圆角值 | 一致（原生特有实现，无 RN 对照） |
 
 ## 备注：读表时容易误判的三处
 
