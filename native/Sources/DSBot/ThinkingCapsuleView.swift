@@ -145,13 +145,21 @@ final class ThinkingCapsuleView: UIView {
         }
     }
 
-    /// The line's own width, so a test can tell a pill with no width from a cut line.
-    var textWidth: CGFloat { label.intrinsicContentSize.width }
+    /// The line's own width, measured from the text and font rather than from the
+    /// label's intrinsic size: after a cap the label is laid out narrow, and UIKit
+    /// reports an intrinsic width that follows the frame it was given.
+    var textWidth: CGFloat { lineWidth() }
+
+    private func lineWidth() -> CGFloat {
+        guard let text = label.text, !text.isEmpty else { return 0 }
+        let font = label.font ?? UIFont.systemFont(ofSize: Self.fontSize)
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
 
     /// Whether the line is drawn whole: the frame against the line, never against the
     /// cap. A pill with no width of its own reads the same as a cut line, so the tests
     /// that read this one state the frame it was measured in.
-    var textFits: Bool { label.bounds.width + 0.5 >= label.intrinsicContentSize.width }
+    var textFits: Bool { label.bounds.width + 0.5 >= lineWidth() }
 
     /// Whether the mark is on screen, again for the tests that check the two shapes.
     var showsMark: Bool { !mark.isHidden }
@@ -238,7 +246,7 @@ final class ThinkingCapsuleView: UIView {
     /// truncated line and hid the difference from every test that only checked a cap.
     private func updateMeasuredWidth() {
         let room = Self.lead + (mark.isHidden ? 0 : Self.markSize + Self.gap) + Self.trail
-        let wanted = label.intrinsicContentSize.width + room
+        let wanted = lineWidth() + room
         let capped = maximumWidth.map { min(wanted, $0) } ?? wanted
         measuredWidth?.isActive = false
         let width = widthAnchor.constraint(equalToConstant: max(capped, room))
