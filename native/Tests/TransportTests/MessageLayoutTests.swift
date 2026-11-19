@@ -20,7 +20,8 @@ final class MessageLayoutTests: XCTestCase {
         members[0].inRoom = true
         RoomRowData.decorate(&members, bots: [.object(["id": .string("b-1"),
                                                        "name": .string("Aster"),
-                                                       "color": .string("violet")])],
+                                                       "color": .string("violet"),
+                                                       "avatar": .object(["shape": .string("whale")])])],
                              adminBotID: nil)
         cell.configure(members[0])
         XCTAssertTrue(cell.memberHeaderVisible)
