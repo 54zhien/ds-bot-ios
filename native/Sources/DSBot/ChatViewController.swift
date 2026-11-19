@@ -1418,12 +1418,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     @objc private func showSideChat() {
         guard linkStatus == .online, let botID, let chatSessionID else { return }
         let name: String
+        // The side chat draws the Bot as this page already knows it; it never
+        // derives a look of its own from the id.
+        var sideLook: CharacterMarks.Look?
         if case .array(let bots)? = teamState?["bots"],
            let bot = bots.first(where: { $0["id"]?.stringValue == botID }) {
             name = bot["name"]?.stringValue ?? tr("Bot")
+            sideLook = CharacterMarks.Look(bot: bot)
         } else { name = "Bot" }
         let side = SideChatViewController(botID: botID, botName: name,
-                                          sessionID: chatSessionID, session: session)
+                                          sessionID: chatSessionID, session: session, look: sideLook)
         present(UINavigationController(rootViewController: side), animated: true)
     }
 
