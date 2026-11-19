@@ -11,6 +11,10 @@ final class NativeComposerView: UIView, UITextViewDelegate {
     var onExpandedChange: ((Bool) -> Void)?
     var isExpanded: Bool { expanded }
     var canSend = false { didSet { updateAction() } }
+    /// Chat.tsx:502: the plus is drawn only when the host listed "send-images"
+    /// in its hello reply, so an older computer never invites a photo it cannot
+    /// take. The gate is the host's, not the link's: it follows each hello.
+    var canAttach = false { didSet { updateAction() } }
     var running = false { didSet { updateAction() } }
 
     let editor = UITextView()
@@ -273,8 +277,11 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         action.backgroundColor = stop ? palette.line2 : (ready ? palette.accent : palette.line)
         action.isEnabled = stop || ready
         action.accessibilityLabel = stop ? tr("Stop") : tr("Send")
-        addPhotoButton.isEnabled = canSend
-        addPhotoButton.alpha = canSend ? 1 : 0.35
+        addPhotoButton.isEnabled = canSend && canAttach
+        addPhotoButton.alpha = canSend && canAttach ? 1 : 0.35
+        // composer.tsx:84 drops the plus outright rather than dimming it, so an
+        // old computer shows no entry to a picker it cannot use.
+        addPhotoButton.isHidden = !canAttach
         action.setNeedsLayout()
     }
 

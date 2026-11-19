@@ -737,6 +737,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         session = nextSession
         // A fresh session means a fresh hello; push reporting waits for it.
         PushCenter.shared.hostOffline()
+        // The attach gate belongs to the host that is connecting, not the last one.
+        composer.canAttach = false
         let id = UUID()
         sessionID = id
         linkStatus = .connecting
@@ -956,6 +958,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             // The hello reply names what the host takes; the push token rides
             // only when the computer listed "push-token", and the API version
             // never moves for it.
+            // Chat.tsx:502 gates the attach entry on the host's own hello, the
+            // same reply that decides whether a push token can be reported.
+            composer.canAttach = hello["capabilities"]?.stringArrayValue?.contains("send-images") ?? false
             PushCenter.shared.hostOnline(hello: hello, session: session)
             if let pendingOffer {
                 pairingStore.save(pendingOffer)
