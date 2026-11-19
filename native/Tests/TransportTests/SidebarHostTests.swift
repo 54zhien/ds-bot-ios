@@ -58,18 +58,33 @@ final class SidebarHostTests: XCTestCase {
 
     /// The drawer is presented on the flag, once: a drag that never crosses keeps it shut.
     func testTheDrawerFollowsTheOpenFlagOnly() {
-        let (host, page) = fixture()
+        let (host, _) = fixture()
         var opened = 0
         host.onOpen = { opened += 1 }
 
         host.state.begin(eligible: true)
         host.state.drag(displacement: 100, travel: 340)
         host.state.end(velocity: 0, travel: 340, cancelled: false)
+        XCTAssertFalse(host.state.isOpen, "a third of the way is not open")
         XCTAssertEqual(opened, 0, "a third of the way is not open")
+        // Every end leaves a settlement behind (SidebarDragState:78) and a gesture may not
+        // start while one is settling (:49, zen's :58). The host reports the end back when
+        // its animation lands; here that is done by hand, so the second drag below starts
+        // on a free machine instead of racing a 0.22s animation.
+        settle(host)
 
         host.state.begin(eligible: true)
         host.state.drag(displacement: 340, travel: 340)
         host.state.end(velocity: 0, travel: 340, cancelled: false)
+        XCTAssertTrue(host.state.isOpen, "a full travel is past the half")
         XCTAssertEqual(opened, 1)
+    }
+
+    /// The call the host makes when the settlement animation finishes.
+    private func settle(_ host: SidebarHost) {
+        if let settlement = host.state.settlementID {
+            host.state.completeSettlement(settlement)
+        }
+        XCTAssertNil(host.state.settlementID, "the settlement owns the gesture until it ends")
     }
 }
