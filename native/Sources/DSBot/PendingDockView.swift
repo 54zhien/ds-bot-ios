@@ -119,6 +119,8 @@ final class PendingDockView: UIScrollView {
     }
 
     private func toggle(_ key: String) {
+        // dock.tsx:32: opening and closing a card is a selection tick.
+        UISelectionFeedbackGenerator().selectionChanged()
         chosenKey = chosenKey == key ? nil : key
         expandedKey = chosenKey ?? items.enumerated().first { entry in
             if case .aside = entry.element { return false }
@@ -286,10 +288,16 @@ final class PendingDockView: UIScrollView {
             defer { busy = false }
             do {
                 _ = try await BotAPI.call(endpoint, payload: .object(values), on: session)
-                // The two cards that answer a Bot carry the success buzz RN gives
-                // (dock.tsx:87,130); the dock's housekeeping calls stay quiet.
-                if endpoint == "answer-question" || endpoint == "approval-answer" {
+                // The two cards that answer a Bot carry the buzz RN gives
+                // (dock.tsx:87,130); an approval's reject takes the warning RN
+                // uses there (:135). The dock's housekeeping calls stay quiet.
+                switch endpoint {
+                case "answer-question":
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
+                case "approval-answer":
+                    let allowed = values["choice"]?.stringValue == "allow"
+                    UINotificationFeedbackGenerator().notificationOccurred(allowed ? .success : .warning)
+                default: break
                 }
                 onChanged?()
             } catch { onError?(error.localizedDescription) }
