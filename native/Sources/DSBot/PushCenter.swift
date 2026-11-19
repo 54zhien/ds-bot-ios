@@ -130,7 +130,6 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
         default: return "production"
         }
     }
-    }
 
     // MARK: UNUserNotificationCenterDelegate
 
