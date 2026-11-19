@@ -36,6 +36,9 @@ final class BotEditorViewController: UIViewController {
 
     private static let colors = ["black", "brown", "red", "orange", "yellow", "green",
                                  "cyan", "blue", "violet", "magenta", "gray", "aurora"]
+    // RN's picker list (manage.tsx:24), berry included. characters.js has no
+    // "berry", so hasShape() drops it and the mark comes from the Bot id —
+    // the desktop does the same, so the picker stays in step with it.
     private static let shapes = ["acorn", "berry", "bunny", "gem", "gumdrop", "kitty",
                                  "moon", "peanut", "star", "wave"]
 

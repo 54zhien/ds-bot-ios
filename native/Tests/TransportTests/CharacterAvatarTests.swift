@@ -136,6 +136,10 @@ final class CharacterAvatarTests: XCTestCase {
                        CharacterMarks.Look(shape: "moon", color: "cyan", image: nil))
         XCTAssertEqual(CharacterMarks.look(shape: "nonesuch", id: "abc"),
                        CharacterMarks.Look(shape: "gumdrop", color: "cyan", image: nil))
+        // "berry" is offered by the picker (manage.tsx:24) but defined nowhere in
+        // characters.js, so it takes the same branch — keep it, it is not a typo.
+        XCTAssertEqual(CharacterMarks.look(shape: "berry", id: "abc"),
+                       CharacterMarks.Look(shape: "gumdrop", color: "cyan", image: nil))
         XCTAssertEqual(CharacterMarks.look(color: "#123456", id: "abc"),
                        CharacterMarks.Look(shape: "gumdrop", color: "#123456", image: nil))
         XCTAssertEqual(CharacterMarks.look(color: "aurora", id: "abc"),
