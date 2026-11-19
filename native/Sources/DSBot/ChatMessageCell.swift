@@ -172,7 +172,13 @@ final class ChatMessageCell: UITableViewCell {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(_ row: ChatRow, images: [String: UIImage] = [:], stepsExpanded: Bool = false) {
+    /// The two facts the flat layout turns on, read by the test that pins it
+    /// (FlatLayoutTests) without reaching into the view tree.
+    var bubbleFillColor: UIColor? { bubble.backgroundColor }
+    var bubbleCornerRadius: CGFloat { bubble.layer.cornerRadius }
+
+    func configure(_ row: ChatRow, images: [String: UIImage] = [:], stepsExpanded: Bool = false,
+                   flat: Bool = false) {
         // The width rules are implicitly-unwrapped so init can build them: in an
         // array literal that reads as optional, hence the unwrap here.
         for constraint in [leading, trailing, centered, botWidth, userWidth,
@@ -180,15 +186,19 @@ final class ChatMessageCell: UITableViewCell {
             constraint.isActive = false
         }
         let notice = row.isNotice || row.kind == "steps"
+        // items.tsx:317-327: the flat layout lays a Bot or member row straight on
+        // the page colour, stretched to the whole column, with no bubble at all.
+        // A user row and a settled card keep their own shapes.
+        let bare = flat && !row.isUser && !notice && row.settled == nil
         // A settled card reuses the bubble as its full-width surface; the layer
         // state resets here because a reused cell may have drawn one.
         bubble.layer.borderWidth = 0
-        bubble.layer.cornerRadius = Radius.bubble
+        bubble.layer.cornerRadius = bare ? 0 : Radius.bubble
         textStack.isHidden = row.settled != nil
         cardStack.isHidden = row.settled == nil
-        textInsets.forEach { $0.isActive = row.settled == nil && !row.photosOnly }
+        textInsets.forEach { $0.isActive = row.settled == nil && !row.photosOnly && !bare }
         cardInsets.forEach { $0.isActive = row.settled != nil }
-        photoInsets.forEach { $0.isActive = row.photosOnly }
+        photoInsets.forEach { $0.isActive = row.photosOnly || bare }
         for view in cardStack.arrangedSubviews {
             cardStack.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -201,6 +211,9 @@ final class ChatMessageCell: UITableViewCell {
         } else if notice {
             centered.isActive = true
             noticeWidth.isActive = true
+        } else if bare {
+            leading.isActive = true
+            trailing.isActive = true
         } else if row.isUser {
             trailing.isActive = true
             userWidth.isActive = true
@@ -217,10 +230,11 @@ final class ChatMessageCell: UITableViewCell {
             bubble.layer.borderWidth = 1
             bubble.layer.borderColor = palette.line.cgColor
         }
-        authorLabel.isHidden = notice
+        authorLabel.isHidden = notice || (bare && !row.inRoom)
         authorLabel.text = row.author
         let wideBlock = row.settled == nil && !notice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
-        if wideBlock { (row.isUser ? wideUserWidth : wideWidth).isActive = true }
+        // A bare row already spans the column, so the block cap has nothing to add.
+        if wideBlock && !bare { (row.isUser ? wideUserWidth : wideWidth).isActive = true }
         if let summary = row.stepSummary {
             messageLabel.attributedText = nil
             messageLabel.text = summary
