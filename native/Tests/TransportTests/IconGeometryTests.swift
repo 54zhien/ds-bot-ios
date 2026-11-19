@@ -75,6 +75,44 @@ final class IconGeometryTests: XCTestCase {
         return raster(size) { _ in view.draw(CGRect(x: 0, y: 0, width: size, height: size)) }
     }
 
+    /// The box the glyph's own path occupies in the 20-unit viewBox. A glyph whose
+    /// path is not centred there cannot draw centred whatever the renderer does.
+    private func pathBox(_ icon: Icon) -> CGRect {
+        let union = UIBezierPath()
+        for part in icon.geometry() { union.append(part) }
+        return union.bounds
+    }
+
+    /// Reviewed as asymmetric inside the 20 box, so a centred assertion never held
+    /// for them: unread hangs its badge off a corner (x to 17.1), pinMark sits on
+    /// 5.1–12.9 across and 2.5–15 down, side spans 3–18 down. They match RN because
+    /// the path is the same path; the list keeps the reason on record instead of the
+    /// assertion being deleted. A glyph belongs here only if icon.geometry() itself
+    /// is off centre — the test enforces that below, so the list cannot rot.
+    private let reviewedAsymmetric: Set<Icon> = [.unread, .pinMark, .side]
+
+    /// The ink must land where the path says, and the path must be centred unless it
+    /// is on the reviewed list. Both halves are asserted, so neither can rot.
+    private func assertInkFollowsItsPath(_ box: CGRect, icon: Icon, size: CGFloat) {
+        let path = pathBox(icon)
+        let expectedX = path.midX / 20 * size
+        let expectedY = path.midY / 20 * size
+        XCTAssertEqual(box.midX, expectedX, accuracy: 0.5,
+            "\(icon) at \(size)pt: ink centre x \(box.midX), the path puts it at \(expectedX)")
+        XCTAssertEqual(box.midY, expectedY, accuracy: 0.5,
+            "\(icon) at \(size)pt: ink centre y \(box.midY), the path puts it at \(expectedY)")
+        XCTAssertGreaterThanOrEqual(box.minX, -0.5, "\(icon) at \(size)pt: clipped on the left")
+        XCTAssertLessThanOrEqual(box.maxX, size + 0.5, "\(icon) at \(size)pt: clipped on the right")
+        XCTAssertGreaterThanOrEqual(box.minY, -0.5, "\(icon) at \(size)pt: clipped on the top")
+        XCTAssertLessThanOrEqual(box.maxY, size + 0.5, "\(icon) at \(size)pt: clipped on the bottom")
+        let offCentre = abs(path.midX - 10) > 0.25 || abs(path.midY - 10) > 0.25
+        if reviewedAsymmetric.contains(icon) {
+            XCTAssertTrue(offCentre, "\(icon) is on the reviewed list but its path is centred: take it off")
+        } else {
+            XCTAssertFalse(offCentre, "\(icon) draws off centre in its 20 box: add it to reviewedAsymmetric with the measurement")
+        }
+    }
+
     private func assertCentred(_ box: CGRect, in size: CGFloat, _ label: String) {
         XCTAssertLessThanOrEqual(abs(box.midX - size / 2), 0.5,
             "\(label) at \(size)pt: ink centre x is \(box.midX), view centre \(size / 2)")
@@ -134,10 +172,12 @@ final class IconGeometryTests: XCTestCase {
                     continue
                 case .ink(let box):
                     boxes.append(box)
-                    assertCentred(box, in: size, "\(icon)")
+                    assertInkFollowsItsPath(box, icon: icon, size: size)
                 }
             }
-            let ratios = boxes.map { $0.height > 0 ? $0.width / $0.height : .greatestFiniteMagnitude }
+            // A glyph a point tall (dots' three dots) has no aspect worth asserting.
+            let ratios = boxes.filter { $0.height >= 2 }
+                .map { $0.width / $0.height }
             if let low = ratios.min(), let high = ratios.max() {
                 XCTAssertLessThanOrEqual(high - low, 0.1,
                     "\(icon) changes shape between sizes: aspect \(low) to \(high)")
