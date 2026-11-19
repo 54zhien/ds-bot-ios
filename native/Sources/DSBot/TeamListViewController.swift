@@ -91,6 +91,9 @@ final class OriginalSearchIcon: OriginalIconView {
 final class TeamListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
     private func tr(_ key: String) -> String { NativeLanguage.text(key) }
     var onSelect: ((ChatTarget) -> Void)?
+    /// The drawer is a child of the chat page, not a presentation, so closing it is the
+    /// host's business: dismiss() on a child does nothing.
+    var onClose: (() -> Void)?
     var onSettings: (() -> Void)?
     var onNeeds: (() -> Void)?
     var onCreateBot: (() -> Void)?
@@ -253,7 +256,8 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
 
     @objc private func openSettings() {
         let action = onSettings
-        dismiss(animated: true) { action?() }
+        onClose?()
+        action?()
     }
     @objc private func showCreate() {
         let sheet = NewChatSheetController()
@@ -263,9 +267,8 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
             let groupAction = onCreateGroup
             // ShellB.tsx:51: creating closes the drawer first, then navigates.
             sheet.dismiss(animated: true) {
-                self.dismiss(animated: true) {
-                    if choice == .bot { botAction?() } else { groupAction?() }
-                }
+                self.onClose?()
+                if choice == .bot { botAction?() } else { groupAction?() }
             }
         }
         present(sheet, animated: true)
@@ -673,7 +676,6 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1_000),
                                   forKey: "dsbot.seen.\(entry.target.id)")
         onSelect?(entry.target)
-        dismiss(animated: true)
     }
 
     private func rowState(_ preview: String) -> TeamRowCell.State {
@@ -711,7 +713,8 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if indexPath.section < sectionOffset {
             let action = onNeeds
-            dismiss(animated: true) { action?() }
+            onClose?()
+            action?()
             return
         }
         let entry = sections[indexPath.section - sectionOffset].1[indexPath.row]
@@ -727,10 +730,11 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
             guard let self else { done(false); return }
             let botAction = onEditBot
             let groupAction = onEditGroup
+            onClose?()
             if target.kind == .bot {
-                dismiss(animated: true) { botAction?(target.id) }
+                botAction?(target.id)
             } else {
-                dismiss(animated: true) { groupAction?(target.id) }
+                groupAction?(target.id)
             }
             done(true)
         }

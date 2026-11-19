@@ -128,7 +128,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// The cold-start restore ran once; later refreshes never re-pick.
     private var restoredLastChat = false
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
-    private let drawerTransition = TeamDrawerTransition()
+    /// The sidebar is a child below this page, not a presentation: it exists only while
+    /// the page is out of the way.
+    private weak var sidebarController: TeamListViewController?
     private var noticeTarget: ChatTarget?
     /// Chat.tsx:57-66: each chat's reading position, in memory only.
     private var scrollOffsets = ScrollOffsetBook()
@@ -279,9 +281,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             sidebar.travel = drawerWidth
             sidebar.install(host: self, window: window, page: transport)
         }
-        // The scrim's tap dismisses without going through the state, so the page comes
-        // back here rather than staying translated under a closed drawer.
-        if presentedViewController == nil, sidebar.state.isOpen { sidebar.state.close() }
+        // The sidebar rides the page, so a page that comes back without it is a state
+        // left open by a scene change: close it rather than sit translated.
+        if sidebarController == nil, sidebar.state.isOpen { sidebar.state.close() }
     }
 
     override func viewDidLoad() {
@@ -319,8 +321,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         configureLatestButton()
         // The edge pan that used to open the drawer is gone: WorkspaceSidebarInteraction
         // owns that gesture now, at the window layer, and the page carries the motion.
-        sidebar.onOpen = { [weak self] in self?.presentTeamDrawer() }
-        sidebar.onClose = { [weak self] in self?.dismissTeamDrawer() }
+        sidebar.onOpen = { [weak self] in self?.mountSidebar() }
+        sidebar.onClose = { [weak self] in self?.unmountSidebar() }
         savedOffer = pairingStore.load()
         updateEmptyState()
         if let savedOffer {
@@ -1407,7 +1409,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// The header's team button drives the same state machine the gesture does, so one
     /// motion subject answers both: the page moves, the panel never slides.
     @objc private func showTeam() {
-        guard teamState != nil, presentedViewController == nil else { return }
+        guard teamState != nil, sidebarController == nil else { return }
         view.endEditing(true)
         sidebar.travel = drawerWidth
         sidebar.state.open(eligible: true)
@@ -1415,27 +1417,38 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private var drawerWidth: CGFloat { min(view.bounds.width * 0.85, 340) }
 
-    /// Presented without an animation of its own: the page is already on its way, and a
-    /// second animator on the same tap is the double motion this model exists to avoid.
-    private func presentTeamDrawer() {
-        guard let teamState, presentedViewController == nil else { return }
+    /// zen's model: the drawer sits under the page and the page slides off it. It is a
+    /// child of this controller — no presentation, no scrim, no transition of its own —
+    /// inserted below the page in the parent's hierarchy, so the page is the only thing
+    /// that moves and it is what reveals the drawer.
+    private func mountSidebar() {
+        guard let teamState, sidebarController == nil, let container = view.superview else { return }
         let team = TeamListViewController(state: teamState)
-        team.onSelect = { [weak self] target in self?.selectTarget(target) }
+        team.onSelect = { [weak self] target in
+            self?.sidebar.state.close()
+            self?.selectTarget(target)
+        }
+        team.onClose = { [weak self] in self?.sidebar.state.close() }
         team.onSettings = { [weak self] in self?.showSettings() }
         team.onNeeds = { [weak self] in self?.showNeedsYou() }
         team.onCreateBot = { [weak self] in self?.showBotEditor(id: nil) }
         team.onCreateGroup = { [weak self] in self?.showGroupEditor(id: nil) }
         team.onEditBot = { [weak self] id in self?.showBotEditor(id: id) }
         team.onEditGroup = { [weak self] id in self?.showGroupEditor(id: id) }
-        // ShellB.tsx:354: the drawer is the bare list panel, no navigation stack.
-        team.modalPresentationStyle = .custom
-        team.transitioningDelegate = drawerTransition
-        present(team, animated: false)
+        addChild(team)
+        team.view.frame = CGRect(x: 0, y: 0, width: drawerWidth, height: container.bounds.height)
+        team.view.autoresizingMask = [.flexibleHeight]
+        container.insertSubview(team.view, belowSubview: view)
+        team.didMove(toParent: self)
+        sidebarController = team
     }
 
-    private func dismissTeamDrawer() {
-        guard presentedViewController is TeamListViewController else { return }
-        dismiss(animated: false)
+    private func unmountSidebar() {
+        guard let team = sidebarController else { return }
+        team.willMove(toParent: nil)
+        team.view.removeFromSuperview()
+        team.removeFromParent()
+        sidebarController = nil
     }
 
     private func showNeedsYou() {

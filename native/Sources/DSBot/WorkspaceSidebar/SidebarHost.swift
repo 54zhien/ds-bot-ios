@@ -54,6 +54,9 @@ final class SidebarHost {
     /// moves. A settlement animates there; without one, progress is followed directly.
     func reflect() {
         guard let page else { return }
+        // The drawer is mounted on the flag, so it has to be in place before the page
+        // uncovers it: the other order leaves one frame of bare window.
+        syncDrawer()
         let sign: CGFloat = isRightToLeft ? -1 : 1
         let target = CGFloat(state.progress) * travel * sign
         if let settlement = state.settlementID {
@@ -65,12 +68,20 @@ final class SidebarHost {
         }
         decoration.applyAppearance(surface: page, progress: CGFloat(state.progress),
                                    traits: page.traitCollection)
-        syncDrawer()
     }
 
     private func syncDrawer() {
-        guard state.isOpen != showsDrawer else { return }
-        showsDrawer = state.isOpen
-        if showsDrawer { onOpen?() } else { onClose?() }
+        if state.isOpen {
+            guard !showsDrawer else { return }
+            showsDrawer = true
+            onOpen?()
+            return
+        }
+        // Closing waits for the page to be home: unmounting the drawer while it still
+        // covers the window would show the bare container mid-slide. The settlement is
+        // what says the page has arrived, and its completion calls back through here.
+        guard showsDrawer, state.settlementID == nil else { return }
+        showsDrawer = false
+        onClose?()
     }
 }
