@@ -10,7 +10,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // or a tap that cold-launched the app is dropped before any scene
         // exists to receive it. An enabled phone re-registers every launch.
         PushCenter.shared.bootstrap()
-        true
+        return true
     }
 
     func application(
