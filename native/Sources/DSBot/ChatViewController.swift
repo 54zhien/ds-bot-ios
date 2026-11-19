@@ -92,6 +92,18 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// from a failed read: it shows one quiet line and offers no retry, because
     /// retrying a chat that no longer exists can only fail again.
     private var gone = false
+    /// True while the open chat was picked by the app rather than by the reader:
+    /// a restored last chat or a reconnect. Only such a target steps aside when
+    /// the computer no longer has it; one the reader tapped stays put.
+    private var autoSelectedTarget = false
+    /// The read path reports a deleted chat here and does nothing else with it;
+    /// what a dead target means is the restore chain's decision, so the
+    /// direction stays in one place.
+    var onTargetInvalid: ((ChatTarget) -> Void)?
+    /// Chat.tsx:257 reads the computer's `prefs.layout`; flat lays Bot rows on
+    /// the page colour with no bubble. The width preference beside it is not
+    /// read here: a phone is always RN's narrow branch, which ignores it.
+    private var flat = false
     /// The live key the host gave us; sent back so the host can answer unchanged.
     private var liveKey: String?
     private var polling: Task<Void, Never>?
@@ -185,7 +197,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             for path in list.indexPathsForVisibleRows ?? [] where rows[path.row].imageRefs.contains(attachmentID) {
                 if let cell = list.cellForRow(at: path) as? ChatMessageCell {
                     cell.configure(rows[path.row], images: previewImages(for: rows[path.row]),
-                                   stepsExpanded: expandedSteps.contains(rows[path.row].sourceKey))
+                                   stepsExpanded: expandedSteps.contains(rows[path.row].sourceKey),
+                                   flat: flat)
                 }
             }
         }
@@ -250,6 +263,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         // the banner uses, so taps, banners and pushes land identically.
         PushCenter.shared.openChat = { [weak self] kind, id in
             self?.openPushTarget(kind: kind, id: id)
+        }
+        // The restore chain owns where a dead target sends the reader. A chat it
+        // picked by itself falls back through the same Main-Bot pick a cold start
+        // uses; a chat the reader tapped is left where it is, reading as empty.
+        onTargetInvalid = { [weak self] _ in
+            guard let self, self.autoSelectedTarget else { return }
+            self.autoSelectedTarget = false
+            self.selectedTarget = nil
+            self.reconnectTarget = nil
+            Task { await self.refreshLatest(for: self.sessionID) }
         }
         configureHeader()
         updateSideButton()
@@ -994,6 +1017,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             }
             loadError = nil
             teamState = state
+            // Chat.tsx:257: the computer's own message-layout preference.
+            flat = state["prefs"]?["layout"]?.stringValue == "flat"
             ThemeStore.update(from: state)
             let selected = state["mainBotId"]?.stringValue
             let bots: [JSONValue]
@@ -1019,7 +1044,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 reconnectTarget = nil
                 let present = (back.kind == .bot ? bots : rooms)
                     .contains { $0["id"]?.stringValue == back.id }
-                if present { selectedTarget = back }
+                if present { selectedTarget = back; autoSelectedTarget = true }
             }
             // Cold start lands on the chat the reader last opened
             // (ShellB.tsx:326-330 reads it before the navigator renders);
@@ -1034,6 +1059,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                            .contains { $0["id"]?.stringValue == target.id }
                    }) {
                     selectedTarget = saved
+                    autoSelectedTarget = true
                 }
             }
             let chosen: JSONValue?
@@ -1160,6 +1186,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 // ShellB.tsx:194 drops the saved chat with the target it named.
                 LastChatStore.clear()
                 updateEmptyState()
+                // The fact goes to the restore chain; this path never moves the
+                // selection itself.
+                if let target = selectedTarget { onTargetInvalid?(target) }
                 return
             }
             if linkStatus != .online { return }
@@ -1473,6 +1502,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                             cursor: cursor, sessionID: chatSessionID)
         }
         selectedTarget = target
+        // The reader asked for this one, so a deleted chat leaves them here.
+        autoSelectedTarget = false
         // ShellB.tsx:167: every target switch saves the chat the user opened.
         LastChatStore.save(target)
         // The fields name the incoming chat right away: the restored page below then
@@ -1878,7 +1909,7 @@ extension ChatViewController: UITableViewDataSource {
         let cell = tableView.dequeueReusableCell(withIdentifier: "row", for: indexPath) as! ChatMessageCell
         let row = rows[indexPath.row]
         cell.configure(row, images: previewImages(for: row),
-                       stepsExpanded: expandedSteps.contains(row.sourceKey))
+                       stepsExpanded: expandedSteps.contains(row.sourceKey), flat: flat)
         cell.onOpenFile = { [weak self] file in self?.openFile(file) }
         cell.onOpenPhoto = { [weak self] reference in self?.openPhotos(row.imageRefs, startingWith: reference) }
         if let chatSessionID {
