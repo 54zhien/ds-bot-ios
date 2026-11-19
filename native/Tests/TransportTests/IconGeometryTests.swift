@@ -175,14 +175,17 @@ final class IconGeometryTests: XCTestCase {
                     assertInkFollowsItsPath(box, icon: icon, size: size)
                 }
             }
-            // A glyph a point tall has no aspect to judge, and that is a property of
-            // the size, not of the glyph: dots measures under 2pt at small sizes and
-            // over it at large ones. Sizes below the line drop out; a glyph with
-            // fewer than three sizes left gets no aspect assertion at all.
-            let ratios = boxes.filter { $0.height >= 2 }.map { $0.width / $0.height }
-            if ratios.count >= 3, let low = ratios.min(), let high = ratios.max() {
-                XCTAssertLessThanOrEqual(high - low, 0.1,
-                    "\(icon) changes shape between sizes: aspect \(low) to \(high)")
+            // A shape whose own path has no height or no width has no aspect to keep:
+            // dots pins y at 10 for all three points, so its ratio drifts with the
+            // stroke width rather than with the drawing. Judged on the path, not on
+            // a height threshold, so a change to strokeWidth cannot restart this.
+            let path = pathBox(icon)
+            if path.width >= 0.5 && path.height >= 0.5 {
+                let ratios = boxes.map { $0.height > 0 ? $0.width / $0.height : .greatestFiniteMagnitude }
+                if let low = ratios.min(), let high = ratios.max() {
+                    XCTAssertLessThanOrEqual(high - low, 0.1,
+                        "\(icon) changes shape between sizes: aspect \(low) to \(high)")
+                }
             }
         }
     }
