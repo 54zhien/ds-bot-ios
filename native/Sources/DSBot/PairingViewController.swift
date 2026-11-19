@@ -5,6 +5,7 @@ final class PairingViewController: UIViewController {
     private let field = UITextField()
     private let errorLabel = UILabel()
     private let progressLabel = UILabel()
+    private var pendingLink: String?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -28,6 +29,9 @@ final class PairingViewController: UIViewController {
         field.autocorrectionType = .no
         field.clearButtonMode = .whileEditing
         field.textContentType = .URL
+        // "Go" submits, the way the RN pairing row does (Pair.tsx:55).
+        field.returnKeyType = .go
+        field.delegate = self
         errorLabel.numberOfLines = 0
         errorLabel.font = .preferredFont(forTextStyle: .subheadline)
         errorLabel.textColor = .systemRed
@@ -48,6 +52,7 @@ final class PairingViewController: UIViewController {
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
+        applyPendingLink()
     }
 
     @objc private func close() { dismiss(animated: true) }
@@ -78,6 +83,24 @@ final class PairingViewController: UIViewController {
 
     func showError(_ message: String) { errorLabel.text = message }
 
+    /// A pairing link that arrived from outside the app (a deep link) fills
+    /// the field and submits at once, the way the scanner does.
+    func open(link: String) {
+        guard isViewLoaded else {
+            pendingLink = link
+            return
+        }
+        field.text = link
+        submit()
+    }
+
+    private func applyPendingLink() {
+        guard let pendingLink else { return }
+        field.text = pendingLink
+        pendingLink = nil
+        submit()
+    }
+
     @objc private func submit() {
         do {
             let offer = try PairingLink.parse(field.text ?? "")
@@ -89,5 +112,14 @@ final class PairingViewController: UIViewController {
         } catch {
             errorLabel.text = error.localizedDescription
         }
+    }
+}
+
+extension PairingViewController: UITextFieldDelegate {
+    // Keep the keyboard up when the link does not parse: the explanation is
+    // right under the field, and the fix is usually one character.
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        submit()
+        return false
     }
 }

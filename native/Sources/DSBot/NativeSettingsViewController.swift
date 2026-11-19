@@ -32,7 +32,7 @@ final class NativeSettingsViewController: UITableViewController {
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        [4, 7, 1][section]
+        [5, 7, 1][section]
     }
     override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { 38 }
     override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
@@ -62,6 +62,15 @@ final class NativeSettingsViewController: UITableViewController {
             toggle.addTarget(self, action: #selector(changeBanners(_:)), for: .valueChanged)
             cell.accessoryView = toggle
         case (0, 3):
+            cell.textLabel?.text = tr("Push notifications")
+            cell.detailTextLabel?.text = nil
+            cell.accessoryView = nil
+            let toggle = UISwitch()
+            toggle.isOn = UserDefaults.standard.string(forKey: "dsbot.push") == "on"
+            toggle.onTintColor = palette.accent
+            toggle.addTarget(self, action: #selector(changePush(_:)), for: .valueChanged)
+            cell.accessoryView = toggle
+        case (0, 4):
             cell.textLabel?.text = tr("Language")
             let selected = languages.first { $0.0 == NativeLanguage.mode }?.1 ?? "Follow system"
             cell.detailTextLabel?.text = tr(selected)
@@ -117,6 +126,11 @@ final class NativeSettingsViewController: UITableViewController {
                 changeBanners(toggle)
             }
         case (0, 3):
+            if let toggle = tableView.cellForRow(at: indexPath)?.accessoryView as? UISwitch {
+                toggle.setOn(!toggle.isOn, animated: true)
+                changePush(toggle)
+            }
+        case (0, 4):
             let sheet = UIAlertController(title: tr("Language"), message: nil, preferredStyle: .actionSheet)
             for (mode, name) in languages {
                 sheet.addAction(UIAlertAction(title: tr(name), style: .default) { [weak self] _ in
@@ -152,6 +166,15 @@ final class NativeSettingsViewController: UITableViewController {
 
     @objc private func changeBanners(_ sender: UISwitch) {
         UserDefaults.standard.set(sender.isOn ? "on" : "off", forKey: "dsbot.banners")
+    }
+
+    // The system's answer decides the switch: a refusal leaves push off, with
+    // no error on screen - re-enabling happens in iOS Settings first.
+    @objc private func changePush(_ sender: UISwitch) {
+        Task {
+            let on = await PushCenter.shared.setEnabled(sender.isOn)
+            sender.setOn(on, animated: true)
+        }
     }
 
     static func style(for theme: String) -> UIUserInterfaceStyle {

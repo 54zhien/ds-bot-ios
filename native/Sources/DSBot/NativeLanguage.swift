@@ -16,6 +16,7 @@ enum NativeLanguage {
         "Chat": "对话",
         "Main Bots": "主 Bot",
         "Bot capabilities": "Bot 能力",
+        "Push notifications": "推送通知",
         "Custom provider": "自定义模型服务商",
         "No Bot yet": "还没有 Bot",
         "Checking computer…": "正在检查电脑…",

@@ -286,6 +286,11 @@ final class PendingDockView: UIScrollView {
             defer { busy = false }
             do {
                 _ = try await BotAPI.call(endpoint, payload: .object(values), on: session)
+                // The two cards that answer a Bot carry the success buzz RN gives
+                // (dock.tsx:87,130); the dock's housekeeping calls stay quiet.
+                if endpoint == "answer-question" || endpoint == "approval-answer" {
+                    UINotificationFeedbackGenerator().notificationSuccess()
+                }
                 onChanged?()
             } catch { onError?(error.localizedDescription) }
         }
