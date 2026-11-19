@@ -58,7 +58,7 @@ final class ConversationDetailsViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        if target.kind == .bot { return [2, 5, 3, 1][section] }
+        if target.kind == .bot { return [2, 6, 3, 1][section] }
         if section == 1 { return memberIDs.count }
         return section == 0 ? 2 : state["memory"] == .bool(false) ? 2 : 3
     }
@@ -124,6 +124,10 @@ final class ConversationDetailsViewController: UITableViewController {
             navigationController?.pushViewController(
                 BotCapabilitiesViewController(botID: target.id, session: session), animated: true
             )
+        } else if target.kind == .bot && indexPath.section == 1 && indexPath.row == 5 {
+            navigationController?.pushViewController(
+                ProviderSettingsViewController(session: session), animated: true
+            )
         } else if target.kind == .bot && indexPath.section == 1 && indexPath.row == 1 {
             pickPermission(source: tableView.cellForRow(at: indexPath))
         } else if target.kind == .bot && indexPath.section == 1 && indexPath.row != 2 {
@@ -151,7 +155,8 @@ final class ConversationDetailsViewController: UITableViewController {
         switch (path.section, path.row) {
         case (0, 0): return (NativeLanguage.text("Name"), bot?["name"]?.stringValue ?? target.name)
         case (0, 1): return (NativeLanguage.text("Role"), bot?["role"]?.stringValue ?? "—")
-        case (1, 0): return (NativeLanguage.text("Model"), bot?["model"]?.stringValue ?? state["defaultModel"]?.stringValue ?? NativeLanguage.text("Default"))
+        case (1, 0): return (NativeLanguage.text("Model"), modelDisplay)
+        case (1, 5): return (NativeLanguage.text("Models and providers…"), "")
         case (1, 1): return (NativeLanguage.text("Permissions"), permissionOverride ?? bot?["permission"]?.stringValue
                              ?? state["permissions"]?["defaultPreset"]?.stringValue ?? NativeLanguage.text("Default"))
         case (1, 2): return (NativeLanguage.text("Working folder"), workDirOverride ?? bot?["workDir"]?.stringValue ?? NativeLanguage.text("Team workspace"))
@@ -166,6 +171,21 @@ final class ConversationDetailsViewController: UITableViewController {
     }
 
     private var memberIDs: [String] { record?["members"]?.stringArrayValue ?? [] }
+
+    /// model-menu.tsx:37-43 modelOf: the chosen model, else the one it last ran on,
+    /// shown by the catalogue's own name — the ref is an id, not a label.
+    private var modelDisplay: String {
+        let ref = record?["model"]?.stringValue ?? record?["appliedModel"]?.stringValue
+        guard let ref else { return NativeLanguage.text("Default") }
+        if case .array(let models)? = state["models"],
+           let served = models.first(where: { $0["ref"]?.stringValue == ref }),
+           let name = served["name"]?.stringValue {
+            return name
+        }
+        // No catalogue entry: the ref without its provider prefix, as RN falls back.
+        let tail = ref.split(separator: "/").dropFirst().joined(separator: "/")
+        return tail.isEmpty ? ref : tail
+    }
 
     private func pickPermission(source: UIView?) {
         guard case .array(let options)? = state["permissions"]?["options"] else { return }
