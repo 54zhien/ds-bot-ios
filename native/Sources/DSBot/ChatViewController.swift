@@ -105,9 +105,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var reconnectTarget: ChatTarget?
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
     private let drawerTransition = TeamDrawerTransition()
-    private let noticeBanner = UIButton(type: .system)
     private var noticeTarget: ChatTarget?
-    private var noticeGeneration = 0
 
     private var chatKey: String? {
         guard let host = savedOffer?.hostDeviceId, let target = botID ?? roomID else { return nil }
@@ -241,7 +239,11 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(themeChanged),
                                                name: ThemeStore.changed, object: nil)
         view.backgroundColor = palette.main
-        configureNoticeBanner()
+        // A push tap names a chat by id; routing goes through the same door
+        // the banner uses, so taps, banners and pushes land identically.
+        PushCenter.shared.openChat = { [weak self] kind, id in
+            self?.openPushTarget(kind: kind, id: id)
+        }
         configureHeader()
         updateSideButton()
         configureDiagnosticsMenu()
@@ -683,6 +685,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         stream.clear()
         let nextSession = LinkSession()
         session = nextSession
+        // A fresh session means a fresh hello; push reporting waits for it.
+        PushCenter.shared.hostOffline()
         let id = UUID()
         sessionID = id
         linkStatus = .connecting
@@ -788,27 +792,6 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
     }
 
-    private func configureNoticeBanner() {
-        noticeBanner.translatesAutoresizingMaskIntoConstraints = false
-        noticeBanner.isHidden = true
-        noticeBanner.backgroundColor = .secondarySystemGroupedBackground
-        noticeBanner.layer.cornerRadius = 12
-        noticeBanner.layer.borderWidth = 1
-        noticeBanner.layer.borderColor = view.tintColor.cgColor
-        noticeBanner.contentHorizontalAlignment = .leading
-        noticeBanner.titleLabel?.numberOfLines = 2
-        noticeBanner.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
-        noticeBanner.setTitleColor(.label, for: .normal)
-        noticeBanner.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
-        noticeBanner.addTarget(self, action: #selector(openNotice), for: .touchUpInside)
-        view.addSubview(noticeBanner)
-        NSLayoutConstraint.activate([
-            noticeBanner.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            noticeBanner.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            noticeBanner.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-        ])
-    }
-
     private func showNoticeBanner(_ data: JSONValue) {
         guard UserDefaults.standard.string(forKey: "dsbot.banners") != "off",
               let kind = data["kind"]?.stringValue, kind == "question" || kind == "approval" else { return }
@@ -825,24 +808,39 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         noticeTarget = ChatTarget(kind: targetKind, id: targetID, name: name)
         let title = data["title"]?.stringValue
         let message = data["text"]?.stringValue ?? ""
-        noticeBanner.setTitle([title, message].compactMap { $0 }.filter { !$0.isEmpty }
-            .joined(separator: ": "), for: .normal)
-        noticeBanner.isHidden = false
-        view.bringSubviewToFront(noticeBanner)
-        noticeGeneration += 1
-        let generation = noticeGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
-            guard self?.noticeGeneration == generation else { return }
-            self?.noticeBanner.isHidden = true
-            self?.noticeTarget = nil
-        }
+        // Window level, not this view: a notice that lands while a sheet is up
+        // has to stay visible above it, the way the RN shell banner does.
+        NoticeOverlay.shared.show(
+            text: [title, message].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ": "),
+            onTap: { [weak self] in self?.openNotice() },
+            onAutoHide: { [weak self] in self?.noticeTarget = nil })
     }
 
-    @objc private func openNotice() {
+    private func openNotice() {
         guard let target = noticeTarget else { return }
-        noticeBanner.isHidden = true
         noticeTarget = nil
-        selectTarget(target)
+        route(to: target)
+    }
+
+    /// A push tap carries ids only; the display name comes from team state.
+    private func openPushTarget(kind: ChatTarget.Kind, id: String) {
+        let records = kind == .bot ? teamState?["bots"] : teamState?["rooms"]
+        var name = id
+        if case .array(let values)? = records {
+            name = values.first { $0["id"]?.stringValue == id }?["name"]?.stringValue ?? id
+        }
+        route(to: ChatTarget(kind: kind, id: id, name: name))
+    }
+
+    /// The one landing door for banners and push taps: a sheet that happens to
+    /// be open closes first, so the user sees the chat they were pointed at.
+    private func route(to target: ChatTarget) {
+        let sheet = presentedViewController ?? navigationController?.presentedViewController
+        if let sheet {
+            sheet.dismiss(animated: true) { [weak self] in self?.selectTarget(target) }
+        } else {
+            selectTarget(target)
+        }
     }
 
     private func showStatus(_ status: LinkSession.Status, for id: UUID) {
@@ -905,6 +903,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 await session.disconnect()
                 return
             }
+            // The hello reply names what the host takes; the push token rides
+            // only when the computer listed "push-token", and the API version
+            // never moves for it.
+            PushCenter.shared.hostOnline(hello: hello, session: session)
             if let pendingOffer {
                 pairingStore.save(pendingOffer)
                 savedOffer = pendingOffer
@@ -1223,7 +1225,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         presentPairingSheet()
     }
 
-    private func presentPairingSheet() {
+    private func presentPairingSheet(prefill: String? = nil) {
         let sheet = PairingViewController()
         sheet.onPair = { [weak self] offer in
             guard let self else { return }
@@ -1231,6 +1233,24 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             self.connect(to: offer, pairingCode: offer.code)
         }
         present(UINavigationController(rootViewController: sheet), animated: true)
+        if let prefill { sheet.open(link: prefill) }
+    }
+
+    /// A dsbot://pair link from the system (App.tsx:104-110 in RN) lands here
+    /// from the scene delegate, cold start or live tap alike: it goes through
+    /// the same sheet, so a bad link is explained where the link is shown.
+    func openPairingURL(_ url: URL) {
+        let link = url.absoluteString
+        if let sheet = (presentedViewController as? UINavigationController)?.topViewController as? PairingViewController {
+            sheet.open(link: link)
+            return
+        }
+        let present = { [weak self] in self?.presentPairingSheet(prefill: link) }
+        if presentedViewController != nil {
+            dismiss(animated: true, completion: present)
+        } else {
+            present()
+        }
     }
 
     @objc private func showTeam() {
@@ -1252,9 +1272,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private func showNeedsYou() {
         guard let teamState else { return }
+        // ShellB.tsx:339: the sheet is the bare list with its own grabber.
         let needs = NeedsYouViewController(state: teamState)
         needs.onOpen = { [weak self] target in self?.selectTarget(target) }
-        present(UINavigationController(rootViewController: needs), animated: true)
+        present(needs, animated: true)
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
