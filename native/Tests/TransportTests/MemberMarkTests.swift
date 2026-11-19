@@ -73,8 +73,10 @@ final class MemberMarkTests: XCTestCase {
         XCTAssertEqual(mark.frame.width, 28)
         XCTAssertEqual(mark.frame.height, 28)
         XCTAssertEqual(row.accessibilityLabel, "Nova, " + NativeLanguage.text("Side chat"))
-        XCTAssertNotNil(labels(in: row).first { $0.text == "Nova" })
-        XCTAssertNotNil(labels(in: row).first { $0.text == NativeLanguage.text("Side chat") })
+        // The head keeps its labels inside a column stack, so the shallow
+        // direct-children helper cannot see them; the recursive one can.
+        XCTAssertNotNil(find(UILabel.self, in: row).first { $0.text == "Nova" })
+        XCTAssertNotNil(find(UILabel.self, in: row).first { $0.text == NativeLanguage.text("Side chat") })
     }
 
     /// manage.tsx:504,:223: the editor shows the Bot as it will look, and a photo
