@@ -86,6 +86,18 @@ enum ChatEventText {
     }
 }
 
+/// im-platforms.js: the display names a via tag shows. items.tsx:272 uses them
+/// as-is, without translating the platform's own name.
+enum IMPlatforms {
+    static let names = [
+        "telegram": "Telegram", "weixin": "WeChat", "feishu": "Feishu / Lark",
+        "dingtalk": "DingTalk", "wecom": "WeCom", "qq": "QQ",
+        "discord": "Discord", "slack": "Slack",
+    ]
+
+    static func name(_ id: String) -> String? { names[id] }
+}
+
 struct ChatRow {
     let kind: String
     let name: String
@@ -101,6 +113,9 @@ struct ChatRow {
     let stepSummary: String?
     let stepDetails: [String]
     let time: Date?
+    /// The IM platform a user message came in over, when it did (parts.js:1799
+    /// viaOf reads it from the event's source rpcId).
+    let via: String?
     let sourceKey: String
     let localID: UUID?
     let failed: Bool
@@ -221,6 +236,7 @@ struct ChatRow {
         } else {
             time = nil
         }
+        via = value["via"]?.stringValue
         let sequence = value["seq"]?.intValue.map { String($0) } ?? ""
         let timestamp = value["time"]?.intValue.map { String($0) } ?? ""
         let turn = value["turn"]?.intValue.map { String($0) } ?? ""
@@ -244,6 +260,7 @@ struct ChatRow {
         stepDetails = []
         self.text = text
         time = Date()
+        via = nil
         sourceKey = "local-\(localID.uuidString)"
         self.localID = localID
         failed = failureReason != nil
@@ -252,6 +269,20 @@ struct ChatRow {
 
     var isUser: Bool { kind == "user" }
     var isNotice: Bool { kind == "event" || kind == "divider" || kind == "relay" }
+
+    /// items.tsx:244 photosOnly: photos with no text and no file chips show
+    /// bare, without a bubble around them.
+    var photosOnly: Bool {
+        isUser && messageText.isEmpty && files.isEmpty
+            && (!imageRefs.isEmpty || !localImageData.isEmpty)
+    }
+
+    /// items.tsx:272 t('via {platform}'), with im-platforms.js's display name
+    /// falling back to the raw id the way RN's `?? item.via` does.
+    static func viaTagText(_ via: String) -> String {
+        NativeLanguage.text("via {platform}", ["platform": IMPlatforms.name(via) ?? via])
+    }
+
     var author: String {
         if isUser { return NativeLanguage.text("You") }
         if !name.isEmpty { return name }

@@ -59,6 +59,8 @@ final class ChatMessageCell: UITableViewCell {
     private let photos = PhotoGridView()
     private let fileStack = UIStackView()
     // Two views, two rules: the clock obeys the room, the send state never does.
+    private let viaLabel = ViaTagLabel()
+    private let stampRow = UIStackView()
     private let timeLabel = UILabel()
     private let stateLabel = UILabel()
     private let textStack = UIStackView()
@@ -66,6 +68,9 @@ final class ChatMessageCell: UITableViewCell {
     private let cardStack = UIStackView()
     private var textInsets: [NSLayoutConstraint] = []
     private var cardInsets: [NSLayoutConstraint] = []
+    /// A photos-only user row carries no bubble, so its stack hugs the row edge
+    /// (items.tsx:248 zeroes the bubble's padding there).
+    private var photoInsets: [NSLayoutConstraint] = []
     private var leading: NSLayoutConstraint!
     private var trailing: NSLayoutConstraint!
     private var centered: NSLayoutConstraint!
@@ -99,12 +104,23 @@ final class ChatMessageCell: UITableViewCell {
         fileStack.spacing = 6
         timeLabel.font = TypeScale.caption.font
         timeLabel.textColor = palette.ink3
+        // items.tsx:547 styles.via: 11/16 with the platform painted onto the text.
+        viaLabel.font = Typography(size: 11, lineHeight: 16, weight: .regular).font
+        viaLabel.textColor = palette.ink3
+        viaLabel.backgroundColor = palette.hover
+        viaLabel.layer.cornerRadius = Radius.item
+        viaLabel.clipsToBounds = true
+        // items.tsx:271 lays the via tag and the clock on one row, six apart.
+        stampRow.axis = .horizontal
+        stampRow.spacing = 6
+        stampRow.alignment = .center
+        [viaLabel, timeLabel].forEach { stampRow.addArrangedSubview($0) }
         stateLabel.font = TypeScale.caption.font
         stateLabel.textColor = palette.ink3
         textStack.axis = .vertical
         textStack.spacing = 4
         textStack.translatesAutoresizingMaskIntoConstraints = false
-        [authorLabel, messageLabel, markdownView, photos, fileStack, timeLabel, stateLabel]
+        [authorLabel, messageLabel, markdownView, photos, fileStack, stampRow, stateLabel]
             .forEach { textStack.addArrangedSubview($0) }
         bubble.addSubview(textStack)
         cardStack.axis = .vertical
@@ -145,6 +161,12 @@ final class ChatMessageCell: UITableViewCell {
             cardStack.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 16),
             cardStack.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -16),
         ]
+        photoInsets = [
+            textStack.topAnchor.constraint(equalTo: bubble.topAnchor),
+            textStack.bottomAnchor.constraint(equalTo: bubble.bottomAnchor),
+            textStack.leadingAnchor.constraint(equalTo: bubble.leadingAnchor),
+            textStack.trailingAnchor.constraint(equalTo: bubble.trailingAnchor),
+        ]
         NSLayoutConstraint.activate(textInsets)
     }
 
@@ -164,8 +186,9 @@ final class ChatMessageCell: UITableViewCell {
         bubble.layer.cornerRadius = Radius.bubble
         textStack.isHidden = row.settled != nil
         cardStack.isHidden = row.settled == nil
-        textInsets.forEach { $0.isActive = row.settled == nil }
+        textInsets.forEach { $0.isActive = row.settled == nil && !row.photosOnly }
         cardInsets.forEach { $0.isActive = row.settled != nil }
+        photoInsets.forEach { $0.isActive = row.photosOnly }
         for view in cardStack.arrangedSubviews {
             cardStack.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -186,7 +209,9 @@ final class ChatMessageCell: UITableViewCell {
             botWidth.isActive = true
         }
         // The asymmetry is deliberate: a user message is a bubble, a Bot message is text.
-        bubble.backgroundColor = row.settled != nil ? palette.card : row.isUser ? palette.user : .clear
+        // items.tsx:248 drops the bubble's fill and padding when photos stand alone.
+        bubble.backgroundColor = row.settled != nil ? palette.card
+            : row.isUser && !row.photosOnly ? palette.user : .clear
         if row.settled != nil {
             bubble.layer.cornerRadius = Radius.dialog
             bubble.layer.borderWidth = 1
@@ -267,6 +292,12 @@ final class ChatMessageCell: UITableViewCell {
         timeLabel.textColor = palette.ink3
         timeLabel.numberOfLines = 1
         timeLabel.isHidden = row.localID != nil || row.inRoom || !stampable || row.stampFolded
+        // The tag is the item's own field, so items.tsx:268 keeps it where the
+        // room hides the clock and where the stamp folds into a Bot's run.
+        viaLabel.text = row.via.map { ChatRow.viaTagText($0) }
+        viaLabel.textColor = palette.ink3
+        viaLabel.backgroundColor = palette.hover
+        viaLabel.isHidden = row.via == nil
         if row.failed {
             let reason = row.failureReason.map { NativeLanguage.text("Not sent · {reason}", ["reason": $0]) }
             stateLabel.text = reason ?? NativeLanguage.text("Not sent. Tap to retry")
@@ -398,6 +429,20 @@ final class ChatMessageCell: UITableViewCell {
         row.addArrangedSubview(badge)
         row.addArrangedSubview(settledBody(pick.label))
         return row
+    }
+}
+
+/// items.tsx:547 styles.via paints the tag's background straight onto the text
+/// with six points of side padding and a 16-point line height, none of which a
+/// plain label draws for itself.
+private final class ViaTagLabel: UILabel {
+    override func drawText(in rect: CGRect) {
+        super.drawText(in: rect.insetBy(dx: 6, dy: 0))
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let size = super.intrinsicContentSize
+        return CGSize(width: size.width + 12, height: max(size.height, 16))
     }
 }
 
