@@ -64,6 +64,14 @@ final class ChatMessageCell: UITableViewCell {
     private let timeLabel = UILabel()
     private let stateLabel = UILabel()
     private let textStack = UIStackView()
+    /// items.tsx:268-278: a room row carries its member outside the bubble — a 22pt
+    /// avatar in its own column, then the name in the member's colour, the Admin
+    /// mark and the clock above the bubble.
+    private let memberAvatar = UIView()
+    private let memberHeader = UIStackView()
+    private let memberNameLabel = UILabel()
+    private let memberAdminTag = UILabel()
+    private let memberTimeLabel = UILabel()
     /// The settled card's content, swapped in for the ordinary stack.
     private let cardStack = UIStackView()
     private var textInsets: [NSLayoutConstraint] = []
@@ -122,6 +130,36 @@ final class ChatMessageCell: UITableViewCell {
         textStack.translatesAutoresizingMaskIntoConstraints = false
         [authorLabel, messageLabel, markdownView, photos, fileStack, stampRow, stateLabel]
             .forEach { textStack.addArrangedSubview($0) }
+        memberAvatar.translatesAutoresizingMaskIntoConstraints = false
+        memberAvatar.layer.cornerRadius = 11
+        memberAvatar.layer.borderWidth = 1.5
+        memberAvatar.isHidden = true
+        contentView.addSubview(memberAvatar)
+        memberNameLabel.font = UIFont.systemFont(ofSize: TypeScale.caption.font.pointSize, weight: .medium)
+        memberAdminTag.font = Typography(size: 11, lineHeight: 16, weight: .regular).font
+        memberAdminTag.textColor = palette.ink3
+        memberAdminTag.backgroundColor = palette.hover
+        memberAdminTag.layer.cornerRadius = Radius.item
+        memberAdminTag.clipsToBounds = true
+        memberAdminTag.text = NativeLanguage.text("Admin")
+        memberAdminTag.isHidden = true
+        memberTimeLabel.font = TypeScale.caption.font
+        memberTimeLabel.textColor = palette.ink3
+        memberHeader.axis = .horizontal
+        memberHeader.spacing = 6
+        memberHeader.alignment = .center
+        memberHeader.isLayoutMarginsRelativeArrangement = true
+        memberHeader.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 2, bottom: 3, trailing: 0)
+        [memberNameLabel, memberAdminTag, memberTimeLabel].forEach { memberHeader.addArrangedSubview($0) }
+        memberHeader.isHidden = true
+        textStack.insertArrangedSubview(memberHeader, at: 0)
+        NSLayoutConstraint.activate([
+            memberAvatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            // items.tsx:272 pads the column 22 below the row's top.
+            memberAvatar.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 26),
+            memberAvatar.widthAnchor.constraint(equalToConstant: 22),
+            memberAvatar.heightAnchor.constraint(equalToConstant: 22),
+        ])
         bubble.addSubview(textStack)
         cardStack.axis = .vertical
         cardStack.spacing = 8
@@ -177,6 +215,24 @@ final class ChatMessageCell: UITableViewCell {
     var bubbleFillColor: UIColor? { bubble.backgroundColor }
     var bubbleCornerRadius: CGFloat { bubble.layer.cornerRadius }
 
+    /// The room header's state, for the layout tests.
+    var memberHeaderVisible: Bool { !memberHeader.isHidden }
+    var memberAvatarVisible: Bool { !memberAvatar.isHidden }
+    var memberNameText: String? { memberNameLabel.text }
+    var memberNameColor: UIColor? { memberNameLabel.textColor }
+    var adminTagVisible: Bool { !memberAdminTag.isHidden }
+    var bubbleLeadingInset: CGFloat { leading.constant }
+
+    /// AvatarMarks.paint hands back the RN swatch hex; a row needs a colour.
+    private static func paintColor(_ hex: String) -> UIColor? {
+        guard hex.hasPrefix("#"), hex.count == 7, let value = UInt64(hex.dropFirst(), radix: 16) else {
+            return nil
+        }
+        return UIColor(red: CGFloat((value >> 16) & 0xFF) / 255,
+                       green: CGFloat((value >> 8) & 0xFF) / 255,
+                       blue: CGFloat(value & 0xFF) / 255, alpha: 1)
+    }
+
     func configure(_ row: ChatRow, images: [String: UIImage] = [:], stepsExpanded: Bool = false,
                    flat: Bool = false) {
         // The width rules are implicitly-unwrapped so init can build them: in an
@@ -186,6 +242,10 @@ final class ChatMessageCell: UITableViewCell {
             constraint.isActive = false
         }
         let notice = row.isNotice || row.kind == "steps"
+        // items.tsx:268: only a room row carries its member, and only when the
+        // roster named one — a null avatar reserves nothing rather than a blank disc.
+        let showsMember = row.inRoom && row.hasMemberAvatar && !flat && !notice && row.settled == nil
+        leading.constant = 16
         // items.tsx:317-327: the flat layout lays a Bot or member row straight on
         // the page colour, stretched to the whole column, with no bubble at all.
         // A user row and a settled card keep their own shapes.
@@ -230,7 +290,7 @@ final class ChatMessageCell: UITableViewCell {
             bubble.layer.borderWidth = 1
             bubble.layer.borderColor = palette.line.cgColor
         }
-        authorLabel.isHidden = notice || (bare && !row.inRoom)
+        authorLabel.isHidden = notice || showsMember || (bare && !row.inRoom)
         authorLabel.text = row.author
         let wideBlock = row.settled == nil && !notice && row.stepSummary == nil && ChatMarkdownView.hasWideBlock(row.text)
         // A bare row already spans the column, so the block cap has nothing to add.
@@ -299,6 +359,21 @@ final class ChatMessageCell: UITableViewCell {
             : (row.isNotice || row.kind == "steps" ? palette.ink3 : palette.ink)
         messageLabel.font = row.stepSummary == nil ? TypeScale.bubble.font : TypeScale.small.font
         authorLabel.textColor = palette.ink3
+        // The member's own colour names the row; an unknown colour falls to ink2.
+        memberHeader.isHidden = !showsMember
+        memberAvatar.isHidden = !showsMember
+        if showsMember {
+            let paint = row.memberColor.map { AvatarMarks.paint($0) } ?? ""
+            memberNameLabel.text = row.memberName ?? row.author
+            memberNameLabel.textColor = row.memberColor.flatMap { Self.paintColor(AvatarMarks.paint($0)) } ?? palette.ink2
+            memberAdminTag.isHidden = !row.isAdmin
+            memberTimeLabel.text = row.time.map { Self.clock.string(from: $0) }
+            memberTimeLabel.isHidden = row.time == nil
+            memberAvatar.backgroundColor = Self.paintColor(paint) ?? palette.ink3
+            memberAvatar.layer.borderColor = palette.main.cgColor
+            // The column and its 8pt gap sit outside the bubble (items.tsx:271-273).
+            leading.constant = 16 + 22 + 8
+        }
         // Two views, two rules: the clock obeys the room, the send state never does.
         // Chat.tsx shows stamps outside rooms only, one per Bot run on its last row.
         let stampable = row.kind == "user" || row.kind == "bot" || row.kind == "post"
