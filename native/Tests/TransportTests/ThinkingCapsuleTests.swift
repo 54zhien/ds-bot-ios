@@ -143,7 +143,9 @@ final class ThinkingCapsuleTests: XCTestCase {
         view.configure(ThinkingCapsulePresentation(
             text: String(repeating: "检查记忆中的项目结构 ", count: 12), look: look))
         hosted(view)
-        XCTAssertLessThanOrEqual(view.bounds.width, 160.5)
+        // The cap has to be the thing that stops it. A capsule that never got a width
+        // from its line is narrow too, and narrow is what a cut line looks like.
+        XCTAssertEqual(view.bounds.width, 160, accuracy: 0.5)
         XCTAssertFalse(view.textFits, "the line is cut, not drawn past the edge")
 
         let short = ThinkingCapsuleView()
@@ -152,5 +154,14 @@ final class ThinkingCapsuleTests: XCTestCase {
         hosted(short)
         XCTAssertLessThan(short.bounds.width, 160, "the cap is a ceiling, not a width")
         XCTAssertTrue(short.textFits)
+
+        // Same furniture, a longer line: the width comes from the text, not from the cap.
+        let longer = ThinkingCapsuleView()
+        longer.maximumWidth = 160
+        longer.configure(ThinkingCapsulePresentation(text: "检查记忆中的…", look: nil))
+        hosted(longer)
+        XCTAssertTrue(longer.textFits)
+        XCTAssertGreaterThan(longer.bounds.width, short.bounds.width,
+                             "a longer line makes a wider capsule")
     }
 }

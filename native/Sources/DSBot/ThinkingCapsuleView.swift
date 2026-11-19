@@ -164,9 +164,8 @@ final class ThinkingCapsuleView: UIView {
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 1
         label.lineBreakMode = .byTruncatingTail
-        // Scaled by hand rather than with adjustsFontForContentSizeCategory: the font
-        // needs a ceiling to stay inside 32pt, and that switch cannot carry one.
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        // Compression stays at the default: maximumWidth is what cuts the line. At
+        // .defaultLow the label gives up its only claim to a width inside the stack.
         row.translatesAutoresizingMaskIntoConstraints = false
         row.axis = .horizontal
         row.alignment = .center
@@ -178,13 +177,19 @@ final class ThinkingCapsuleView: UIView {
         row.addArrangedSubview(label)
         addSubview(row)
 
+        // The stack hides an arranged subview by pinning it to zero at required priority,
+        // so a required width here fights it and the engine breaks one of the two. One
+        // notch down and the hiding wins quietly; still above the label, which is what
+        // gives way when the cap bites.
+        let markWidth = mark.widthAnchor.constraint(equalToConstant: Self.markSize)
+        markWidth.priority = UILayoutPriority(999)
         NSLayoutConstraint.activate([
             heightAnchor.constraint(equalToConstant: Self.height),
             surface.topAnchor.constraint(equalTo: topAnchor),
             surface.bottomAnchor.constraint(equalTo: bottomAnchor),
             surface.leadingAnchor.constraint(equalTo: leadingAnchor),
             surface.trailingAnchor.constraint(equalTo: trailingAnchor),
-            mark.widthAnchor.constraint(equalToConstant: Self.markSize),
+            markWidth,
             mark.heightAnchor.constraint(equalToConstant: Self.markSize),
             row.topAnchor.constraint(equalTo: topAnchor),
             row.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -286,6 +291,8 @@ final class ThinkingCapsuleView: UIView {
         Shadow.level1.apply(to: layer)
     }
 
+    // Scaled by hand rather than with adjustsFontForContentSizeCategory: the font needs a
+    // ceiling to stay inside 32pt, and that switch cannot carry one.
     private func applyFont() {
         label.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
             for: .systemFont(ofSize: Self.fontSize), maximumPointSize: Self.fontSizeCeiling)
