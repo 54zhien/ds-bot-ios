@@ -304,17 +304,19 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         updateShape()
     }
 
-    func addPhoto(data: Data) {
-        guard let image = UIImage(data: data) else { return }
+    @discardableResult
+    func addPhoto(data: Data) -> Bool {
+        guard let image = UIImage(data: data) else { return false }
         let longest = max(image.size.width, image.size.height)
         let scale = longest > 2048 ? 2048 / longest : 1
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         let jpeg = UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 0.82) { _ in
             image.draw(in: CGRect(origin: .zero, size: size))
         }
-        guard let prepared = UIImage(data: jpeg) else { return }
+        guard let prepared = UIImage(data: jpeg) else { return false }
         photos.append((prepared, jpeg.base64EncodedString()))
         refreshPhotos()
+        return true
     }
 
     private func refreshPhotos() {

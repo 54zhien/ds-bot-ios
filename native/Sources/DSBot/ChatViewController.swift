@@ -8,6 +8,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let list = UITableView(frame: .zero, style: .plain)
     private let emptyState = UILabel()
     private let retryLoadButton = UIButton(type: .system)
+    /// composer.tsx:67: one small line above the composer, shown only while a
+    /// picked photo could not be read.
+    private let pickErrorLabel = UILabel()
     private let emptyChatView = EmptyChatView()
     private let emptyChatGuide = UILayoutGuide()
     private let latestButton = UIButton(type: .system)
@@ -1627,10 +1630,20 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         composerBottomKeyboard = composer.bottomAnchor.constraint(
             equalTo: view.keyboardLayoutGuide.topAnchor, constant: -12)
         composerBottomRest.isActive = true
+        pickErrorLabel.translatesAutoresizingMaskIntoConstraints = false
+        pickErrorLabel.font = TypeScale.small.font
+        pickErrorLabel.textColor = palette.danger
+        pickErrorLabel.textAlignment = .center
+        pickErrorLabel.numberOfLines = 0
+        pickErrorLabel.isHidden = true
+        view.addSubview(pickErrorLabel)
         NSLayoutConstraint.activate([
             composerLeading,
             composerTrailing,
             composerHeight,
+            pickErrorLabel.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+            pickErrorLabel.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
+            pickErrorLabel.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -4),
             pendingDock.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
             pendingDock.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
             pendingDock.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
@@ -1901,10 +1914,23 @@ extension ChatViewController: PHPickerViewControllerDelegate {
         picker.dismiss(animated: true)
         for result in results {
             result.itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] data, _ in
-                guard let data else { return }
-                Task { @MainActor [weak self] in self?.composer.addPhoto(data: data) }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    // composer.tsx:60-67 puts the reason in a small line above the
+                    // composer instead of dropping the photo without a word.
+                    if let data, self.composer.addPhoto(data: data) {
+                        self.showPickError(nil)
+                    } else {
+                        self.showPickError(tr("That photo could not be read."))
+                    }
+                }
             }
         }
+    }
+
+    private func showPickError(_ text: String?) {
+        pickErrorLabel.text = text
+        pickErrorLabel.isHidden = text == nil
     }
 }
 
