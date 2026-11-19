@@ -97,6 +97,7 @@
 | 图片查看器（分页滑动、计数、原图替换预览） | items.tsx:381-412 | PhotoViewController.swift:3-88；ChatViewController.swift:1797 | 一致 |
 | 外发本地图即时显示 | items.tsx:229-241,331-339 | ChatMessageCell.swift:246-252 | 一致 |
 | 纯图消息不带气泡 | items.tsx:229-234 | ChatMessageCell.swift photosOnly 分支：photoInsets 贴边、气泡去填充去内距（items.tsx:248 对齐） | 一致 · `7df694c` |
+| 消息行底色（Bot 气泡 / 用户 / 纯图 / settled / flat / 通知） | items.tsx:296,305,332（`p.bubble`）、:248（纯图透明）、:321（flat 用 `p.main`）、:530 `styles.bubble` | `ChatMessageCell.swift:305-308`（`5bea115`）：Bot 行 `p.bubble`、flat 行 `p.main`、用户行 `p.user`、纯图 `.clear`、通知行 `.clear`、settled `p.card`；圆角 18（tokens.ts:93）、内距 14×9、行距 2（`marginVertical`） | 一致 · `5bea115`。此前为**早期原生自定的不对称设计**（Bot 行恒透明，注释「a Bot message is text」），与 RN 相反，属实现偏差不是取舍 |
 
 ## chat/markdown.tsx（Markdown 渲染）
 
