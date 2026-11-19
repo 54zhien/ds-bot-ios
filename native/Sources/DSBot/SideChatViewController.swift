@@ -6,6 +6,7 @@ final class SideChatViewController: UIViewController {
     private let botName: String
     private let sessionID: String
     private let session: LinkSession
+    private let look: CharacterMarks.Look
     private let table = UITableView(frame: .zero, style: .insetGrouped)
     private let field = UITextField()
     private let sendButton = UIButton(type: .system)
@@ -18,11 +19,13 @@ final class SideChatViewController: UIViewController {
     private var polling: Task<Void, Never>?
     private var busy = false
 
-    init(botID: String, botName: String, sessionID: String, session: LinkSession) {
+    init(botID: String, botName: String, sessionID: String, session: LinkSession,
+         look: CharacterMarks.Look? = nil) {
         self.botID = botID
         self.botName = botName
         self.sessionID = sessionID
         self.session = session
+        self.look = look ?? CharacterMarks.look(id: botID)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -31,6 +34,7 @@ final class SideChatViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = NativeLanguage.text("{name} · Side chat", ["name": botName])
+        installTitleMark()
         view.backgroundColor = .systemBackground
         backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         backButton.accessibilityLabel = NativeLanguage.text("Back")
@@ -107,6 +111,43 @@ final class SideChatViewController: UIViewController {
         super.viewWillDisappear(animated)
         polling?.cancel()
         polling = nil
+    }
+
+    /// side.tsx:66-74 puts the Bot's 28pt mark beside its name in the head. This
+    /// screen keeps that pair in the navigation bar, which is where its head lives.
+    private func installTitleMark() {
+        navigationItem.titleView = Self.titleRow(botName: botName, look: look,
+                                                 palette: ThemeStore.palette(trait: traitCollection))
+    }
+
+    static func titleRow(botName: String, look: CharacterMarks.Look, palette: Palette) -> UIStackView {
+        let mark = CharacterAvatarView(look: look)
+        mark.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            mark.widthAnchor.constraint(equalToConstant: 28),
+            mark.heightAnchor.constraint(equalToConstant: 28),
+        ])
+        let name = UILabel()
+        name.text = botName
+        name.font = TypeScale.rowName.font
+        name.textColor = palette.ink
+        name.lineBreakMode = .byTruncatingTail
+        let subtitle = UILabel()
+        subtitle.text = NativeLanguage.text("Side chat")
+        subtitle.font = TypeScale.caption.font
+        subtitle.textColor = palette.ink3
+        subtitle.lineBreakMode = .byTruncatingTail
+        let column = UIStackView(arrangedSubviews: [name, subtitle])
+        column.axis = .vertical
+        column.alignment = .leading
+        column.spacing = 0
+        let row = UIStackView(arrangedSubviews: [mark, column])
+        row.axis = .horizontal
+        row.alignment = .center
+        row.spacing = Glass.gap
+        row.isAccessibilityElement = true
+        row.accessibilityLabel = botName + ", " + NativeLanguage.text("Side chat")
+        return row
     }
 
     private func startPolling() {

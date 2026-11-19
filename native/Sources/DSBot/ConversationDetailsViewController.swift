@@ -64,6 +64,24 @@ final class ConversationDetailsViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        // manage.tsx:566-576: a group's members are rows of their own, carrying the
+        // Bot's mark; every other row is a settings line with a subtitle.
+        if target.kind == .room && indexPath.section == 1 {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "member") as? GroupMemberCell
+                ?? GroupMemberCell(style: .default, reuseIdentifier: "member")
+            let id = memberIDs[indexPath.row]
+            let bot = botRecord(with: id)
+            cell.selectionStyle = .default
+            cell.accessoryView = IconView(icon: .chevronRight, size: 16)
+            cell.configure(
+                name: bot?["name"]?.stringValue ?? id,
+                detail: id == record?["admin"]?.stringValue
+                    ? NativeLanguage.text("Admin")
+                    : bot?["role"]?.stringValue ?? NativeLanguage.text("Member"),
+                look: bot.map { CharacterMarks.Look(bot: $0) },
+                palette: ThemeStore.palette(trait: traitCollection))
+            return cell
+        }
         let cell = tableView.dequeueReusableCell(withIdentifier: "detail")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "detail")
         let selectable = target.kind == .bot
@@ -172,6 +190,11 @@ final class ConversationDetailsViewController: UITableViewController {
 
     private var memberIDs: [String] { record?["members"]?.stringArrayValue ?? [] }
 
+    private func botRecord(with id: String) -> JSONValue? {
+        guard case .array(let bots)? = state["bots"] else { return nil }
+        return bots.first { $0["id"]?.stringValue == id }
+    }
+
     /// model-menu.tsx:37-43 modelOf: the chosen model, else the one it last ran on,
     /// shown by the catalogue's own name — the ref is an id, not a label.
     private var modelDisplay: String {
@@ -219,10 +242,7 @@ final class ConversationDetailsViewController: UITableViewController {
         let room = record
         if path.section == 1 {
             let id = memberIDs[path.row]
-            let bot: JSONValue?
-            if case .array(let bots)? = state["bots"] {
-                bot = bots.first { $0["id"]?.stringValue == id }
-            } else { bot = nil }
+            let bot = botRecord(with: id)
             let name = bot?["name"]?.stringValue ?? id
             return (name, id == room?["admin"]?.stringValue ? NativeLanguage.text("Admin") : bot?["role"]?.stringValue ?? NativeLanguage.text("Member"))
         }
@@ -268,5 +288,52 @@ final class ConversationDetailsViewController: UITableViewController {
                 tableView.reloadData()
             }
         }
+    }
+}
+
+/// manage.tsx:566-576: a member is its Bot's 32pt mark, the name, and what it is in
+/// the room. The chevron belongs to the cell that carries it, not to this one.
+final class GroupMemberCell: UITableViewCell {
+    static let markSize: CGFloat = 32
+    private let mark = MarkView(frame: .zero)
+    private let nameLabel = UILabel()
+    private let detailLabel = UILabel()
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        mark.translatesAutoresizingMaskIntoConstraints = false
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+        detailLabel.translatesAutoresizingMaskIntoConstraints = false
+        nameLabel.font = TypeScale.settingsRow.font
+        nameLabel.lineBreakMode = .byTruncatingTail
+        detailLabel.font = TypeScale.caption.font
+        detailLabel.lineBreakMode = .byTruncatingTail
+        [mark, nameLabel, detailLabel].forEach { contentView.addSubview($0) }
+        NSLayoutConstraint.activate([
+            mark.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: Glass.margin),
+            mark.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            mark.widthAnchor.constraint(equalToConstant: Self.markSize),
+            mark.heightAnchor.constraint(equalToConstant: Self.markSize),
+            // manage.tsx:568 spaces the name 10 off the mark, and the row keeps 48.
+            nameLabel.leadingAnchor.constraint(equalTo: mark.trailingAnchor, constant: 10),
+            nameLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+            nameLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -Glass.margin),
+            detailLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            detailLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor),
+            detailLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
+            detailLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+            contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(name: String, detail: String, look: CharacterMarks.Look?, palette: Palette) {
+        nameLabel.text = name
+        nameLabel.textColor = palette.ink
+        detailLabel.text = detail
+        detailLabel.textColor = palette.ink3
+        mark.configure(look: look)
     }
 }

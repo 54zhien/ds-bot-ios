@@ -31,6 +31,7 @@ final class BotEditorViewController: UIViewController {
     private var pendingAvatar: [String: JSONValue]?
     private var clashLabel: UILabel?
     private let modelHint = UILabel()
+    private let preview = CharacterAvatarView(look: CharacterMarks.look())
     private var pickedModel = false
 
     private static let colors = ["black", "brown", "red", "orange", "yellow", "green",
@@ -82,6 +83,22 @@ final class BotEditorViewController: UIViewController {
             form.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
         ])
 
+        // manage.tsx:502-505 puts the Bot as it will look above its name. This screen
+        // is also the details page the native side has no header for, so an existing
+        // Bot takes that header's 64 (manage.tsx:223) rather than the create's 72.
+        let previewSide: CGFloat = bot == nil ? 72 : 64
+        let previewRow = UIView()
+        previewRow.translatesAutoresizingMaskIntoConstraints = false
+        preview.translatesAutoresizingMaskIntoConstraints = false
+        previewRow.addSubview(preview)
+        NSLayoutConstraint.activate([
+            previewRow.heightAnchor.constraint(equalToConstant: previewSide + 8),
+            preview.topAnchor.constraint(equalTo: previewRow.topAnchor, constant: 8),
+            preview.centerXAnchor.constraint(equalTo: previewRow.centerXAnchor),
+            preview.widthAnchor.constraint(equalToConstant: previewSide),
+            preview.heightAnchor.constraint(equalToConstant: previewSide),
+        ])
+        form.addArrangedSubview(previewRow)
         addField(NativeLanguage.text("Name"), field: nameField, text: bot?["name"]?.stringValue ?? "",
                  placeholder: NativeLanguage.text("New Bot"))
         if bot == nil {
@@ -145,6 +162,7 @@ final class BotEditorViewController: UIViewController {
             more.heightAnchor.constraint(equalToConstant: 48).isActive = true
             form.addArrangedSubview(more)
         }
+        refreshPreview()
     }
 
     private func addField(_ title: String, field: UITextField, text: String, placeholder: String) {
@@ -197,6 +215,7 @@ final class BotEditorViewController: UIViewController {
         choose(NativeLanguage.text("Character color"), values: Self.colors, from: colorButton) { [weak self] value in
             self?.color = value
             self?.colorButton.setTitle(NativeLanguage.text("Character color") + " · " + value, for: .normal)
+            self?.refreshPreview()
         }
     }
 
@@ -204,6 +223,7 @@ final class BotEditorViewController: UIViewController {
         choose(NativeLanguage.text("Character shape"), values: Self.shapes, from: shapeButton) { [weak self] value in
             self?.shape = value
             self?.shapeButton.setTitle(NativeLanguage.text("Character shape") + " · " + value, for: .normal)
+            self?.refreshPreview()
         }
     }
 
@@ -324,6 +344,7 @@ final class BotEditorViewController: UIViewController {
         let avatar: [String: JSONValue] = ["shape": .string(shape)]
         pendingAvatar = avatar
         removePhotoButton.isHidden = true
+        refreshPreview()
         sendAvatar(avatar)
     }
 
@@ -333,6 +354,7 @@ final class BotEditorViewController: UIViewController {
         avatar["image"] = .string("data:image/jpeg;base64," + data.base64EncodedString())
         pendingAvatar = avatar
         removePhotoButton.isHidden = false
+        refreshPreview()
         sendAvatar(avatar)
     }
 
@@ -347,6 +369,19 @@ final class BotEditorViewController: UIViewController {
             busy = false
             refreshSaveButton()
         }
+    }
+
+    /// manage.tsx:502-505: the Bot as it will look. A photo wins over the character,
+    /// and both go through one look, so the list and this preview never disagree.
+    static func previewLook(shape: String, color: String, id: String?,
+                            avatar: [String: JSONValue]) -> CharacterMarks.Look {
+        CharacterMarks.look(shape: shape, color: color, id: id, image: avatar["image"]?.stringValue)
+    }
+
+    private func refreshPreview() {
+        preview.look = Self.previewLook(
+            shape: shape, color: color, id: bot?["id"]?.stringValue,
+            avatar: Self.avatarBase(pending: pendingAvatar, saved: bot?["avatar"]))
     }
 
     // pending wins over the init-time snapshot: once a photo row has written,

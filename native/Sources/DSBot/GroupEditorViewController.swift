@@ -14,6 +14,7 @@ final class GroupEditorViewController: UIViewController {
         NativeLanguage.text("Admin leads"), NativeLanguage.text("Everyone"),
     ])
     private let memberStack = UIStackView()
+    private var memberRows: [GroupMemberRow] = []
 
     init(room: JSONValue?, state: JSONValue, session: LinkSession) {
         self.room = room
@@ -88,23 +89,15 @@ final class GroupEditorViewController: UIViewController {
         form.addArrangedSubview(memberStack)
         for (index, bot) in bots.enumerated() {
             guard bot["id"]?.stringValue != nil else { continue }
-            let row = UIStackView()
-            row.axis = .horizontal
-            row.alignment = .center
-            row.spacing = 8
-            let member = UIButton(type: .system)
-            member.tag = index
-            member.contentHorizontalAlignment = .leading
-            member.addTarget(self, action: #selector(toggleMember(_:)), for: .touchUpInside)
-            row.addArrangedSubview(member)
-            let lead = UIButton(type: .system)
-            lead.tag = index
-            lead.setTitle(NativeLanguage.text("Admin"), for: .normal)
-            lead.addTarget(self, action: #selector(makeAdmin(_:)), for: .touchUpInside)
-            row.addArrangedSubview(lead)
-            member.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            let row = GroupMemberRow(frame: .zero)
+            row.member.tag = index
+            row.lead.tag = index
+            row.member.addTarget(self, action: #selector(toggleMember(_:)), for: .touchUpInside)
+            row.lead.addTarget(self, action: #selector(makeAdmin(_:)), for: .touchUpInside)
+            row.mark.configure(look: CharacterMarks.Look(bot: bot))
             row.heightAnchor.constraint(equalToConstant: 44).isActive = true
             memberStack.addArrangedSubview(row)
+            memberRows.append(row)
         }
         updateMembers()
         if room != nil {
@@ -125,16 +118,11 @@ final class GroupEditorViewController: UIViewController {
     }
 
     private func updateMembers() {
-        for row in memberStack.arrangedSubviews.compactMap({ $0 as? UIStackView }) {
-            guard let member = row.arrangedSubviews.first as? UIButton,
-                  let lead = row.arrangedSubviews.last as? UIButton,
-                  bots.indices.contains(member.tag),
-                  let id = bots[member.tag]["id"]?.stringValue else { continue }
-            let checked = members.contains(id)
-            member.setTitle("\(checked ? "✓" : "○")  \(bots[member.tag]["name"]?.stringValue ?? id)", for: .normal)
-            lead.isHidden = !checked
-            lead.setTitle(NativeLanguage.text(admin == id ? "Admin" : "Make admin"), for: .normal)
-            lead.setTitleColor(admin == id ? .systemBlue : .secondaryLabel, for: .normal)
+        for row in memberRows {
+            let index = row.member.tag
+            guard bots.indices.contains(index), let id = bots[index]["id"]?.stringValue else { continue }
+            row.configure(name: bots[index]["name"]?.stringValue ?? id,
+                          checked: members.contains(id), admin: admin == id)
         }
         navigationItem.rightBarButtonItem?.isEnabled = members.count >= 2 && !busy
     }
@@ -243,5 +231,49 @@ final class GroupEditorViewController: UIViewController {
         let alert = UIAlertController(title: NativeLanguage.text("Could not save group"), message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
+    }
+}
+
+/// manage.tsx:628-647: a member line is the Bot's 32pt mark, its name, and the admin
+/// control. The tick rides the name button, as this screen has no check box.
+final class GroupMemberRow: UIView {
+    static let markSize: CGFloat = 32
+    let mark = MarkView(frame: .zero)
+    let member = UIButton(type: .system)
+    let lead = UIButton(type: .system)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        mark.translatesAutoresizingMaskIntoConstraints = false
+        member.translatesAutoresizingMaskIntoConstraints = false
+        lead.translatesAutoresizingMaskIntoConstraints = false
+        member.contentHorizontalAlignment = .leading
+        member.titleLabel?.lineBreakMode = .byTruncatingTail
+        member.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        lead.setContentHuggingPriority(.required, for: .horizontal)
+        let row = UIStackView(arrangedSubviews: [mark, member, lead])
+        row.axis = .horizontal
+        row.alignment = .center
+        // manage.tsx:631 spaces the name 10 off the mark.
+        row.spacing = 10
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+        NSLayoutConstraint.activate([
+            mark.widthAnchor.constraint(equalToConstant: Self.markSize),
+            mark.heightAnchor.constraint(equalToConstant: Self.markSize),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor),
+            row.topAnchor.constraint(equalTo: topAnchor),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(name: String, checked: Bool, admin: Bool) {
+        member.setTitle("\(checked ? "✓" : "○")  \(name)", for: .normal)
+        lead.isHidden = !checked
+        lead.setTitle(NativeLanguage.text(admin ? "Admin" : "Make admin"), for: .normal)
+        lead.setTitleColor(admin ? .systemBlue : .secondaryLabel, for: .normal)
     }
 }
