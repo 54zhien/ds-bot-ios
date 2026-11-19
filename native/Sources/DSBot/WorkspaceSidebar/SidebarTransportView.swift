@@ -52,7 +52,9 @@ enum SidebarSettlement {
     /// :531, the only duration that appears in the transport.
     static let duration: TimeInterval = 0.22
 
-    static func run(offset: CGFloat, on transport: SidebarTransportView,
+    // The default below reads UIAccessibility, which is main-actor isolated, so the
+    // entry point is main-actor as well; every caller animates a view anyway.
+    @MainActor static func run(offset: CGFloat, on transport: SidebarTransportView,
                     reduceMotion: Bool = UIAccessibility.isReduceMotionEnabled,
                     completion: @escaping () -> Void) {
         guard !reduceMotion else {
