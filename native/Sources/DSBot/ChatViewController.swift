@@ -27,7 +27,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let headerCenter = UIControl()
     private let headerTitle = UILabel()
     private let headerPill = GlassPillView(height: Glass.control)
-    private let pillAvatar = UILabel()
+    private let pillAvatar = MarkView()
     private let pillName = UILabel()
     private var composerHeight: NSLayoutConstraint!
     private var composerLeading: NSLayoutConstraint!
@@ -384,11 +384,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         headerPill.isHidden = true
         headerPill.translatesAutoresizingMaskIntoConstraints = false
         headerCenter.addSubview(headerPill)
-        pillAvatar.font = .systemFont(ofSize: TypeScale.small.size, weight: .medium)
-        pillAvatar.textAlignment = .center
-        pillAvatar.textColor = .white
-        pillAvatar.layer.cornerRadius = 14
-        pillAvatar.clipsToBounds = true
+        // The pill's mark draws itself; it only needs a frame.
         pillAvatar.translatesAutoresizingMaskIntoConstraints = false
         headerPill.content.addArrangedSubview(pillAvatar)
         pillName.font = .systemFont(ofSize: 15, weight: .medium)
@@ -684,7 +680,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 name: bot["name"]?.stringValue ?? selectedTarget?.name ?? "",
                 role: bot["role"]?.stringValue ?? "",
                 color: bot["color"]?.stringValue,
-                caption: tr("No messages yet"))
+                caption: tr("No messages yet"),
+                look: CharacterMarks.Look(bot: bot))
             showEmptyChat()
             return
         }
@@ -692,7 +689,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             emptyChatView.configure(
                 name: room["name"]?.stringValue ?? selectedTarget?.name ?? "",
                 role: "", color: nil,
-                caption: tr("No messages yet"))
+                caption: tr("No messages yet"),
+                members: CharacterMarks.Look.members(of: room, team: teamState))
             showEmptyChat()
             return
         }
@@ -1429,6 +1427,19 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         present(UINavigationController(rootViewController: side), animated: true)
     }
 
+    /// The pill shows one of two marks: a room draws its roster, a Bot draws
+    /// itself. The choice sits here so it can be tested without a view.
+    enum HeaderMark {
+        static func choose(bot: JSONValue?, room: JSONValue?,
+                           team: JSONValue?) -> (look: CharacterMarks.Look?, members: [CharacterMarks.Look]) {
+            if room != nil {
+                return (nil, CharacterMarks.Look.members(of: room, team: team))
+            }
+            guard let bot else { return (nil, []) }
+            return (CharacterMarks.Look(bot: bot), [])
+        }
+    }
+
     private func updateTitleButton() {
         let named = teamState != nil && (botID != nil || roomID != nil)
         headerCenter.isEnabled = named
@@ -1436,18 +1447,13 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         headerPill.isHidden = !named
         if named, let name = title {
             pillName.text = name
-            pillAvatar.text = String(name.prefix(1)).uppercased()
-            if roomID == nil {
-                let botColor = teamState?["bots"].flatMap { value -> String? in
-                    guard case .array(let bots) = value else { return nil }
-                    return bots.first { $0["id"]?.stringValue == botID }?["color"]?.stringValue
-                }
-                pillAvatar.backgroundColor = Inks.bot(botColor, dark: traitCollection.userInterfaceStyle == .dark)
-                pillAvatar.textColor = .white
-            } else {
-                pillAvatar.backgroundColor = palette.card
-                pillAvatar.textColor = palette.ink
-            }
+            // marks.tsx through MarkView: a Bot shows its character, a room its
+            // members' cluster, and neither needs the letter this pill used to draw.
+            pillAvatar.plate = .clear
+            let mark = HeaderMark.choose(bot: botID.flatMap { teamBot(with: $0) },
+                                         room: roomID.flatMap { teamRoom(with: $0) },
+                                         team: teamState)
+            pillAvatar.configure(look: mark.look, members: mark.members)
             headerCenter.accessibilityLabel = name
         } else {
             headerTitle.text = title ?? tr("Chat")

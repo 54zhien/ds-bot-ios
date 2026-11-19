@@ -15,6 +15,10 @@ final class EmptyChatView: UIView {
     private let action = UIButton(type: .system)
     private var onAction: (() -> Void)?
 
+    /// The letter is the fallback for a caller with no look; the test that pins
+    /// "a look replaces the letter" reads it here rather than through the tree.
+    var isShowingLetter: Bool { !avatarLetter.isHidden }
+
     /// Chat.tsx styles.empty: absolute, inset 24 each side, top 28%.
     static let sideInset: CGFloat = 24
     static let topPercent: CGFloat = 0.28
