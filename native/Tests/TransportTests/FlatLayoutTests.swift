@@ -15,7 +15,8 @@ final class FlatLayoutTests: XCTestCase {
     @MainActor func testFlatDropsTheBotBubbleAndKeepsTheUserOne() {
         let cell = ChatMessageCell(style: .default, reuseIdentifier: nil)
         cell.configure(botRow(), flat: true)
-        XCTAssertEqual(cell.bubbleFillColor, .clear)
+        // items.tsx:321 gives the flat row the page colour, not transparency.
+        XCTAssertEqual(cell.bubbleFillColor, ThemeStore.palette(trait: cell.traitCollection).main)
         XCTAssertEqual(cell.bubbleCornerRadius, 0)
 
         cell.configure(userRow(), flat: true)

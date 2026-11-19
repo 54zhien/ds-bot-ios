@@ -185,8 +185,10 @@ final class ChatMessageCell: UITableViewCell {
         wideWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.93)
         wideUserWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.86)
         NSLayoutConstraint.activate([
-            bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
-            bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
+            // items.tsx:530 styles.bubble carries marginVertical 2, so two
+            // neighbouring bubbles sit four apart.
+            bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 2),
+            bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2),
             bubble.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 16),
             bubble.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -16),
         ])
@@ -295,10 +297,15 @@ final class ChatMessageCell: UITableViewCell {
             leading.isActive = true
             botWidth.isActive = true
         }
-        // The asymmetry is deliberate: a user message is a bubble, a Bot message is text.
-        // items.tsx:248 drops the bubble's fill and padding when photos stand alone.
+        // items.tsx fills a Bot or member row with p.bubble (:296, :305, :332); the
+        // flat branch instead sits it on the page colour (:321 bg={p.main}). An
+        // earlier native pass drew Bot rows as bare text, which read as "no
+        // bubble" on screen. A user row keeps its own ink, photos stand alone
+        // (:248), and a settled card keeps its card surface.
         bubble.backgroundColor = row.settled != nil ? palette.card
-            : row.isUser && !row.photosOnly ? palette.user : .clear
+            : notice ? .clear
+            : row.isUser ? (row.photosOnly ? .clear : palette.user)
+            : (bare ? palette.main : palette.bubble)
         if row.settled != nil {
             bubble.layer.cornerRadius = Radius.dialog
             bubble.layer.borderWidth = 1
