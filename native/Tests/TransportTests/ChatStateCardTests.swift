@@ -88,8 +88,8 @@ final class ChatStateCardTests: XCTestCase {
                 "rooms": .object(["room-1": .array([.object(["botId": .string("bot-1"), "said": .string("Reading")])])]),
             ]),
         ])
-        XCTAssertEqual(WorkStatusPresentation(target: bot, state: state)?.text,
+        XCTAssertEqual(ThinkingCapsulePresentation(target: bot, state: state)?.text,
                        NativeLanguage.text("Searching online") + "…")
-        XCTAssertEqual(WorkStatusPresentation(target: room, state: state)?.text, "Aster · Reading…")
+        XCTAssertEqual(ThinkingCapsulePresentation(target: room, state: state)?.text, "Aster · Reading…")
     }
 }

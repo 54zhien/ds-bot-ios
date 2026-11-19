@@ -39,7 +39,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let pendingDock = PendingDockView()
     private let blockedView = BotBlockedView()
     private let computerUseView = ComputerUseView()
-    private let workStatusView = WorkStatusView()
+    private let thinkingCapsule = ThinkingCapsuleView()
     private let sidebar = SidebarHost()
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
@@ -668,7 +668,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         view.addSubview(latestButton)
         NSLayoutConstraint.activate([
             latestButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            latestButton.bottomAnchor.constraint(equalTo: workStatusView.topAnchor, constant: -8),
+            latestButton.bottomAnchor.constraint(equalTo: thinkingCapsule.topAnchor, constant: -8),
         ])
     }
 
@@ -804,7 +804,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         teamState = nil
         blockedView.configure(nil)
         computerUseView.configure(nil)
-        workStatusView.configure(nil)
+        thinkingCapsule.configure(nil)
         roomGoalView.configure(nil)
         pendingItems = []
         updatePendingButton()
@@ -1150,7 +1150,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 updatePendingButton()
                 blockedView.configure(nil)
                 computerUseView.configure(nil)
-                workStatusView.configure(nil)
+                thinkingCapsule.configure(nil)
                 roomGoalView.configure(nil)
                 updateBottomInset()
                 rows = []
@@ -1186,7 +1186,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             if target.kind == .room, let goal = chosen?["goal"], goal != .null {
                 roomGoalView.configure(RoomGoalPresentation(goal: goal))
             } else { roomGoalView.configure(nil) }
-            workStatusView.configure(WorkStatusPresentation(target: target, state: state))
+            thinkingCapsule.configure(ThinkingCapsulePresentation(target: target, state: state))
             updateBottomInset()
             if target.kind == .bot {
                 let work = state["work"]?["bots"]?[target.id]
@@ -1352,7 +1352,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                     teamState = nil
                     blockedView.configure(nil)
                     computerUseView.configure(nil)
-                    workStatusView.configure(nil)
+                    thinkingCapsule.configure(nil)
                     roomGoalView.configure(nil)
                     pendingItems = []
                     updatePendingButton()
@@ -1621,7 +1621,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updatePendingButton()
         blockedView.configure(nil)
         computerUseView.configure(nil)
-        workStatusView.configure(nil)
+        thinkingCapsule.configure(nil)
         roomGoalView.configure(nil)
         updateBottomInset()
         // The cached page renders in this same frame and the read that follows replaces
@@ -1720,8 +1720,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         computerUseView.onStop = { [weak self] botID in self?.stopComputerUse(botID: botID) }
         view.addSubview(computerUseView)
-        workStatusView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(workStatusView)
+        view.addSubview(thinkingCapsule)
         if #available(iOS 17.0, *) {
             view.keyboardLayoutGuide.usesBottomSafeArea = true
         }
@@ -1754,13 +1753,15 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             pendingHeight,
             blockedView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
             blockedView.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
-            blockedView.bottomAnchor.constraint(equalTo: pendingDock.topAnchor, constant: -8),
+            blockedView.bottomAnchor.constraint(equalTo: thinkingCapsule.topAnchor, constant: -8),
             computerUseView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
             computerUseView.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
             computerUseView.bottomAnchor.constraint(equalTo: blockedView.topAnchor, constant: -8),
-            workStatusView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
-            workStatusView.trailingAnchor.constraint(lessThanOrEqualTo: composer.trailingAnchor),
-            workStatusView.bottomAnchor.constraint(equalTo: computerUseView.topAnchor, constant: -8),
+            // The capsule is the thing closest to the composer: 8 above it, and whatever
+            // else is showing stacks above the capsule.
+            thinkingCapsule.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+            thinkingCapsule.trailingAnchor.constraint(lessThanOrEqualTo: composer.trailingAnchor),
+            thinkingCapsule.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
         ])
         updateComposerSide()
     }
@@ -1799,7 +1800,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             CGSize(width: max(1, view.bounds.width - 32), height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
         ).height + 8
-        let workHeight = workStatusView.isHidden ? 0 : workStatusView.systemLayoutSizeFitting(
+        let workHeight = thinkingCapsule.isHidden ? 0 : thinkingCapsule.systemLayoutSizeFitting(
             CGSize(width: max(1, view.bounds.width - 32), height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel
         ).height + 8
