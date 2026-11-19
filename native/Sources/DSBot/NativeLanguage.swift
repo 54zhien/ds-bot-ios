@@ -183,6 +183,10 @@ enum NativeLanguage {
         // phrases.ts names this family but its zh table never did, so RN shows it in
         // English; the phone says it in Chinese like the other five.
         "Writing a file": "写文件",
+        // The rail is zen's own column, so its two labels are zen's words rather than
+        // the mobile screens' (Zen-Agent SidebarRailView.swift:117, :119).
+        "New conversation": "新会话",
+        "Recent conversations": "最近会话",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }
