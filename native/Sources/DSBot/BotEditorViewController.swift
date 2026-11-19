@@ -1,3 +1,4 @@
+import PhotosUI
 import UIKit
 
 final class BotEditorViewController: UIViewController {
@@ -22,6 +23,13 @@ final class BotEditorViewController: UIViewController {
     private var effort: String?
     private var efforts: [(id: String, name: String)] = []
     private var busy = false
+    private let uploadPhotoButton = UIButton(type: .system)
+    private let removePhotoButton = UIButton(type: .system)
+    // Avatar keys already written by the photo rows this session. The form's
+    // Save is deferred, so its shape patch must build on these — not on the
+    // bot snapshot taken at init, which predates any upload.
+    private var pendingAvatar: [String: JSONValue]?
+    private var clashLabel: UILabel?
 
     private static let colors = ["black", "brown", "red", "orange", "yellow", "green",
                                  "cyan", "blue", "violet", "magenta", "gray", "aurora"]
@@ -74,6 +82,17 @@ final class BotEditorViewController: UIViewController {
 
         addField(NativeLanguage.text("Name"), field: nameField, text: bot?["name"]?.stringValue ?? "",
                  placeholder: NativeLanguage.text("New Bot"))
+        if bot == nil {
+            let label = UILabel()
+            label.text = NativeLanguage.text("Another Bot has this name.")
+            label.font = .preferredFont(forTextStyle: .caption1)
+            label.textColor = ThemeStore.palette(trait: traitCollection).danger
+            label.isHidden = true
+            form.addArrangedSubview(label)
+            clashLabel = label
+            nameField.addTarget(self, action: #selector(nameEdited), for: .editingChanged)
+            updateClashState()
+        }
         addField(NativeLanguage.text("Label"), field: roleField, text: bot?["role"]?.stringValue ?? "",
                  placeholder: NativeLanguage.text("Research, admin…"))
         let instructionsLabel = UILabel()
@@ -89,6 +108,17 @@ final class BotEditorViewController: UIViewController {
         form.addArrangedSubview(instructionsField)
         addPicker(colorButton, label: NativeLanguage.text("Character color"), value: color, action: #selector(pickColor))
         addPicker(shapeButton, label: NativeLanguage.text("Character shape"), value: shape, action: #selector(pickShape))
+        if bot != nil {
+            uploadPhotoButton.setTitle(NativeLanguage.text("Upload photo"), for: .normal)
+            uploadPhotoButton.addTarget(self, action: #selector(pickPhoto), for: .touchUpInside)
+            uploadPhotoButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
+            form.addArrangedSubview(uploadPhotoButton)
+            removePhotoButton.setTitle(NativeLanguage.text("Remove photo"), for: .normal)
+            removePhotoButton.addTarget(self, action: #selector(removePhoto), for: .touchUpInside)
+            removePhotoButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
+            removePhotoButton.isHidden = bot?["avatar"]?["image"] == nil
+            form.addArrangedSubview(removePhotoButton)
+        }
         if case .array(let models)? = state["models"], !models.isEmpty {
             addPicker(modelButton, label: NativeLanguage.text("Model"), value: model ?? NativeLanguage.text("Default"), action: #selector(pickModel))
             addPicker(effortButton, label: NativeLanguage.text("Thinking level"), value: effort ?? NativeLanguage.text("Default"), action: #selector(pickEffort))
@@ -224,12 +254,102 @@ final class BotEditorViewController: UIViewController {
         present(sheet, animated: true)
     }
 
+    @objc private func nameEdited() { updateClashState() }
+
+    private var finalBotName: String {
+        let raw = nameField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return raw.isEmpty ? NativeLanguage.text("New Bot") : raw
+    }
+
+    private var nameClash: Bool {
+        guard bot == nil else { return false }
+        guard case .array(let bots)? = state["bots"] else { return false }
+        return bots.contains { $0["name"]?.stringValue?.lowercased() == finalBotName.lowercased() }
+    }
+
+    private func updateClashState() {
+        clashLabel?.isHidden = !nameClash
+        refreshSaveButton()
+    }
+
+    private func refreshSaveButton() {
+        navigationItem.rightBarButtonItem?.isEnabled = !busy && !nameClash
+    }
+
+    @objc private func pickPhoto() {
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.filter = .images
+        configuration.selectionLimit = 1
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    @objc private func removePhoto() {
+        guard !busy else { return }
+        // RN drops every avatar key but the shape when the photo goes.
+        let avatar: [String: JSONValue] = ["shape": .string(shape)]
+        pendingAvatar = avatar
+        removePhotoButton.isHidden = true
+        sendAvatar(avatar)
+    }
+
+    private func applyAvatarPhoto(_ image: UIImage) {
+        guard !busy, let data = Self.avatarPhotoData(from: image) else { return }
+        var avatar = Self.avatarBase(pending: pendingAvatar, saved: bot?["avatar"])
+        avatar["image"] = .string("data:image/jpeg;base64," + data.base64EncodedString())
+        pendingAvatar = avatar
+        removePhotoButton.isHidden = false
+        sendAvatar(avatar)
+    }
+
+    private func sendAvatar(_ avatar: [String: JSONValue]) {
+        guard let bot, let id = bot["id"]?.stringValue else { return }
+        busy = true
+        refreshSaveButton()
+        Task {
+            do {
+                _ = try await BotAPI.call("update-bot", payload: .object(["id": .string(id), "avatar": .object(avatar)]), on: session)
+            } catch { showError(error.localizedDescription) }
+            busy = false
+            refreshSaveButton()
+        }
+    }
+
+    // pending wins over the init-time snapshot: once a photo row has written,
+    // every later avatar patch grows from that dict or the photo is lost.
+    static func avatarBase(pending: [String: JSONValue]?, saved: JSONValue?) -> [String: JSONValue] {
+        if let pending { return pending }
+        if case .object(let value)? = saved { return value }
+        return [:]
+    }
+
+    // RN crops in its picker's square edit sheet. The bundle declares no
+    // photo-library permission, so PHPicker has no edit step — degrade to a
+    // centered crop, capped at 512 with JPEG 0.8. The stored form matches
+    // RN's data URL; only the crop is fixed instead of chosen.
+    private static func avatarPhotoData(from image: UIImage) -> Data? {
+        let pixelWidth = Int(image.size.width * image.scale)
+        let pixelHeight = Int(image.size.height * image.scale)
+        guard pixelWidth > 0, pixelHeight > 0 else { return nil }
+        let side = min(pixelWidth, pixelHeight, 512)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+        let square = renderer.image { _ in
+            let fill = max(CGFloat(side) / CGFloat(pixelWidth), CGFloat(side) / CGFloat(pixelHeight))
+            image.draw(in: CGRect(x: (CGFloat(side) - CGFloat(pixelWidth) * fill) / 2,
+                                  y: (CGFloat(side) - CGFloat(pixelHeight) * fill) / 2,
+                                  width: CGFloat(pixelWidth) * fill, height: CGFloat(pixelHeight) * fill))
+        }
+        return square.jpegData(compressionQuality: 0.8)
+    }
+
     @objc private func close() { dismiss(animated: true) }
 
     @objc private func save() {
-        guard !busy else { return }
-        let name = nameField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let finalName = name.isEmpty ? "New Bot" : name
+        guard !busy, !nameClash else { return }
+        let finalName = finalBotName
         let role = roleField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let instructions = instructionsField.text.trimmingCharacters(in: .whitespacesAndNewlines)
         busy = true
@@ -246,8 +366,7 @@ final class BotEditorViewController: UIViewController {
                     }
                     if color != bot["color"]?.stringValue { patch["color"] = .string(color) }
                     if shape != bot["avatar"]?["shape"]?.stringValue {
-                        var avatar: [String: JSONValue]
-                        if case .object(let value)? = bot["avatar"] { avatar = value } else { avatar = [:] }
+                        var avatar = Self.avatarBase(pending: pendingAvatar, saved: bot["avatar"])
                         avatar["shape"] = .string(shape)
                         patch["avatar"] = .object(avatar)
                     }
@@ -284,7 +403,7 @@ final class BotEditorViewController: UIViewController {
                 dismiss(animated: true) { complete?(target) }
             } catch { showError(error.localizedDescription) }
             busy = false
-            navigationItem.rightBarButtonItem?.isEnabled = true
+            refreshSaveButton()
         }
     }
 
@@ -336,5 +455,17 @@ final class BotEditorViewController: UIViewController {
         let alert = UIAlertController(title: NativeLanguage.text("Could not save Bot"), message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: NativeLanguage.text("OK"), style: .default))
         present(alert, animated: true)
+    }
+}
+
+extension BotEditorViewController: PHPickerViewControllerDelegate {
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        guard let provider = results.first?.itemProvider,
+              provider.canLoadObject(ofClass: UIImage.self) else { return }
+        provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
+            guard let image = object as? UIImage else { return }
+            Task { @MainActor [weak self] in self?.applyAvatarPhoto(image) }
+        }
     }
 }
