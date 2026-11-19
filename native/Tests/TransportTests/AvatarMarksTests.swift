@@ -24,8 +24,8 @@ final class AvatarMarksTests: XCTestCase {
     func testThreeMembersSitAtFiveNinths() {
         let seats = AvatarMarks.seats(count: 3, frame: 44)
         XCTAssertEqual(seats.count, 3)
-        let side = 44 * 5 / 9
-        let rest = 44 - side
+        let side: CGFloat = 44 * 5 / 9
+        let rest: CGFloat = 44 - side
         XCTAssertEqual(seats[0].width, side, accuracy: 0.001)
         XCTAssertEqual(seats[0].origin.x, rest / 2, accuracy: 0.001)
         XCTAssertEqual(seats[0].origin.y, 0, accuracy: 0.001)
