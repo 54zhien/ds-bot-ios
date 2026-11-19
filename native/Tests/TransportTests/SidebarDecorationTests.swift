@@ -60,7 +60,7 @@ final class SidebarDecorationTests: XCTestCase {
         XCTAssertEqual(top.bottomRight, 0)
         XCTAssertTrue(top.isUniform)
 
-        XCTAssertTrue(SurfaceCornerRadii(uniform: 0, corners: .allCorners).isUniform)
+        XCTAssertTrue(SurfaceCornerRadii(uniform: 0, corners: [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]).isUniform)
         XCTAssertFalse(SurfaceCornerRadii(topLeft: 20, topRight: 20, bottomLeft: 8, bottomRight: 8).isUniform)
     }
 
@@ -78,7 +78,7 @@ final class SidebarDecorationTests: XCTestCase {
         XCTAssertEqual(inset.boundingBoxOfPath.minX, 14, accuracy: 0.5)
         XCTAssertEqual(inset.boundingBoxOfPath.maxX, 306, accuracy: 0.5)
 
-        let square = SurfaceCornerRadii(uniform: 0, corners: .allCorners).path(in: rect)
+        let square = SurfaceCornerRadii(uniform: 0, corners: [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]).path(in: rect)
         XCTAssertEqual(square.boundingBoxOfPath, rect, "no radius is the plain rect")
     }
 
@@ -87,7 +87,7 @@ final class SidebarDecorationTests: XCTestCase {
     func testTheSilhouetteIsRebuiltOnlyWhenGeometryMoves() {
         let decoration = SidebarSurfaceDecoration()
         let surface = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 800))
-        let radii = SurfaceCornerRadii(uniform: 55, corners: .allCorners)
+        let radii = SurfaceCornerRadii(uniform: 55, corners: [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner])
         decoration.updateGeometry(surface: surface, radii: radii, direction: 1)
         XCTAssertEqual(decoration.silhouetteBuildCount, 1)
         XCTAssertNotNil(decoration.shadowView.layer.shadowPath)
