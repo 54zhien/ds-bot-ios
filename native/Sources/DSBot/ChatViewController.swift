@@ -128,6 +128,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
     private let drawerTransition = TeamDrawerTransition()
     private var noticeTarget: ChatTarget?
+    /// Chat.tsx:57-66: each chat's reading position, in memory only.
+    private var scrollOffsets = ScrollOffsetBook()
+    /// A position waiting for its chat, spent before the bottom-follow judgement.
+    private var pendingScroll = PendingScroll()
 
     private var chatKey: String? {
         guard let host = savedOffer?.hostDeviceId, let target = botID ?? roomID else { return nil }
@@ -273,6 +277,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         onTargetInvalid = { [weak self] _ in
             guard let self, self.autoSelectedTarget else { return }
             self.autoSelectedTarget = false
+            // The fallback chat is a different chat: it opens at its newest row.
+            self.pendingScroll.expect(nil, for: nil)
             self.selectedTarget = nil
             self.reconnectTarget = nil
             Task { await self.refreshLatest(for: self.sessionID) }
@@ -1179,7 +1185,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                                 cursor: cursor, sessionID: nextSessionID)
             }
             rebuildRows()
-            if nearBottom && !rows.isEmpty {
+            // A pending position wins over the bottom-follow: a chat that was left
+            // mid-history keeps its place even though the read that lands here is
+            // the newest page.
+            if !restoreScrollIfPending() && nearBottom && !rows.isEmpty {
                 list.layoutIfNeeded()
                 list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: false)
             }
@@ -1508,6 +1517,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         if let key = chatKey {
             pageCache.store(key: key, older: olderRows, rows: latestRows,
                             cursor: cursor, sessionID: chatSessionID)
+            // Chat.tsx:474-477 records where the reader was; the final resting
+            // position may be newer than the last scroll callback saw.
+            scrollOffsets.keep(list.contentOffset.y, for: key)
         }
         selectedTarget = target
         // The reader asked for this one, so a deleted chat leaves them here.
@@ -1548,14 +1560,28 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             chatSessionID = cached.sessionID
         }
         updateSideButton()
+        // The incoming chat may have been left mid-history; the position is armed
+        // before any row lands, and only answers for this chat's key.
+        pendingScroll.expect(chatKey.flatMap { scrollOffsets.offset(for: $0) }, for: chatKey)
         rebuildRows()
-        // A conversation opens with its newest rows in view, restored page or empty
-        // alike; the read that follows then keeps it pinned to the bottom.
-        if !rows.isEmpty {
+        // A conversation opens at the newest row unless it has a position to
+        // return to; the restore runs first so the bottom-follow cannot win.
+        if !restoreScrollIfPending() && !rows.isEmpty {
             list.layoutIfNeeded()
             list.scrollToRow(at: IndexPath(row: rows.count - 1, section: 0), at: .bottom, animated: false)
         }
         Task { await refreshLatest(for: sessionID) }
+    }
+
+    /// Puts the reader back where they left the chat. Returns false when there is
+    /// nothing to restore, so the caller may open at the newest row instead.
+    @discardableResult
+    private func restoreScrollIfPending() -> Bool {
+        guard !rows.isEmpty, let offset = pendingScroll.take(for: chatKey) else { return false }
+        list.layoutIfNeeded()
+        let furthest = max(0, list.contentSize.height - list.bounds.height)
+        list.contentOffset.y = min(max(0, offset), furthest)
+        return true
     }
 
     /// The resting capsule's height, so step 4 can grow it in place.
@@ -1993,6 +2019,9 @@ extension ChatViewController: UITableViewDelegate {
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        // Chat.tsx:474-477 records the position on the scroll callback it already
+        // has; no timer, no observer.
+        if let key = chatKey { scrollOffsets.keep(scrollView.contentOffset.y, for: key) }
         let distance = scrollView.contentSize.height - scrollView.contentOffset.y - scrollView.bounds.height
         latestButton.isHidden = rows.isEmpty || distance <= 600
         if (scrollView.isDragging || scrollView.isDecelerating) && scrollView.contentOffset.y < 100 {
