@@ -123,3 +123,9 @@ RN 基准：`model-menu.tsx:221` —— 未选模型时模型触发器下方一�
 这一节记的是「我们知道和参考实现不一样，并且不改」的地方。不是缺口，也不是待办。
 
 - **侧栏 rail 的按压动画曲线为近似。** zen `App/Workspace/SidebarRailView.swift:178` 是 SwiftUI `.spring(duration: 0.28, bounce: 0.3)`；UIKit 没有 bounce 这个参数，原生取同 0.28s 的 `usingSpringWithDamping: 0.7`（`WorkspaceSidebar/SidebarRailView.swift`，注释里也写了）。时长与触发时机一致，曲线是最近的近似，不是等价替换；Reduce Motion 下两边都不缩放。
+
+### 未覆盖的判据
+
+这里记的是「有判据、但自动化测试没有直接覆盖」的地方。列为已知缺口，不当作已验。
+
+- **侧栏手势的触摸级准入未直接覆盖。** `WorkspaceSidebarInteraction.swift:196-235` 的 `shouldReceive` 决定一次触摸落进哪条 rail 条、`|x| > |y| * 1.1` 与「触摸点必须在锚点内」这几条判据；它需要 `UITouch`，而 `UITouch` 在 UIKit 之外造不出来。现有测试覆盖的是识别器挂载（root view / window）、`detach()`、方向翻转、以及 settlement 期间全拒（`native/Tests/TransportTests/SidebarInteractionTests.swift`）。不加 DEBUG 注入点（等于给 zen 的函数开洞），也不上 XCUITest（CI 上的另一个不稳定源）。

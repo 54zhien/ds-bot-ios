@@ -6,6 +6,11 @@ import XCTest
 /// real touches: a UITouch cannot be built outside UIKit, so what is asserted here is
 /// the wiring and the state-gated refusals, which is the half that decides who gets a
 /// gesture. Animation length is deliberately not asserted; it is not stable in CI.
+///
+/// Not covered here, on purpose: touch-level admission (shouldReceive, :196-235) needs a
+/// UITouch, and a UITouch cannot be constructed outside UIKit. Seeding it through a DEBUG
+/// hook would put a hole in zen's function for the test's sake, and an XCUITest would add
+/// a second source of flakiness, so the gap is recorded rather than papered over.
 @MainActor
 final class SidebarInteractionTests: XCTestCase {
     private struct Fixture {
