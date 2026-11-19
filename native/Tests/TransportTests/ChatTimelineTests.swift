@@ -75,4 +75,40 @@ final class ChatTimelineTests: XCTestCase {
         XCTAssertEqual(row.imageCount, 1)
         XCTAssertEqual(row.text, "")
     }
+
+    func testUserRowReadsItsViaPlatform() {
+        let row = ChatRow(.object([
+            "kind": .string("user"), "text": .string("Hi"), "via": .string("weixin"),
+        ]))
+        XCTAssertEqual(row.via, "weixin")
+        XCTAssertNil(ChatRow(.object(["kind": .string("user"), "text": .string("Hi")])).via)
+        XCTAssertNil(ChatRow(localID: UUID(), text: "Hi", localImageData: [], failureReason: nil).via)
+    }
+
+    func testViaTagNamesThePlatformAndFallsBackToItsId() {
+        XCTAssertEqual(ChatRow.viaTagText("weixin"), "via WeChat")
+        XCTAssertEqual(ChatRow.viaTagText("matrix"), "via matrix")
+    }
+
+    func testPhotosOnlyRowsShowBare() {
+        let bare = ChatRow(.object([
+            "kind": .string("user"),
+            "imageRefs": .array([.object(["attachmentId": .string("photo-1")])]),
+        ]))
+        XCTAssertTrue(bare.photosOnly)
+        XCTAssertTrue(ChatRow(localID: UUID(), text: "", localImageData: [Data([1])], failureReason: nil).photosOnly)
+        XCTAssertFalse(ChatRow(.object([
+            "kind": .string("user"), "text": .string("Look"),
+            "imageRefs": .array([.object(["attachmentId": .string("photo-1")])]),
+        ])).photosOnly)
+        XCTAssertFalse(ChatRow(.object([
+            "kind": .string("user"), "text": .string(""),
+            "files": .array([.object(["name": .string("notes.txt")])]),
+            "imageRefs": .array([.object(["attachmentId": .string("photo-1")])]),
+        ])).photosOnly)
+        XCTAssertFalse(ChatRow(.object([
+            "kind": .string("bot"),
+            "imageRefs": .array([.object(["attachmentId": .string("photo-1")])]),
+        ])).photosOnly)
+    }
 }
