@@ -46,15 +46,12 @@
 
 ## 6. 本轮附带落地（Warden 加派与此前裁定的项）
 
-0. **`dsbot://pair` 深链**（Warden 加派；RN `Pair.tsx:34-38` + `App.tsx:104-110`）：`SceneDelegate` 接了 `scene(_:openURLContexts:)` 与冷启动 `connectionOptions.urlContexts`，两者都过同一个 `handlePairingURLs`，落进 `ChatViewController.openPairingURL` → 复用配对 sheet（成功后由既有的 pendingOffer 分支自动关 sheet，坏链接在 sheet 里解释，与 RN 把错误画进 Pair 屏同构）。**前置缺口：`project.yml` 还没注册 `CFBundleURLTypes`（`dsbot` scheme），那是工程侧文件，归 Warden；没有它 iOS 永远不会投递这个 URL，两个回调都收不到。**
+0. **`dsbot://pair` 深链**（Warden 加派；RN `Pair.tsx:34-38` + `App.tsx:104-110`）：`SceneDelegate` 接了 `scene(_:openURLContexts:)` 与冷启动 `connectionOptions.urlContexts`，两者都过同一个 `handlePairingURLs`，落进 `ChatViewController.openPairingURL` → 复用配对 sheet（成功后由既有的 pendingOffer 分支自动关 sheet，坏链接在 sheet 里解释，与 RN 把错误画进 Pair 屏同构）。工程侧前置已由 `c561e83` 补齐：`CFBundleURLTypes` 注册 `dsbot` scheme，iOS 才会把 URL 投给 `openURLContexts`。
 0b. **配对输入框 `returnKeyType = .go`**（RN `Pair.tsx:55`）：`PairingViewController` 的 field 加了 `.go` 与 `UITextFieldDelegate`，回车即 `submit()`；解析失败键盘保持，错误就在输入框正下方。
 0c. **冷启动恢复上次对话——已接线**：Mason 落了 `LastChatStore`（`native/Sources/DSBot/LastChatStore.swift`，键 `dsbot.lastChat`；`save` 已由他挂进 `selectTarget`）。我接读侧：`ChatViewController` 首次 `state` 落地、选定初始目标处调 `restore(stillKnown:)`，用 team state 判存活，失效自动清键、回退主 Bot；显示名从 team 数组回填（存值不带名）。恢复只跑一次（`restoredLastChat` 旗标），重连路径（`reconnectTarget`）优先。
 
-1. **应用内横幅升到 window 级**（`NoticeOverlay.swift`）：passthrough 容器挂 key window 最上层，`point(inside:)` 只认横幅自身，重复调用幂等，palette 走 `ThemeStore.changed` 重取，顶距 safeArea+8，不随键盘移动。前台抑制之所以「交给已有的横幅」，前提就是这条。
-2. **答题/审批成功震动**（`PendingDockView.run`）：`answer-question`/`approval-answer` 成功给一次 `notificationSuccess`，对应 RN `dock.tsx:87,130`；RN 对 reject 用 Warning，按裁定统一 Success，不撒别处。
-
-1. **应用内横幅升到 window 级**（`NoticeOverlay.swift`）：passthrough 容器挂 key window 最上层，`point(inside:)` 只认横幅自身，重复调用幂等，palette 走 `ThemeStore.changed` 重取，顶距 safeArea+8，不随键盘移动。前台抑制之所以「交给已有的横幅」，前提就是这条。
-2. **答题/审批成功震动**（`PendingDockView.run`）：`answer-question`/`approval-answer` 成功给一次 `notificationSuccess`，对应 RN `dock.tsx:87,130`；RN 对 reject 用 Warning，按裁定统一 Success，不撒别处。
+1. **应用内横幅升到 window 级**（`NoticeOverlay.swift`）：passthrough 容器挂 key window 最上层，`point(inside:)` 只认横幅自身，重复调用幂等，palette 走 `ThemeStore.changed` 重取，顶距 safeArea+8，不随键盘移动。前台抑制之所以「交给已有的横幅」，前提就是这条。`contentEdgeInsets` 的弃用警告是**记在账上的技术债、本轮不动**（Warden 裁定）：全仓同族用法都是它，单独迁 `UIButtonConfiguration` 会两种写法并存，且 Configuration 接管 title 排版、易与现有字体设置打架，等全仓一起迁。
+2. **答题/审批成功震动**（`PendingDockView.run`）：`answer-question`/`approval-answer` 成功给一次 `UINotificationFeedbackGenerator().notificationOccurred(.success)`，对应 RN `dock.tsx:87,130`；RN 对 reject 用 Warning，按裁定统一 Success，不撒别处。
 
 ## 7. 测试矩阵（macOS / 真机，放行后跑）
 
