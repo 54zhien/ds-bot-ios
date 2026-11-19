@@ -142,6 +142,7 @@ final class ThinkingCapsuleTests: XCTestCase {
         view.maximumWidth = 160
         view.configure(ThinkingCapsulePresentation(
             text: String(repeating: "检查记忆中的项目结构 ", count: 12), look: look))
+        XCTAssertGreaterThan(view.textWidth, 160, "the line runs past the cap")
         hosted(view)
         // The cap has to be the thing that stops it. A capsule that never got a width
         // from its line is narrow too, and narrow is what a cut line looks like.
@@ -151,6 +152,7 @@ final class ThinkingCapsuleTests: XCTestCase {
         let short = ThinkingCapsuleView()
         short.maximumWidth = 160
         short.configure(ThinkingCapsulePresentation(text: "在做了…", look: nil))
+        XCTAssertGreaterThan(short.textWidth, 0, "the label carries the line before layout")
         hosted(short)
         XCTAssertLessThan(short.bounds.width, 160, "the cap is a ceiling, not a width")
         XCTAssertTrue(short.textFits)

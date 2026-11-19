@@ -117,9 +117,10 @@ final class ThinkingCapsuleView: UIView {
     private static let fontSizeCeiling: CGFloat = 16
 
     private let surface = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
-    private let row = UIStackView()
     private let mark = CharacterAvatarView(look: CharacterMarks.look())
     private let label = UILabel()
+    private var markWidth: NSLayoutConstraint?
+    private var markGap: NSLayoutConstraint?
     private var widthLimit: NSLayoutConstraint?
     private var animator: UIViewPropertyAnimator?
 
@@ -137,6 +138,9 @@ final class ThinkingCapsuleView: UIView {
             widthLimit = limit
         }
     }
+
+    /// The line's own width, so a test can tell a pill with no width from a cut line.
+    var textWidth: CGFloat { label.intrinsicContentSize.width }
 
     /// Whether the line is drawn whole. Only the tests read it: a truncated label
     /// keeps its whole line in its intrinsic size while its frame stays narrow.
@@ -164,37 +168,33 @@ final class ThinkingCapsuleView: UIView {
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 1
         label.lineBreakMode = .byTruncatingTail
-        // Compression stays at the default: maximumWidth is what cuts the line. At
-        // .defaultLow the label gives up its only claim to a width inside the stack.
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.axis = .horizontal
-        row.alignment = .center
-        row.spacing = Self.gap
-        row.isLayoutMarginsRelativeArrangement = true
-        row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: Self.lead,
-                                                              bottom: 0, trailing: Self.trail)
-        row.addArrangedSubview(mark)
-        row.addArrangedSubview(label)
-        addSubview(row)
+        // Compression stays at the default: the label resisting it is the only thing that
+        // asks the pill for a width. Lowered, the label still lays out but the pill has
+        // nothing to size from and comes out zero wide.
+        addSubview(mark)
+        addSubview(label)
 
-        // The stack hides an arranged subview by pinning it to zero at required priority,
-        // so a required width here fights it and the engine breaks one of the two. One
-        // notch down and the hiding wins quietly; still above the label, which is what
-        // gives way when the cap bites.
-        let markWidth = mark.widthAnchor.constraint(equalToConstant: Self.markSize)
-        markWidth.priority = UILayoutPriority(999)
+        // No stack view between them: a stack reports no size its superview can take a
+        // width from, and this pill has no width constraint above it. Pinned straight
+        // through, the label's own line is the width. A mark that is not shown gives its
+        // room back through the constants rather than leaving a 20pt hole.
+        let markWidth = mark.widthAnchor.constraint(equalToConstant: 0)
+        let markGap = label.leadingAnchor.constraint(equalTo: mark.trailingAnchor, constant: 0)
+        self.markWidth = markWidth
+        self.markGap = markGap
         NSLayoutConstraint.activate([
             heightAnchor.constraint(equalToConstant: Self.height),
             surface.topAnchor.constraint(equalTo: topAnchor),
             surface.bottomAnchor.constraint(equalTo: bottomAnchor),
             surface.leadingAnchor.constraint(equalTo: leadingAnchor),
             surface.trailingAnchor.constraint(equalTo: trailingAnchor),
-            markWidth,
+            mark.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.lead),
+            mark.centerYAnchor.constraint(equalTo: centerYAnchor),
             mark.heightAnchor.constraint(equalToConstant: Self.markSize),
-            row.topAnchor.constraint(equalTo: topAnchor),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor),
-            row.leadingAnchor.constraint(equalTo: leadingAnchor),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor),
+            markWidth,
+            markGap,
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.trail),
         ])
         applyPalette()
         NotificationCenter.default.addObserver(self, selector: #selector(themeChanged),
@@ -209,9 +209,17 @@ final class ThinkingCapsuleView: UIView {
         guard let presentation, !presentation.text.isEmpty else { hide(); return }
         label.text = presentation.text
         accessibilityLabel = presentation.text
-        mark.isHidden = presentation.look == nil
+        applyMarkRoom(shown: presentation.look != nil)
         if let look = presentation.look { mark.look = look }
         show()
+    }
+
+    /// A hidden view keeps its constraints, so the mark's room is carried by the two
+    /// constants instead of by visibility: no mark, no 28pt of empty leading edge.
+    private func applyMarkRoom(shown: Bool) {
+        mark.isHidden = !shown
+        markWidth?.constant = shown ? Self.markSize : 0
+        markGap?.constant = shown ? Self.gap : 0
     }
 
     // MARK: - Moving in and out
