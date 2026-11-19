@@ -72,7 +72,9 @@
 | 加号多选照片 | composer.tsx:62-73 | ChatViewController.swift:1706-1713 | 一致 |
 | 缩略图条 + 单张移除 | composer.tsx:147-159 | NativeComposerView.swift:296-314 | 一致 |
 | 照片压缩（长边 2048 / JPEG 0.82） | composer.tsx:15-24 | NativeComposerView.swift:283-292 | 一致 |
-| 选图失败提示 pickError | composer.tsx:64-72,135 | 确实没有：选图失败走系统静默，无应用内提示文案 | 缺失 |
+| 选图失败提示 pickError | composer.tsx:64-72,135 | `2df2904`：`ChatViewController.showPickError` 在 composer 上方一行小字，取图失败与解码失败两处静默点都改成有反馈，成功后自动清除 | 一致 · `2df2904` |
+| 玻璃成形与折叠插值（zen 移植） | zen `App/Conversation/ComposerGeometry.swift`、`ComposerMorphGeometry.swift`（本仓无 RN 对照） | 第①层已搬几何与动效脊柱；折叠只插值高度/圆角/内距，端点取自 `ComposerGeometry`，曲线取自 `ComposerInputAnimation` | 一致（几何层）· 见 `ZenComposer/PORTING.md` |
+| **未移植：plus/primary 落位形变** | zen `ComposerMorphGeometry.interpolate`（插值字段含 `plus`、`primary`） | 其依赖 `ComposerContextAction` → `RunProjection` → `Records.swift`（422 行，GRDB 记录类型）超出「类型依附放行」预算，已按裁定丢弃；宿主**不另写近似实现** | **缺失（已知偏离）**：plus 按钮从落位框飞向 primary 的动画这次不做 |
 | 键盘期间输入框贴 12pt | composer.tsx:86,113-114 | ChatViewController.swift:1509-1540 | 一致 |
 | 切对话清草稿（RN 靠重挂丢弃） | ShellB.tsx:219（key 重建） | NativeComposerView.swift:274-281（clear()） | 一致 |
 

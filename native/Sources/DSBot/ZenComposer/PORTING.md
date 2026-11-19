@@ -66,7 +66,16 @@ B 路线不搬 `ComposerHostView`，因此下面两段表面宿主本批不移�
 - `SurfaceClipView`（`ConversationSurfaceHost.swift:1043` 起，逐字 **169 行**）：体内引用中，`validationViewport` / `validationContent`（`:1045-1046`）与 `recordMovement(_:)`（`:1157`，含 `#if DEBUG`）属于**②同文件 helper**，需一并带上（约 +11 行）；**④ 都不在 = 0**。→ 可独立搬，约 180 行，远小于整文件 1,253 行。
 - `ComposerDockContainer`（`WorkspaceComposerDock.swift:183`，逐字 **85 行**）：引用同文件的 `ComposerHostPortal`（`:94`）与 `WorkspaceComposerDockOutline`（`:176`）为**②**；`SidebarProgressPresentation`（`SidebarRailView.swift:64`）与 `SidebarSurfaceDecoration`（同文件 `:78`）为**③**；**④ = 0**。→ 可独立搬，带入约 182 行（`:94`–`:281`），小于整文件 282 行。
 
-## 六、批次
+## 六、已知偏离（写在这里，不是遗忘）
+
+| 偏离 | 原因 | 影响 |
+|---|---|---|
+| **字体非 zen 原字体**：用系统字 + 系统默认字重，不是 `AnthropicSansWebVariable-TextRegular` | zen 通过捆绑可变字体 + `kCTFontVariationAttribute`（`Typography.swift:27-36`、`:52-54`）表达字重；本仓库没有该字体 | 观感有差异；**几何不受影响**——`ComposerGeometry` 只消费 `pointSize`/`lineHeight` 数值（17 / `.body`，`Typography.swift:65`、`:92`），字号仍走 `UIFontMetrics(forTextStyle: .body)` 保住 Dynamic Type（`:107-108`） |
+| **未移植：plus/primary 落位形变** | `ComposerMorphGeometry.interpolate` 的插值字段含 `plus` 与 `primary` 两个落位框，而它依赖的 `ComposerContextAction` 因 `RunProjection`（GRDB 记录类型，`Records.swift` 422 行）超出「类型依附放行」预算而丢 | 「展开收起」只做输入框高度/圆角/内距随折叠进度插值；plus 按钮从落位框飞向 primary 的动画**这次不做**，也不在宿主里另写近似实现 |
+| `ComposerOverlayFocus` 未搬 | 它引用 `ComposerHostView`，而宿主由我们自己写 | **宿主替代**，不是功能缺失；焦点转移由宿主壳实现 |
+| **`WindowCornerGeometry` 加了可用性守卫** | `cornerConfiguration` 与 `effectiveRadius` 只有 iOS 26 才有，我们的部署目标是 16.4（`native/project.yml:11`） | iOS 26 上走 zen 原文；**16.4–25.x 回落**为 `layer.cornerRadius` + `maskedCorners`（回落代码我们写的，已注释标明）。部署目标未改 |
+
+## 七、批次
 
 落 `native/Sources/DSBot/ZenComposer/`，保持 zen 的分层，一层一提交：
 

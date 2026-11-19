@@ -1,4 +1,5 @@
 // ported verbatim from Zen-Agent App/App/WindowCornerGeometry.swift (25 lines)
+// deviation: availability guard added for our iOS 16.4 deployment target; zen’s body otherwise unchanged.
 
 import UIKit
 
@@ -16,10 +17,23 @@ final class WindowCornerGeometry {
         reference.isUserInteractionEnabled = false
         reference.isAccessibilityElement = false
         reference.accessibilityElementsHidden = true
-        reference.cornerConfiguration = .uniformCorners(radius: .containerConcentric())
-        window.addSubview(reference)
-        reference.layoutIfNeeded()
-        let radius = reference.effectiveRadius(corner: .topLeft)
+        let radius: CGFloat
+        if #available(iOS 26.0, *) {
+            // zen's own body, unchanged.
+            reference.cornerConfiguration = .uniformCorners(radius: .containerConcentric())
+            window.addSubview(reference)
+            reference.layoutIfNeeded()
+            radius = reference.effectiveRadius(corner: .topLeft)
+        } else {
+            // deviation: our fallback, not zen code. Before iOS 26 there is no
+            // concentric-corner API, so the window's own radius is the only honest
+            // answer; it is usually zero and the composer draws square corners.
+            reference.layer.cornerRadius = window.layer.cornerRadius
+            reference.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+            window.addSubview(reference)
+            reference.layoutIfNeeded()
+            radius = reference.layer.cornerRadius
+        }
         reference.removeFromSuperview()
         cachedWindow = window
         cachedBounds = window.bounds
