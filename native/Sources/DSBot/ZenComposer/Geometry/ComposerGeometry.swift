@@ -230,13 +230,13 @@ enum ComposerGeometry {
     }
 }
 
-// deviation: ConcentricRectangle is SwiftUI's iOS 26 shape, so this token waits for
-// 26 as well; nothing in the ported layer reads it yet (the morph geometry that did
-// was dropped with ComposerContextAction).
-@available(iOS 26.0, *)
+// deviation: only `shape(for:)` returns SwiftUI's iOS 26 ConcentricRectangle; the
+// curvature number below is plain geometry and stays available to the morph layer
+// that reads it on every deployment target.
 enum ComposerShapeToken {
     static let minimumCurvature: CGFloat = 18
 
+    @available(iOS 26.0, *)
     static func shape(for layout: ComposerLayout) -> ConcentricRectangle {
         let minimum = minimumRadius(for: layout)
         return ConcentricRectangle(corners: .concentric(minimum: .fixed(minimum)))

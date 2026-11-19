@@ -7,10 +7,17 @@
 // refusing answer, which is the same outcome as zen passing nil.
 
 import SwiftUI
+import UIKit
 
 @MainActor
 final class SurfaceLiftController {
     private(set) var state = SurfaceLiftState()
+
+    // zen :18/:35/:144 read these three, so the handle answers them without a surface:
+    // no layout surface to lift to, no receipt, and never preparing a return.
+    private(set) var nativeLayoutSurface: (() -> UIView?)?
+    var lastNativeLiftReceipt = ""
+    var isPreparingReturn: Bool { false }
 
     func canArm(_ input: SurfaceLiftEligibility) -> Bool { false }
 
