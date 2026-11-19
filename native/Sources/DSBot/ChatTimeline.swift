@@ -98,6 +98,28 @@ enum IMPlatforms {
     static func name(_ id: String) -> String? { names[id] }
 }
 
+/// items.tsx:286-291 draws a room row from its member: the avatar, the name in
+/// that member's colour, and an Admin mark on the member who leads the room. The
+/// roster lives in the team state rather than in the chat page, so the rows are
+/// decorated after they are built.
+enum RoomRowData {
+    static func decorate(_ rows: inout [ChatRow], bots: [JSONValue], adminBotID: String?) {
+        guard !rows.isEmpty else { return }
+        var roster: [String: JSONValue] = [:]
+        for bot in bots {
+            if let id = bot["id"]?.stringValue { roster[id] = bot }
+        }
+        for index in rows.indices {
+            guard let member = rows[index].botID else { continue }
+            let bot = roster[member]
+            rows[index].memberName = bot?["name"]?.stringValue
+            rows[index].memberColor = bot?["color"]?.stringValue
+            rows[index].memberAvatar = bot?["avatar"]
+            rows[index].isAdmin = adminBotID == member
+        }
+    }
+}
+
 struct ChatRow {
     let kind: String
     let name: String
@@ -126,6 +148,16 @@ struct ChatRow {
     /// True in a room, where Chat.tsx shows no stamps at all. Set by the page, since
     /// an item's own fields cannot tell a room reply from a one-to-one reply.
     var inRoom = false
+    /// The member who spoke, when the item names one; a room post carries it and a
+    /// one-to-one reply does not.
+    let botID: String?
+    /// items.tsx:286-291 draws the member from the roster, so the row keeps what
+    /// the team state said: name, colour and avatar, plus whether this member
+    /// leads the room. Filled by RoomRowData; the renderer decides what to show.
+    var memberName: String?
+    var memberColor: String?
+    var memberAvatar: JSONValue?
+    var isAdmin = false
 
     init(_ value: JSONValue) {
         kind = value["kind"]?.stringValue ?? "event"
@@ -237,6 +269,7 @@ struct ChatRow {
             time = nil
         }
         via = value["via"]?.stringValue
+        botID = value["botId"]?.stringValue
         let sequence = value["seq"]?.intValue.map { String($0) } ?? ""
         let timestamp = value["time"]?.intValue.map { String($0) } ?? ""
         let turn = value["turn"]?.intValue.map { String($0) } ?? ""
@@ -261,6 +294,7 @@ struct ChatRow {
         self.text = text
         time = Date()
         via = nil
+        botID = nil
         sourceKey = "local-\(localID.uuidString)"
         self.localID = localID
         failed = failureReason != nil

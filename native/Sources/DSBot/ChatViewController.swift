@@ -173,6 +173,14 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 && (next.kind == "bot" || next.kind == "post")
                 && next.name == rows[index].name
         }
+        // items.tsx:286-291: a room row draws its member, and the roster lives in
+        // the team state rather than in the chat page, so it is read here.
+        if let roomID {
+            let bots: [JSONValue]
+            if case .array(let values)? = teamState?["bots"] { bots = values } else { bots = [] }
+            RoomRowData.decorate(&rows, bots: bots,
+                                 adminBotID: teamRoom(with: roomID)?["admin"]?.stringValue)
+        }
         list.reloadData()
         updateEmptyState()
     }
