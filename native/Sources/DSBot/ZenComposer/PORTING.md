@@ -79,6 +79,7 @@ B 路线不搬 `ComposerHostView`，当时因此不移植下面两段。本批�
 | **`WindowCornerGeometry` 加了可用性守卫** | `cornerConfiguration` 与 `effectiveRadius` 只有 iOS 26 才有，我们的部署目标是 16.4（`native/project.yml:11`） | iOS 26 上走 zen 原文；**16.4–25.x 回落**为 `layer.cornerRadius` + `maskedCorners`（回落代码我们写的，已注释标明）。部署目标未改 |
 | **宿主替身六件**（`Boundary/`）：`SurfaceLiftController`、`ComposerDockContainer`、`SurfaceClipView`、`RunProjection`、`QuoteReferencePresentation` 对、`CredentialStoring` 协议 | 这六处 zen 都只在类型位置用到，而真类型分别拖进 workspace 批（5,444 行）、runtime/persistence 脊柱（9,022 行）、GRDB（`Records.swift` 486 行）与 Keychain（451 行） | lift 手柄每次 `arm`/`drag` 都拒绝；两个标记视图让 `is` / `as?` 两条分支永不成立；`RunProjection` 只有 `.runID`/`.isActive`/`.canStop`；`CredentialStoring` 只取协议原文。每件文件头有 `// deviation:` |
 | **玻璃走 `ZenGlass`** | `UIGlassEffect` 与 `cornerConfiguration` 是 iOS 26 API，本批落地的四个 zen 文件共 13 处调用 | 26 上执行 zen 原文；16.4–25.x 回落 `UIBlurEffect(style: .systemThinMaterial)` + 连续圆角 `layer.cornerRadius`。zen 文件只在调用点不同，其余逐字，已列在各自文件头 |
+| **最低系统抬到 iOS 17.0**（`native/project.yml:5/11/20/72`） | zen 输入框用到 `@Observable`（`ComposerActionMenuView.swift:7`）、两参 `.onChange(of:)`（`ComposerThinkingControl` 等 10 处）、`.phaseAnimator`（`ComposerThinkingTrack.swift:116`）、`registerForTraitChanges`（`ComposerHostView.swift:217`）——都只有 iOS 17 才有 | 逐处降级会引入重写：`@Observable`→`ObservableObject` 要重验观测语义，`.phaseAnimator` 要手写定时器状态机，两处都会变成「像 zen 但不是 zen」。抬目标是一行且可回退。**iOS 26 的 `#available` 守卫仍然必要**（玻璃与 `cornerConfiguration`），不得因为 17.0 而删除 |
 
 ## 七、批次
 
