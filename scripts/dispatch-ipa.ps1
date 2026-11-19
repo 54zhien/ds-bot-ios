@@ -40,6 +40,7 @@ param(
     [int]$RetryPauseSeconds = 60,
     [string]$XcodeVersion = "26.6",
     [long]$ProbeRunId = 0,
+    [long]$AdoptRunId = 0,
     [string]$Destination = "D:\DSBotWorkspace\DS Bot iOS\artifacts",
     [switch]$SelfTest
 )
@@ -128,23 +129,29 @@ function Show-Evidence {
 # ---------------------------------------------------------------------------
 # Dispatch, poll, retry the starved ones only, close out on success.
 # ---------------------------------------------------------------------------
+function Get-DispatchRunIds {
+    $raw = gh run list -w $Workflow -b main -L 20 --json databaseId,event 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $raw) { return @() }
+    return @($raw | ConvertFrom-Json |
+        Where-Object { $_.event -eq "workflow_dispatch" } |
+        ForEach-Object { [long]$_.databaseId })
+}
+
 function Invoke-IpaDispatch {
-    $beforeUtc = [DateTimeOffset]::UtcNow.AddSeconds(-5)
+    # Find the new run by id, not by clock or status. The first seconds of a run
+    # report status "requested", which a queued/in_progress filter silently drops -
+    # that cost one live dispatch. Comparing local time against GitHub's stamps is
+    # no better: it works only until the two clocks drift.
+    $before = Get-DispatchRunIds
     gh workflow run $Workflow --ref main -f runner=macos-26 -f xcode_version=$XcodeVersion
     if ($LASTEXITCODE -ne 0) { throw "gh workflow run failed" }
 
-    for ($i = 0; $i -lt 10; $i++) {
+    for ($i = 0; $i -lt 20; $i++) {
         Start-Sleep -Seconds 6
-        $runs = gh run list -w $Workflow -b main -L 15 --json databaseId,event,status,createdAt 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $runs) { continue }
-        $match = $runs | ConvertFrom-Json | Where-Object {
-            $_.event -eq "workflow_dispatch" -and
-            $_.status -in @("queued", "pending", "in_progress") -and
-            ([DateTimeOffset]::Parse($_.createdAt).UtcDateTime -ge $beforeUtc.UtcDateTime)
-        } | Select-Object -First 1
-        if ($match) { return [long]$match.databaseId }
+        $fresh = @(Get-DispatchRunIds | Where-Object { $before -notcontains $_ })
+        if ($fresh.Count -gt 0) { return [long]($fresh | Select-Object -First 1) }
     }
-    throw "dispatched but no new workflow_dispatch run appeared on main within 60s"
+    throw "dispatched but no new workflow_dispatch run appeared on main within 120s"
 }
 
 function Save-IpaArtifact {
@@ -155,10 +162,17 @@ function Save-IpaArtifact {
     gh run download $RunId -n $ArtifactName -D $tmp
     if ($LASTEXITCODE -ne 0) { throw "gh run download failed for $ArtifactName" }
 
-    $info = Get-Content (Join-Path $tmp "build-info-native.json") -Raw | ConvertFrom-Json
-    $sidecar = (Get-Content (Join-Path $tmp "DS-Bot-native-unsigned.sha256") -Raw) -split '\s+' | Select-Object -First 1
-    $ipa = Get-ChildItem $tmp -Filter *.ipa | Select-Object -First 1
+    # The artifact keeps the paths it was uploaded with (dist/..., native/Support/...),
+    # so every file is found by walking, not by assuming a flat folder.
+    $infoFile = Get-ChildItem $tmp -Recurse -Filter "build-info-native.json" | Select-Object -First 1
+    $sideFile = Get-ChildItem $tmp -Recurse -Filter "DS-Bot-native-unsigned.sha256" | Select-Object -First 1
+    $ipa = Get-ChildItem $tmp -Recurse -Filter *.ipa | Select-Object -First 1
+    $ent = Get-ChildItem $tmp -Recurse -Filter "*.entitlements" | Select-Object -First 1
+    if (-not $infoFile) { throw "the artifact holds no build-info-native.json" }
     if (-not $ipa) { throw "the artifact holds no .ipa" }
+
+    $info = Get-Content $infoFile.FullName -Raw | ConvertFrom-Json
+    $sidecar = if ($sideFile) { ((Get-Content $sideFile.FullName -Raw) -split '\s+')[0] } else { "" }
 
     $hash = (Get-FileHash $ipa.FullName -Algorithm SHA256).Hash.ToLower()
     if ($hash -ne $info.sha256) {
@@ -174,8 +188,17 @@ function Save-IpaArtifact {
     $dest = Join-Path $DestinationRoot $name
     Copy-Item $ipa.FullName $dest -Force
 
+    # The resign kit travels with the package: the entitlements template has to sit
+    # next to the IPA, or the next person has to go back to the repo for it.
+    $entDest = ""
+    if ($ent) {
+        $entDest = Join-Path $DestinationRoot (($name -replace '\.ipa$', '') + ".entitlements")
+        Copy-Item $ent.FullName $entDest -Force
+    }
+
     "run      : $RunId  https://github.com/$Repo/actions/runs/$RunId"
     "ipa      : $name ($($ipa.Length) bytes)"
+    if ($entDest) { "entitlements: $(Split-Path $entDest -Leaf) (aps-environment template for resigning)" }
     "sha256   : $hash (matches build-info-native.json and DS-Bot-native-unsigned.sha256)"
     "saved to : $dest"
 }
@@ -241,7 +264,11 @@ if ($ProbeRunId) {
 # Real run: dispatch, poll, retry the starved ones, close out.
 $script:PollCount = 0
 for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-    if ($attempt -eq 1) {
+    if ($attempt -eq 1 -and $AdoptRunId) {
+        $runId = $AdoptRunId
+        "attempt 1/$MaxAttempts : adopting run $runId (dispatched earlier; no new dispatch)"
+    }
+    elseif ($attempt -eq 1) {
         "dispatching ios-native.yml (budget: $MaxAttempts attempts, retrying starvation only)..."
         $runId = Invoke-IpaDispatch
         "attempt 1/$MaxAttempts : run $runId"
