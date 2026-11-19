@@ -1413,6 +1413,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                             cursor: cursor, sessionID: chatSessionID)
         }
         selectedTarget = target
+        // ShellB.tsx:167: every target switch saves the chat the user opened.
+        LastChatStore.save(target)
         // The fields name the incoming chat right away: the restored page below then
         // lives under the same key the reads use, and the refresh's own reset block is
         // skipped, so what the cache restored survives until the fresh read lands.
