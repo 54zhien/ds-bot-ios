@@ -132,16 +132,16 @@ final class CharacterAvatarTests: XCTestCase {
         XCTAssertEqual(CharacterMarks.look(), CharacterMarks.Look(shape: "gumdrop", color: "black", image: nil))
         XCTAssertEqual(CharacterMarks.look(id: ""), CharacterMarks.Look(shape: "gumdrop", color: "black", image: nil))
         XCTAssertEqual(CharacterMarks.look(id: "abc"), CharacterMarks.Look(shape: "gumdrop", color: "cyan", image: nil))
-        XCTAssertEqual(CharacterMarks.look(id: "abc", shape: "moon"),
+        XCTAssertEqual(CharacterMarks.look(shape: "moon", id: "abc"),
                        CharacterMarks.Look(shape: "moon", color: "cyan", image: nil))
-        XCTAssertEqual(CharacterMarks.look(id: "abc", shape: "nonesuch"),
+        XCTAssertEqual(CharacterMarks.look(shape: "nonesuch", id: "abc"),
                        CharacterMarks.Look(shape: "gumdrop", color: "cyan", image: nil))
-        XCTAssertEqual(CharacterMarks.look(id: "abc", color: "#123456"),
+        XCTAssertEqual(CharacterMarks.look(color: "#123456", id: "abc"),
                        CharacterMarks.Look(shape: "gumdrop", color: "#123456", image: nil))
-        XCTAssertEqual(CharacterMarks.look(id: "abc", color: "aurora"),
+        XCTAssertEqual(CharacterMarks.look(color: "aurora", id: "abc"),
                        CharacterMarks.Look(shape: "gumdrop", color: "aurora", image: nil))
         // isColor does not know the renamed inks, so lookOf swaps kimi for the id's own.
-        XCTAssertEqual(CharacterMarks.look(id: "abc", color: "kimi"),
+        XCTAssertEqual(CharacterMarks.look(color: "kimi", id: "abc"),
                        CharacterMarks.Look(shape: "gumdrop", color: "cyan", image: nil))
         XCTAssertEqual(CharacterMarks.look(id: "abc", image: "data:image/png;base64,AA").image,
                        "data:image/png;base64,AA")
