@@ -57,4 +57,14 @@ final class RoomRowDataTests: XCTestCase {
         XCTAssertNil(rows[0].botID)
         XCTAssertNil(rows[0].memberColor)
     }
+
+    func testANullAvatarIsNoAvatar() {
+        let bots: [JSONValue] = [.object(["id": .string("b-3"), "name": .string("Echo"),
+                                          "avatar": .null])]
+        var rows = [post("b-3")]
+        RoomRowData.decorate(&rows, bots: bots, adminBotID: nil)
+        XCTAssertNotNil(rows[0].memberAvatar, "the roster did answer, with null")
+        XCTAssertFalse(rows[0].hasMemberAvatar)
+        XCTAssertFalse(post("b-1").hasMemberAvatar, "no roster answer is no avatar either")
+    }
 }

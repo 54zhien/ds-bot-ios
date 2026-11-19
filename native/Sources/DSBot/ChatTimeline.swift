@@ -159,6 +159,10 @@ struct ChatRow {
     var memberAvatar: JSONValue?
     var isAdmin = false
 
+    /// The roster can answer with a null avatar, which is not a picture. The test
+    /// lives here so the renderer asks once instead of writing `== .null` again.
+    var hasMemberAvatar: Bool { memberAvatar != nil && memberAvatar != .null }
+
     init(_ value: JSONValue) {
         kind = value["kind"]?.stringValue ?? "event"
         name = value["name"]?.stringValue ?? ""
