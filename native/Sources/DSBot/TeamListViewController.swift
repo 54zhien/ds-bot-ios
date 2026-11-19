@@ -133,14 +133,36 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         guard traitCollection.hasDifferentColorAppearance(comparedTo: previous) else { return }
-        palette = ThemeStore.palette(trait: traitCollection)
+        refreshAppearance()
+    }
+
+    /// One path for both change signals: the trait and the theme notification. It rebuilds
+    /// the header rather than repainting it, because the head is made of things that are
+    /// built once — the tiles, their role chips and the head's glass controls. The real
+    /// cause of a head that keeps the old palette is that `tableHeaderView` takes no part
+    /// in `reloadData`: the rows below it move to the new palette and the header does not.
+    func refreshAppearance() {
+        // The view's traits, not the controller's: the view is what draws, and it carries
+        // any per-view override the moment it is set.
+        palette = ThemeStore.palette(trait: view.traitCollection)
         gearButtonIcon.color = palette.ink2
         plusButtonIcon.color = palette.ink2
         headTitle.textColor = palette.ink
         searchField.textColor = palette.ink
         pillIcon.tintColor = palette.ink3
         view.backgroundColor = palette.sidebar
+        rebuildHeader()
         table.reloadData()
+    }
+
+    @objc private func themeChanged() { refreshAppearance() }
+
+    /// A header rebuild changes the table's content, so the offset is taken and put back:
+    /// an appearance change must not scroll the list under the reader's finger.
+    private func rebuildHeader() {
+        let offset = table.contentOffset
+        rebuild()
+        table.contentOffset = offset
     }
 
     init(state: JSONValue) {
@@ -222,6 +244,10 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
             table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        // A theme the user picks is not a trait change, so both signals lead to the same
+        // refresh; without this one the drawer keeps the palette it opened with.
+        NotificationCenter.default.addObserver(self, selector: #selector(themeChanged),
+                                               name: ThemeStore.changed, object: nil)
         rebuild()
     }
 
@@ -488,6 +514,28 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         table.tableHeaderView = header
     }
 
+    /// The tile's height is its content, not a number beside it. The fixed 104 this
+    /// replaced was 7.6pt short of what the tile holds, so the engine took the difference
+    /// out of the role label: its frame fell below its own line and the glyphs were cut
+    /// top and bottom. Every part below is used twice — once in a constraint, once in the
+    /// sum — so the two cannot drift apart again.
+    private enum TileMetrics {
+        static let contentTop: CGFloat = 10     // TeamList.tsx:147
+        static let contentBottom: CGFloat = 8   // TeamList.tsx:147
+        static let avatar: CGFloat = 52         // TeamList.tsx:80
+        static let avatarGap: CGFloat = 6       // TeamList.tsx:81
+        static let nameGap: CGFloat = 3         // TeamList.tsx:82
+        /// ceil(11pt SF line height 13.09) plus the role label's 2pt top and bottom.
+        static let chipHeight: CGFloat = 18
+        static let nameLine: CGFloat = 16       // ceil(13pt semibold line height 15.51)
+        static var height: CGFloat {
+            contentTop + avatar + avatarGap + nameLine + nameGap + chipHeight + contentBottom
+        }
+    }
+
+    /// For the tests: the one place the derived height lives.
+    static var tileHeight: CGFloat { TileMetrics.height }
+
     private func mainTile(_ entry: Entry) -> UIControl {
         let tile = UIControl()
         tile.backgroundColor = .clear
@@ -496,7 +544,8 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         // states the same width.
         tile.layer.borderWidth = 1
         tile.layer.borderColor = UIColor.clear.cgColor
-        tile.heightAnchor.constraint(equalToConstant: 104).isActive = true
+        tile.heightAnchor.constraint(equalToConstant: Self.tileHeight).isActive = true
+        tile.accessibilityIdentifier = "drawer.tile"
         tile.accessibilityLabel = "\(entry.target.name), \(tr("Main Bot"))"
         let content = UIStackView()
         content.axis = .vertical
@@ -508,15 +557,16 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         NSLayoutConstraint.activate([
             content.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
             // TeamList.tsx:147: the tile pads 10 above its content and 8 below.
-            content.topAnchor.constraint(equalTo: tile.topAnchor, constant: 10),
-            content.bottomAnchor.constraint(lessThanOrEqualTo: tile.bottomAnchor, constant: -8),
+            content.topAnchor.constraint(equalTo: tile.topAnchor, constant: TileMetrics.contentTop),
+            content.bottomAnchor.constraint(lessThanOrEqualTo: tile.bottomAnchor,
+                                            constant: -TileMetrics.contentBottom),
             content.leadingAnchor.constraint(greaterThanOrEqualTo: tile.leadingAnchor, constant: 6),
             content.trailingAnchor.constraint(lessThanOrEqualTo: tile.trailingAnchor, constant: -6),
         ])
         // TeamList.tsx:80: the tile's mark is 52pt, larger than the row's 36.
         let avatar = CharacterAvatarView(look: entry.look)
-        avatar.widthAnchor.constraint(equalToConstant: 52).isActive = true
-        avatar.heightAnchor.constraint(equalToConstant: 52).isActive = true
+        avatar.widthAnchor.constraint(equalToConstant: TileMetrics.avatar).isActive = true
+        avatar.heightAnchor.constraint(equalToConstant: TileMetrics.avatar).isActive = true
         content.addArrangedSubview(avatar)
         if entry.waiting || entry.working {
             // marks.tsx:69,:72,:78-85: 27% of the avatar in a transparent gap;
@@ -574,28 +624,43 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         name.textColor = palette.ink
         name.textAlignment = .center
         name.lineBreakMode = .byTruncatingTail
+        // The name gives way first — its width truncates, its height never does, which
+        // is TeamList.tsx:289-291's flexShrink on the name and none on the chip.
+        name.setContentCompressionResistancePriority(.required, for: .vertical)
+        name.accessibilityIdentifier = "drawer.tile.name"
         content.addArrangedSubview(name)
         // TeamList.tsx:81-82: 6 under the avatar, 3 above the role chip.
-        content.setCustomSpacing(6, after: avatar)
-        content.setCustomSpacing(3, after: name)
+        content.setCustomSpacing(TileMetrics.avatarGap, after: avatar)
+        content.setCustomSpacing(TileMetrics.nameGap, after: name)
         if !entry.role.isEmpty {
             // TeamList.tsx:82,:148: the role rides on an active chip.
             let chip = UIView()
             chip.backgroundColor = palette.active
-            chip.layer.cornerRadius = 6
+            chip.layer.cornerRadius = Radius.item
+            chip.accessibilityIdentifier = "drawer.tile.chip"
+            // Its height is stated rather than inherited: the chip keeps one line of
+            // 11pt type and the tile is sized around it, never the other way round.
+            chip.heightAnchor.constraint(equalToConstant: TileMetrics.chipHeight).isActive = true
+            chip.setContentCompressionResistancePriority(.required, for: .vertical)
+            chip.setContentCompressionResistancePriority(.required, for: .horizontal)
             let role = UILabel()
             role.text = entry.role
             role.font = .systemFont(ofSize: 11)
             role.textColor = palette.ink2
             role.textAlignment = .center
             role.lineBreakMode = .byTruncatingTail
+            role.accessibilityIdentifier = "drawer.tile.role"
+            role.setContentCompressionResistancePriority(.required, for: .vertical)
             chip.addSubview(role)
             role.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
                 role.topAnchor.constraint(equalTo: chip.topAnchor, constant: 2),
                 role.bottomAnchor.constraint(equalTo: chip.bottomAnchor, constant: -2),
                 role.leadingAnchor.constraint(equalTo: chip.leadingAnchor, constant: 6),
-                role.trailingAnchor.constraint(lessThanOrEqualTo: chip.trailingAnchor, constant: -6),
+                // Equal, not "at most": the chip is its text plus its two 6pt sides. With
+                // the ≤ it had, the chip's own width had no lower bound at all, so nothing
+                // stopped the engine from squeezing the label inside it.
+                role.trailingAnchor.constraint(equalTo: chip.trailingAnchor, constant: -6),
             ])
             chip.widthAnchor.constraint(lessThanOrEqualToConstant: 92).isActive = true
             content.addArrangedSubview(chip)
