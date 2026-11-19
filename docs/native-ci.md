@@ -85,3 +85,7 @@ macos-26 的 runner 池偶尔派不出机器：排队的 ipa job 在 **15m01s** 
 
 **方案 C（未启用）：仓库内巡逻 workflow。** 形态：`ios-native-ipa-retry.yml`，`on: workflow_run` 监听「iOS native」完成，`if` 卡「dispatch 触发 + run `failure` + `run_attempt < N`」，调 jobs API 验上面的饿死签名，`gh run rerun --failed` 原 run 重跑（attempt+1，内置 `GITHUB_TOKEN` + `permissions: actions: write`，无 secret，同一 run id 保证据链）。**什么时候启用：出现定时/无人值守的出包才轮到它**——巡逻 workflow 不需要任何人的机器开机。今天所有 dispatch 都是人在场点的，人在场机器就在，脚本已覆盖；多一个每次 run 结束都会评估一遍的 workflow，目前只是噪声，所以不建。
 
+## 提交前自查（工程判据）
+
+- **上限断言要配下界或对照，`≤` 天然接受退化态。** 例：只断言 `capsule.width ≤ 160.5`，宽度塌成 0 也通过；同一条测试再断言「宽度就落在上限上」与「更长的文案更宽」，退化态才无处可藏。同型：`alpha ≤ 1`、`count ≤ N`、`height ≤ H`——写上限时问一句「0 会不会也通过」。
+- **行数异常先怀疑换行符，不要先怀疑逻辑。** 改完大文件后看 `git diff --stat`：若改动行数与 `git show --stat` 里该文件的总行数是同一量级（例：4000 行的文件报 4166 行变更），先查 CRLF/LF 再查代码。本仓同一目录内两种换行并存（`ChatViewController.swift` 是 CRLF、`TeamDrawerTransition.swift` 是 LF），所以**大文件用锚点替换改，不要整文件重写**；确实重写过，先 `git diff --stat` 对量级，再补回文件末尾换行。
