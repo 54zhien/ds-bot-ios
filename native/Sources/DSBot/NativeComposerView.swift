@@ -117,6 +117,8 @@ final class NativeComposerView: UIView, UITextViewDelegate {
             addPhotoButton.heightAnchor.constraint(equalToConstant: Glass.control),
             plusIcon.centerXAnchor.constraint(equalTo: addPhotoButton.centerXAnchor),
             plusIcon.centerYAnchor.constraint(equalTo: addPhotoButton.centerYAnchor),
+            plusIcon.widthAnchor.constraint(equalToConstant: Glass.iconLarge),
+            plusIcon.heightAnchor.constraint(equalToConstant: Glass.iconLarge),
             action.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
             action.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9),
             action.widthAnchor.constraint(equalToConstant: Glass.control),
