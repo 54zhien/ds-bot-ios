@@ -38,11 +38,15 @@
 - **未配对时的点击**：路由照样执行，`selectTarget` 会把聊天切到目标并显示离线/配对提示，不崩、不白屏。
 - 落点：`PushCenter.swift`（`didReceive`/`route`）、`ChatViewController.swift`（`openPushTarget`/`route(to:)`）、`AppDelegate.swift`。
 
-## 5. Badge 策略
+## 5. Badge 策略：本轮不做（已裁定）
 
-宿主拥有数字：它在 `aps.badge` 里写未读计数（payload 仍是路由+计数，无正文）。手机只负责清零：`sceneDidBecomeActive` 时 `setBadgeCount(0)`。前台化必然经过 active，点击路由必然前台化，所以不需要在路由里再清一次。
+宿主**不写** `aps.badge`，payload 里没有计数。Warden 2026-11-19 裁定的三条理由：
 
-- 落点：`SceneDelegate.swift`（`sceneDidBecomeActive`）。
+1. RN 侧从来没有 badge，本轮目标是「功能一个都不能少」，不是超集。
+2. payload 只带路由是本轮的核心设计；badge 属内容层信息，塞进去等于在「正文不出本机」上开口子。
+3. 合并窗口内 badge 怎么累加需要新语义（被合并的 notice 算一次还是多次），那是下一轮的事。
+
+`SceneDelegate.swift` 里 `sceneDidBecomeActive` 的 `setBadgeCount(0)` **保留**：它清的是一个永远不会被设上的角标，无害空转，且下一轮真做 badge 时正好是需要的清零点。测试矩阵第 10 条相应标为「不适用」。
 
 ## 6. 本轮附带落地（Warden 加派与此前裁定的项）
 
@@ -68,7 +72,7 @@
 | 7 | **冷启动** | 杀进程 → 收推送 → 点横幅 | 启动后落在对应对话（delegate 在 didFinishLaunching 已装好） |
 | 8 | sheet 之下 | 设置 sheet 开着时来 notice | window 级横幅可见，点击关 sheet 进对话 |
 | 9 | 旧宿主 | 电脑不含 `push-token` capability | 一切照旧，无报错、无上报 |
-| 10 | badge | 宿主发 `badge: 3` 后前台化 | 角标清 0，宿主下次推送重算 |
+| 10 | ~~badge~~ | — | **不适用：已裁定本轮不做**（见 §5） |
 
 CI 侧：`ios-native.yml` compile job 会在推送后自动编译 Swift 树；`ios-native-smoke.yml` 会真机模拟器起一次主屏。**本轮本地无 macOS，编译与全部用例未跑**，以上矩阵待放行后验证。
 
@@ -77,4 +81,5 @@ CI 侧：`ios-native.yml` compile job 会在推送后自动编译 Swift 树；`i
 - APNs 证书/.p8/Key ID 管理（宿主侧管，不在本仓库客户端）。
 - NSE、`mutable-content`、推送内解密（`s2-drafts/` 草稿原样挂起：不进 main、不属于 RN 对齐范围）。
 - 第三方推送 SDK。
+- **badge / `aps.badge` 未读计数**：本轮不做，理由见 §5（下一轮另议）。
 - `project.yml`（entitlements / background modes / aps-environment）——Warden 另派。

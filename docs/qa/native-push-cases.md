@@ -23,9 +23,6 @@ EOF
 cat > push-room.json <<'EOF'
 { "aps": { "alert": { "title": "<BOT_NAME>", "body": "有新消息" }, "sound": "default" }, "roomId": "<ROOM_ID>", "kind": "message" }
 EOF
-cat > push-badge.json <<'EOF'
-{ "aps": { "alert": { "title": "<BOT_NAME>", "body": "有新消息" }, "sound": "default", "badge": 3 }, "botId": "<BOT_ID>", "kind": "message" }
-EOF
 ```
 
 - [ ] **A1 权限即问**
@@ -65,11 +62,7 @@ EOF
   期望：应用内横幅浮在设置 sheet 之上可见；点击后设置 sheet 关闭、落到对应会话。
   失败信号：横幅被 sheet 埋住看不见；点击后 sheet 不关或落错会话。
 
-- [ ] **A7 badge 清零**
-  前提：回到桌面。
-  步骤：`xcrun simctl push booted io.github.fei2411.dsbot.native push-badge.json` → 看图标角标 → 点开 app。
-  期望：图标显示 3；app 前台化后角标归 0。
-  失败信号：角标不出现（注入失败/未显示）；前台化后角标残留。
+- ~~A7 badge 清零~~ **不适用：已裁定本轮不做**（Warden，见设计文档 §5）。宿主不写 `aps.badge`、payload 无计数，因此没有可测的角标。`SceneDelegate` 的 `setBadgeCount(0)` 保留为空转的清零点，下一轮真做 badge 时再启用本用例（原判据：图标显示 3 → 前台化归 0）。
 
 - [ ] **A8 关掉真不注册（模拟器可见部分）**
   前提：推送已开。
@@ -127,6 +120,6 @@ EOF
 
 | 组 | 应跑 | 通过 | 未过 | 未执行 | 备注 |
 |---|---|---|---|---|---|
-| A | 8 | | | | |
+| A | 7（A7 已裁不做） | | | | |
 | B | 5 | | | | 等 Relay 第 2 批 |
 | C | 2 | | | | C1 可只读 |
