@@ -198,48 +198,70 @@ final class GlassPillView: UIView {
     }
 }
 
-/// A plain-colour fade with a hard body: opaque over its whole height except a short
-/// ramp at the bottom. The ramp is what keeps the edge from reading as a divider —
-/// a single-row step leaves one half-alpha row, and that row is the line people see.
-/// One layer, three stops, so there is no seam between an opaque band and a ramp.
+/// Frosted glass that fades out: a blur with the page's own colour laid over it, both
+/// cut by one alpha mask. The mask is what does the fading — a colour ramp can only
+/// smear the page's colour, and at the top of the header it reads as a band; blurring
+/// the content and taking the blur away gradually reads as the content dissolving.
+///
+/// Three stops, monotonic, no step between them: fully opaque from the top, one ramp at
+/// the end down to nothing. The ramp is capped at 40% of the height so the top 60% is
+/// always fully blurred, whatever height the caller gives it.
 final class FadeOverlayView: UIView {
-    /// How much of the height carries the ramp; the rest is fully opaque.
-    private static let ramp: CGFloat = 18
+    /// The stretch the mask takes to reach zero.
+    private static let ramp: CGFloat = 24
+    /// Enough page colour over the blur to hold the theme, not enough to be a fill.
+    private static let wash: CGFloat = 0.18
 
-    private let gradient = CAGradientLayer()
-    private var color: UIColor = .clear
+    private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+    private let washView = UIView()
+    private let maskLayer = CAGradientLayer()
+
+    /// For the tests: where the mask's stops landed, and the colour laid over the blur.
+    var maskLocations: [NSNumber] { maskLayer.locations ?? [] }
+    var washAlpha: CGFloat { washView.backgroundColor?.cgColor.alpha ?? 0 }
 
     init() {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         isUserInteractionEnabled = false
-        gradient.startPoint = CGPoint(x: 0.5, y: 0)
-        gradient.endPoint = CGPoint(x: 0.5, y: 1)
-        layer.addSublayer(gradient)
+        blur.isUserInteractionEnabled = false
+        washView.isUserInteractionEnabled = false
+        for view in [blur, washView] as [UIView] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+            NSLayoutConstraint.activate([
+                view.topAnchor.constraint(equalTo: topAnchor),
+                view.bottomAnchor.constraint(equalTo: bottomAnchor),
+                view.leadingAnchor.constraint(equalTo: leadingAnchor),
+                view.trailingAnchor.constraint(equalTo: trailingAnchor),
+            ])
+        }
+        maskLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        maskLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        layer.mask = maskLayer
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func configure(color: UIColor) {
-        self.color = color
+        washView.backgroundColor = color.withAlphaComponent(Self.wash)
         applyStops()
     }
 
     private func applyStops() {
         let height = max(1, bounds.height)
-        let ramp = min(Self.ramp, height)
+        let ramp = min(Self.ramp, height * 0.4)
         let hard = (height - ramp) / height
-        gradient.colors = [color.cgColor, color.cgColor, color.withAlphaComponent(0).cgColor]
-        gradient.locations = [0, NSNumber(value: Double(hard)), 1]
+        maskLayer.colors = [UIColor.white.cgColor, UIColor.white.cgColor,
+                            UIColor.white.withAlphaComponent(0).cgColor]
+        maskLayer.locations = [0, NSNumber(value: Double(hard)), 1]
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        // Whole points, so the ramp's last row lines up with the screen's pixels and
-        // no partially covered row is left to show as a hairline.
-        gradient.frame = bounds.integral
+        maskLayer.frame = bounds
         applyStops()
         CATransaction.commit()
     }
