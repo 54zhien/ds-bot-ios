@@ -1,3 +1,4 @@
+- **侧栏页面的四角曲线族为圆弧近似。** zen `App/Workspace/SidebarSurfaceDecoration.swift:64-66` 用 SwiftUI `UnevenRoundedRectangle(style: .continuous)` 画四个角的圆角；UIKit 没有 CGPath 版的连续曲率，原生用**同一半径的普通圆弧**（`WorkspaceSidebar/SidebarSurfaceDecoration.swift` 的 `SurfaceCornerRadii.path`）。半径逐字取自 zen，差的是曲率形状本身——同一半径下四角会比连续曲率看起来更「方圆」，这是肉眼可辨的一处，不是「画得差不多」。层上要连续曲率的地方仍走 `cornerCurve = .continuous`。
 # 功能缺口验收判据 · 可勾选版
 
 发给接单方当验收口径，也用于我销账。对应 `docs/native-feature-parity.md`（按条目名称定位，不按行号）。判定只认**真机上看到的现象**，不认代码写法；CI 红标「测试失败」，与本单的「算没做」不是一个概念，不改判定值。

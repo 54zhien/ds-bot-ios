@@ -5,6 +5,16 @@ import UIKit
 // buttons (ShellB.tsx:63-72, no device head, no grey section titles). The parts are
 // therefore taken from this app's own tokens — the same caption, ink3 and hairline the
 // rest of the drawer already uses — rather than invented per screen.
+//
+// Every number, so a screenshot can be checked against the tokens rather than against
+// memory:
+//   device name   TypeScale.headerTitle.font, palette.ink, one line, tail truncation
+//   device state  TypeScale.caption.font; palette.green when connected, palette.ink3
+//                 when not; 8pt dot, 6pt gap, dot leading 1pt, name-to-state 2pt
+//   section head  TypeScale.caption.font, palette.ink3; 10pt above the title, 8pt from
+//                 title to rule; rule = palette.line at 1/displayScale (one device
+//                 pixel), full width of the block
+// Nothing here is a tuned value: each one is a token beside it in this file.
 
 /// Who the phone is paired with and whether the link is up.
 final class SidebarDeviceHeaderView: UIView {
