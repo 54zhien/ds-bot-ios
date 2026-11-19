@@ -84,12 +84,14 @@ final class IconGeometryTests: XCTestCase {
     }
 
     /// Reviewed as asymmetric inside the 20 box, so a centred assertion never held
-    /// for them: unread hangs its badge off a corner (x to 17.1), pinMark sits on
-    /// 5.1–12.9 across and 2.5–15 down, side spans 3–18 down. They match RN because
-    /// the path is the same path; the list keeps the reason on record instead of the
-    /// assertion being deleted. A glyph belongs here only if icon.geometry() itself
-    /// is off centre — the test enforces that below, so the list cannot rot.
-    private let reviewedAsymmetric: Set<Icon> = [.unread, .pinMark, .side]
+    /// for them: unread hangs its badge off a corner (x to 17.1) and pinMark sits on
+    /// 5.1–12.9 across and 2.5–15 down. They match RN because the path is the same
+    /// path; the list keeps the reason on record instead of the assertion being
+    /// deleted. A glyph belongs here only if icon.geometry() itself is off centre —
+    /// the test enforces that below, so the list cannot rot. side left the list when
+    /// its two parts started being placed by their own boxes (Icon.sideGlyph());
+    /// it is centred in the 20 box now, so a centred assertion holds for it.
+    private let reviewedAsymmetric: Set<Icon> = [.unread, .pinMark]
 
     /// The ink must land where the path says, and the path must be centred unless it
     /// is on the reviewed list. Both halves are asserted, so neither can rot.
@@ -203,6 +205,71 @@ final class IconGeometryTests: XCTestCase {
                 assertCentred(box, in: size, "mainStar ring")
             }
         }
+    }
+
+    // MARK: - The side glyph
+
+    /// The user's rule: the cross may move, nothing else. The bubble's own box centre
+    /// is (10.52, 11.13) in the 20 box and the cross sits at (10, 10), so the cross
+    /// read off; each part is placed by its own bounding box instead.
+    func testTheSideCrossSitsInTheMiddleOfTheBubble() {
+        let parts = Icon.side.geometry()
+        XCTAssertEqual(parts.count, 2, "the bubble and the cross")
+        guard parts.count == 2 else { return }
+        let bubble = parts[0], cross = parts[1]
+        XCTAssertEqual(Icon.centre(of: bubble).x, 10, accuracy: 0.25, "the bubble is centred in the button")
+        XCTAssertEqual(Icon.centre(of: bubble).y, 10, accuracy: 0.25)
+        XCTAssertEqual(Icon.centre(of: cross).x, Icon.centre(of: bubble).x, accuracy: 0.25,
+                       "the cross is centred in the bubble")
+        XCTAssertEqual(Icon.centre(of: cross).y, Icon.centre(of: bubble).y, accuracy: 0.25)
+
+        // Both parts are the old outline, translated: a raster comparison of drawings
+        // shifted by half a point can only be approximate, the curve points are exact.
+        assertIsTranslation(bubble, of: SVGPath.parse("M17 11.5a6.5 6.5 0 0 1-6.5 6.5H4l2-2.6A6.5 6.5 0 1 1 17 11.5Z"))
+        assertIsTranslation(cross, of: SVGPath.parse("M8.8 8.8 11.2 11.2M11.2 8.8 8.8 11.2"))
+    }
+
+    /// Every curve point of `moved` must be the old one plus one offset. A change to
+    /// the outline — a radius, an arm, a stroke path — moves a point by something
+    /// other than that offset and fails here.
+    private func assertIsTranslation(_ moved: UIBezierPath, of original: UIBezierPath,
+                                     file: StaticString = #filePath, line: UInt = #line) {
+        let before = IconGeometryTests.points(of: original.cgPath)
+        let after = IconGeometryTests.points(of: moved.cgPath)
+        XCTAssertEqual(after.count, before.count, "the element count changed", file: file, line: line)
+        guard after.count == before.count,
+              let startBefore = before.first, let startAfter = after.first else { return }
+        let shift = CGPoint(x: startAfter.x - startBefore.x, y: startAfter.y - startBefore.y)
+        for index in after.indices {
+            XCTAssertEqual(after[index].x, before[index].x + shift.x, accuracy: 0.001,
+                           "element \(index) moved by more than the shift", file: file, line: line)
+            XCTAssertEqual(after[index].y, before[index].y + shift.y, accuracy: 0.001,
+                           "element \(index) moved by more than the shift", file: file, line: line)
+        }
+    }
+
+    /// Every point CGPath walks: the ends and the control points alike.
+    private static func points(of path: CGPath) -> [CGPoint] {
+        var out: [CGPoint] = []
+        path.applyWithBlock { element in
+            let typed = element.pointee
+            switch typed.type {
+            case .moveToPoint, .addLineToPoint:
+                out.append(typed.points[0])
+            case .addQuadCurveToPoint:
+                out.append(typed.points[0])
+                out.append(typed.points[1])
+            case .addCurveToPoint:
+                out.append(typed.points[0])
+                out.append(typed.points[1])
+                out.append(typed.points[2])
+            case .closeSubpath:
+                break
+            @unknown default:
+                break
+            }
+        }
+        return out
     }
 
     func testOriginalGlyphsStayCentred() {

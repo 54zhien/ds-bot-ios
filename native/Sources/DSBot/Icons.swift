@@ -374,10 +374,12 @@ enum Icon {
         case .close:
             stroke(SVGPath.parse("M5 5l10 10M15 5L5 15"), color: color, weight: weight, cap: .round)
         case .side:
-            stroke(SVGPath.parse("M17 11.5a6.5 6.5 0 0 1-6.5 6.5H4l2-2.6A6.5 6.5 0 1 1 17 11.5Z"),
-                   color: color, weight: weight, cap: .round, join: .round)
-            stroke(SVGPath.parse("M8.8 8.8 11.2 11.2M11.2 8.8 8.8 11.2"), color: color, weight: weight,
-                   cap: .round, join: .round)
+            // Two placements, not one: see sideGlyph(). The stroke settings are the
+            // ones this glyph always had — the user's rule is that nothing but the
+            // cross's position may move.
+            for part in Icon.sideGlyph() {
+                stroke(part, color: color, weight: weight, cap: .round, join: .round)
+            }
         }
         context.restoreGState()
     }
@@ -406,6 +408,34 @@ enum Icon {
     private func fill(_ path: UIBezierPath, color: UIColor) {
         color.setFill()
         path.fill()
+    }
+
+    /// The side glyph as two placed parts. The bubble's own box centre is (10.52, 11.13)
+    /// in the 20 box and the cross sits at (10, 10), which is why the cross looked off:
+    /// the bubble is not centred in the box and the cross is not centred in the bubble.
+    /// Each part is moved by its own bounding box, the bubble's centre onto the box's
+    /// and the cross's onto the bubble's. Translation only — the outline, the stroke and
+    /// the arms keep every point they had.
+    static func sideGlyph() -> [UIBezierPath] {
+        let bubble = SVGPath.parse("M17 11.5a6.5 6.5 0 0 1-6.5 6.5H4l2-2.6A6.5 6.5 0 1 1 17 11.5Z")
+        let cross = SVGPath.parse("M8.8 8.8 11.2 11.2M11.2 8.8 8.8 11.2")
+        let middle = CGPoint(x: 10, y: 10)
+        let placedBubble = moved(bubble, centreTo: middle)
+        return [placedBubble, moved(cross, centreTo: centre(of: placedBubble))]
+    }
+
+    /// A path's bounding-box centre: what "centred" means for an outline that does not
+    /// reach the viewBox edges evenly.
+    static func centre(of path: UIBezierPath) -> CGPoint {
+        let box = path.bounds
+        return CGPoint(x: box.midX, y: box.midY)
+    }
+
+    /// The same shape, moved so its box centre lands on the target.
+    private static func moved(_ path: UIBezierPath, centreTo target: CGPoint) -> UIBezierPath {
+        let origin = centre(of: path)
+        return turned(path, by: CGAffineTransform(translationX: target.x - origin.x,
+                                                  y: target.y - origin.y))
     }
 
     /// The paths as parsed, in the 20×20 frame: for the tests, which keep every
@@ -451,8 +481,7 @@ enum Icon {
         case .dots: return [SVGPath.parse("M5 10h.01M10 10h.01M15 10h.01")]
         case .check: return [SVGPath.parse("M4.5 10.5l3.5 3.5 7.5-8")]
         case .close: return [SVGPath.parse("M5 5l10 10M15 5L5 15")]
-        case .side: return [SVGPath.parse("M17 11.5a6.5 6.5 0 0 1-6.5 6.5H4l2-2.6A6.5 6.5 0 1 1 17 11.5Z"),
-                             SVGPath.parse("M8.8 8.8 11.2 11.2M11.2 8.8 8.8 11.2")]
+        case .side: return Icon.sideGlyph()
         }
     }
 }
