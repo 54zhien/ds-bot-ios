@@ -234,7 +234,7 @@ enum CharacterMarks {
         var value: UInt64 = 0xcbf2_9ce4_8422_2325
         for byte in Array(text.utf8) {
             value ^= UInt64(byte)
-            value = value &* 0x1000_0000_01b3
+            value = value &* 0x100_0000_01b3
         }
         return value
     }
