@@ -175,10 +175,12 @@ final class IconGeometryTests: XCTestCase {
                     assertInkFollowsItsPath(box, icon: icon, size: size)
                 }
             }
-            // A glyph a point tall (dots' three dots) has no aspect worth asserting.
-            let ratios = boxes.filter { $0.height >= 2 }
-                .map { $0.width / $0.height }
-            if let low = ratios.min(), let high = ratios.max() {
+            // A glyph a point tall has no aspect to judge, and that is a property of
+            // the size, not of the glyph: dots measures under 2pt at small sizes and
+            // over it at large ones. Sizes below the line drop out; a glyph with
+            // fewer than three sizes left gets no aspect assertion at all.
+            let ratios = boxes.filter { $0.height >= 2 }.map { $0.width / $0.height }
+            if ratios.count >= 3, let low = ratios.min(), let high = ratios.max() {
                 XCTAssertLessThanOrEqual(high - low, 0.1,
                     "\(icon) changes shape between sizes: aspect \(low) to \(high)")
             }
@@ -201,13 +203,15 @@ final class IconGeometryTests: XCTestCase {
     }
 
     func testOriginalGlyphsStayCentred() {
-        let makers: [(String, () -> OriginalIconView)] = [
-            ("sidebar", { OriginalSidebarIcon() }),
-            ("chevronRight", { OriginalChevronRightIcon() }),
-            ("side", { OriginalSideIcon() }),
-            ("search", { OriginalSearchIcon() }),
+        // One glyph, one geometry: the hand-traced side now draws Icon.side, so its
+        // ink is held to that path instead of to the box.
+        let makers: [(String, Icon?, () -> OriginalIconView)] = [
+            ("sidebar", nil, { OriginalSidebarIcon() }),
+            ("chevronRight", nil, { OriginalChevronRightIcon() }),
+            ("side", .side, { OriginalSideIcon() }),
+            ("search", nil, { OriginalSearchIcon() }),
         ]
-        for (name, make) in makers {
+        for (name, icon, make) in makers {
             for size in sizes {
                 switch renderView(make(), size: size) {
                 case .noBitmap:
@@ -215,7 +219,16 @@ final class IconGeometryTests: XCTestCase {
                 case .noInk:
                     XCTFail("\(name) at \(size)pt: the glyph left no ink")
                 case .ink(let box):
-                    assertCentred(box, in: size, name)
+                    if let icon {
+                        let expectedX = pathBox(icon).midX / 20 * size
+                        let expectedY = pathBox(icon).midY / 20 * size
+                        XCTAssertEqual(box.midX, expectedX, accuracy: 0.5,
+                            "\(name) at \(size)pt: ink centre x \(box.midX), Icon.\(icon) puts it at \(expectedX)")
+                        XCTAssertEqual(box.midY, expectedY, accuracy: 0.5,
+                            "\(name) at \(size)pt: ink centre y \(box.midY), Icon.\(icon) puts it at \(expectedY)")
+                    } else {
+                        assertCentred(box, in: size, name)
+                    }
                 }
             }
         }
