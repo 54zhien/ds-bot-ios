@@ -66,11 +66,12 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
         UserDefaults.standard.removeObject(forKey: tokenKey)
         enabled = false
         token = nil
-        // Off means off: the phone unregisters. The landed host contract
-        // validates the token as 64-hex, so a null report would be refused;
-        // the stale record dies by phone-remove, a host identity regen, or
-        // the sender's own 410.
+        // Off means off: the phone unregisters and asks the host to stop
+        // sending - the ruled "token: null" clear, env and bundleId still in
+        // the payload. A batch-1 host refuses the null silently until its
+        // second batch lands; the local unregister holds either way.
         UIApplication.shared.unregisterForRemoteNotifications()
+        reportToken(nil)
     }
 
     func deviceToken(_ data: Data) {
@@ -101,17 +102,18 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
         hostAcceptsToken = false
     }
 
-    private func reportToken(_ value: String) {
+    private func reportToken(_ value: String?) {
         guard let session, hostAcceptsToken, !reporting else { return }
         reporting = true
         Task {
             defer { reporting = false }
-            // The three fields the host validates: a 64-hex token, an env in
-            // {sandbox, production}, and the bundle id - the APNs topic, which
-            // the host cannot guess from a token. The report is best-effort: a
+            // The host validates the same three fields on every call: env in
+            // {sandbox, production}, the bundle id - the APNs topic, which it
+            // cannot guess from a token - and a 64-hex token, where null is the
+            // ruled "this device stops" clear. The report is best-effort: a
             // rejection degrades to "no push", never an error on screen.
             let payload: [String: JSONValue] = [
-                "token": .string(value),
+                "token": value.map(JSONValue.string) ?? .null,
                 "env": .string(environment),
                 "bundleId": .string(Bundle.main.bundleIdentifier ?? ""),
             ]

@@ -997,9 +997,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 if present { selectedTarget = back }
             }
             // Cold start lands on the chat the reader last opened
-            // (ShellB.tsx:348-357). The store clears itself when the team no
-            // longer has the target, so the Main-Bot pick below stays the
-            // fallback; the name is refilled from the team arrays below.
+            // (ShellB.tsx:326-330 reads it before the navigator renders);
+            // a target the team no longer has clears the store itself
+            // (ShellB.tsx:175-180), so the Main-Bot pick below stays the
+            // fallback and the name is refilled from the team arrays.
             if !restoredLastChat {
                 restoredLastChat = true
                 if selectedTarget == nil,
