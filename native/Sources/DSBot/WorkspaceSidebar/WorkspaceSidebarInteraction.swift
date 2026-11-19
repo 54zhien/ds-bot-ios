@@ -135,6 +135,16 @@ final class WorkspaceSidebarInteraction: UIView, UIGestureRecognizerDelegate {
     override func didMoveToWindow() { super.didMoveToWindow(); attach() }
     override func layoutSubviews() { super.layoutSubviews(); attach() }
 
+    /// The wiring pins this view over the whole page as an anchor, and it holds no
+    /// controls of its own: the edge recogniser lives on the root view and the closing
+    /// pair on the window. Answering a touch here would put this view above every control
+    /// on the page, which is exactly what it did. Subviews, if any are ever added inside
+    /// it, still win — the check is identity, not a blanket disable.
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let hit = super.hitTest(point, with: event)
+        return hit === self ? nil : hit
+    }
+
     /// :128-147. The edge recogniser goes on the scene's root view when it is reachable
     /// and falls back to the window; the closing pair always goes on the window, because
     /// the surface moves under a page that is not the recogniser's ancestor.

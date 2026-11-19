@@ -49,6 +49,19 @@ final class SidebarInteractionTests: XCTestCase {
 
     /// :128-147: the edge recogniser goes on the scene's root view and the closing pair
     /// on the window, because the surface moves under a page that is not their ancestor.
+    /// The anchor is pinned over the whole page, so it must never answer a touch itself:
+    /// when it did, every control on the chat page below it went dead.
+    func testTheAnchorLetsAPageControlUnderItTakeTheTouch() {
+        let fixture = self.fixture()
+        let button = UIButton(type: .system)
+        button.frame = CGRect(x: 40, y: 300, width: 120, height: 44)
+        fixture.root.view.insertSubview(button, belowSubview: fixture.anchor)
+        let point = CGPoint(x: 80, y: 320)
+        XCTAssertNil(fixture.anchor.hitTest(point, with: nil), "the anchor answered the touch")
+        XCTAssertTrue(fixture.root.view.hitTest(point, with: nil) === button,
+                      "the control under the anchor has to win the touch")
+    }
+
     func testTheEdgeGoesOnTheRootViewAndTheClosingPairOnTheWindow() {
         let fixture = fixture()
         let recognisers = fixture.anchor.recognisers
