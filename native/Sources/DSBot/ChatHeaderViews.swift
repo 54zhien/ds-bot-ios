@@ -85,8 +85,21 @@ final class GlassControlView: UIControl {
     // CGColor snapshots follow neither traits nor theme switches, so repaint on both.
     private func applyPalette() {
         let p = ThemeStore.palette(trait: traitCollection)
+        applySurface()
         surface.layer.borderColor = p.line.cgColor
         dot.backgroundColor = p.accent
+    }
+
+    /// Liquid glass on 26 and up: it carries its own highlight and refraction, so it
+    /// takes no rim. The material fallback keeps the 1pt line the phone design uses.
+    private func applySurface() {
+        if #available(iOS 26.0, *) {
+            surface.effect = UIGlassEffect()
+            surface.layer.borderWidth = 0
+        } else {
+            surface.effect = UIBlurEffect(style: .systemUltraThinMaterial)
+            surface.layer.borderWidth = 1
+        }
     }
 
     @objc private func themeChanged() { applyPalette() }
@@ -145,7 +158,18 @@ final class GlassPillView: UIView {
 
     // The rim is a CGColor snapshot; repaint it when traits or the theme move.
     private func applyPalette() {
+        applySurface()
         surface.layer.borderColor = ThemeStore.palette(trait: traitCollection).line.cgColor
+    }
+
+    private func applySurface() {
+        if #available(iOS 26.0, *) {
+            surface.effect = UIGlassEffect()
+            surface.layer.borderWidth = 0
+        } else {
+            surface.effect = UIBlurEffect(style: .systemUltraThinMaterial)
+            surface.layer.borderWidth = 1
+        }
     }
 
     @objc private func themeChanged() { applyPalette() }
