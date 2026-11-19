@@ -212,7 +212,8 @@ enum MarkdownHanSpacing {
         var spaced = ""
         var cursor = line.startIndex
         while let open = line[cursor...].firstIndex(of: "`") {
-            guard let close = line.index(after: open)..<line.endIndex.firstIndex(of: "`") else { break }
+            let searchStart = line.index(after: open)
+            guard let close = line[searchStart...].firstIndex(of: "`") else { break }
             let lead = open > line.startIndex && isHan(line[line.index(before: open)]) ? "\u{2006}" : ""
             let after = line.index(after: close)
             let trail = after < line.endIndex && isHan(line[after]) ? "\u{2006}" : ""
