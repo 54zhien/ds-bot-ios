@@ -429,8 +429,15 @@ enum Icon {
         case .unread: return [SVGPath.parse("M10 3.5a4.5 4.5 0 0 0-4.5 4.5v3L4 13.5h12L14.5 11V8"),
                                SVGPath.parse("M8.3 16a1.8 1.8 0 0 0 3.4 0"),
                                SVGPath.parse("M15.5 3.2a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z")]
-        case .pinMark: return [SVGPath.parse("M8 2.5h4a.9.9 0 0 1 0 1.8h-.4v4.1c0 1.4 1.1 2.6 2.6 3.1l.7.3v1.5H5.1v-1.5l.7-.3c1.5-.5 2.6-1.7 2.6-3.1V4.3H8a.9.9 0 0 1 0-1.8z"),
-                                SVGPath.parse("M9.35 13.3h1.3v3.6L10 18l-.65-1.1z")]
+        case .pinMark:
+            // draw(in:) turns this glyph 45° about the frame's centre, so the
+            // geometry carries the same transform: otherwise the tests weigh a
+            // straight path against a turned picture and never agree.
+            let turn = CGAffineTransform(translationX: 10, y: 10)
+                .rotated(by: .pi / 4)
+                .translatedBy(x: -10, y: -10)
+            return [SVGPath.parse("M8 2.5h4a.9.9 0 0 1 0 1.8h-.4v4.1c0 1.4 1.1 2.6 2.6 3.1l.7.3v1.5H5.1v-1.5l.7-.3c1.5-.5 2.6-1.7 2.6-3.1V4.3H8a.9.9 0 0 1 0-1.8z").applying(turn),
+                    SVGPath.parse("M9.35 13.3h1.3v3.6L10 18l-.65-1.1z").applying(turn)]
         case .mainStar: return [SVGPath.parse(Icon.star)]
         case .stop: return [UIBezierPath(roundedRect: CGRect(x: 3.5, y: 3.5, width: 13, height: 13), cornerRadius: 3)]
         case .dots: return [SVGPath.parse("M5 10h.01M10 10h.01M15 10h.01")]
