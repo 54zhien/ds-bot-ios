@@ -132,6 +132,8 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         let pinned: Bool
         let lastAt: Int
         let ink: String?
+        let waiting: Bool
+        let working: Bool
     }
     private var sections: [(String, [Entry])] = []
     private var mainEntries: [Entry] = []
@@ -371,10 +373,16 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
             } else {
                 preview = value["preview"]?.stringValue ?? ""
             }
+            // marks.tsx:80: the tile's marks read questions and the work table
+            // directly; rows keep deriving theirs from the preview.
+            let marks = kind == .bot
+            let markSession = value["sessionId"]?.stringValue ?? id
             return Entry(target: target, preview: preview, role: value["role"]?.stringValue ?? "",
                          pinned: value["pinned"] == .bool(true),
                          lastAt: value["lastAt"]?.intValue ?? value["createdAt"]?.intValue ?? 0,
-                         ink: value["color"]?.stringValue)
+                         ink: value["color"]?.stringValue,
+                         waiting: marks && state["questions"]?[markSession] != nil,
+                         working: marks && state["work"]?["bots"]?[id] != nil)
         }
         let main = bots.filter { visible($0) && mains.contains($0["id"]?.stringValue ?? "") }
             .compactMap { entry($0, kind: .bot) }
@@ -540,6 +548,53 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         avatar.widthAnchor.constraint(equalToConstant: 52).isActive = true
         avatar.heightAnchor.constraint(equalToConstant: 52).isActive = true
         content.addArrangedSubview(avatar)
+        if entry.waiting || entry.working {
+            // marks.tsx:69,:72,:78-85: 27% of the avatar in a transparent gap;
+            // the question mark or the working dot, never a plate.
+            let gap = UIView()
+            gap.translatesAutoresizingMaskIntoConstraints = false
+            gap.backgroundColor = .clear
+            gap.isUserInteractionEnabled = false
+            let mark = UIView()
+            mark.translatesAutoresizingMaskIntoConstraints = false
+            mark.layer.cornerRadius = 7
+            mark.backgroundColor = entry.waiting ? palette.accent : palette.green
+            gap.addSubview(mark)
+            if entry.waiting {
+                let q = UILabel()
+                q.text = "?"
+                q.font = .systemFont(ofSize: 9, weight: .semibold)
+                q.textColor = .white
+                q.textAlignment = .center
+                q.translatesAutoresizingMaskIntoConstraints = false
+                gap.addSubview(q)
+                NSLayoutConstraint.activate([
+                    q.centerXAnchor.constraint(equalTo: mark.centerXAnchor),
+                    q.centerYAnchor.constraint(equalTo: mark.centerYAnchor),
+                ])
+            }
+            NSLayoutConstraint.activate([
+                gap.centerXAnchor.constraint(equalTo: avatar.trailingAnchor, constant: -10),
+                gap.centerYAnchor.constraint(equalTo: avatar.bottomAnchor, constant: -10),
+                gap.widthAnchor.constraint(equalToConstant: 18),
+                gap.heightAnchor.constraint(equalToConstant: 18),
+                mark.centerXAnchor.constraint(equalTo: gap.centerXAnchor),
+                mark.centerYAnchor.constraint(equalTo: gap.centerYAnchor),
+                mark.widthAnchor.constraint(equalToConstant: 14),
+                mark.heightAnchor.constraint(equalToConstant: 14),
+            ])
+            tile.addSubview(gap)
+        }
+        // marks.tsx:87: a main bot wears the star at the avatar's corner, on top
+        // of the marks, ringed so it reads against the tile's hover fill.
+        let star = IconView(icon: .mainStar, size: 19, color: palette.star, ring: palette.hover)
+        star.translatesAutoresizingMaskIntoConstraints = false
+        star.isUserInteractionEnabled = false
+        tile.addSubview(star)
+        NSLayoutConstraint.activate([
+            star.trailingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 3.6),
+            star.bottomAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 3.6),
+        ])
         let name = UILabel()
         name.text = entry.target.name
         name.font = .systemFont(ofSize: TypeScale.small.size, weight: .semibold)
