@@ -148,6 +148,10 @@ final class ChatMessageCell: UITableViewCell {
         memberAvatar.addSubview(memberCharacter)
         contentView.addSubview(memberAvatar)
         memberNameLabel.font = UIFont.systemFont(ofSize: TypeScale.caption.font.pointSize, weight: .medium)
+        // items.tsx:289 keeps the name to one line; a squeezed name must truncate, not
+        // wrap the header into two rows.
+        memberNameLabel.numberOfLines = 1
+        memberNameLabel.lineBreakMode = .byTruncatingTail
         memberAdminTag.font = Typography(size: 11, lineHeight: 16, weight: .regular).font
         memberAdminTag.textColor = palette.ink3
         memberAdminTag.backgroundColor = palette.hover
@@ -157,6 +161,15 @@ final class ChatMessageCell: UITableViewCell {
         memberAdminTag.isHidden = true
         memberTimeLabel.font = TypeScale.caption.font
         memberTimeLabel.textColor = palette.ink3
+        // items.tsx:289-291: the name carries flexShrink 1, the Admin tag flexShrink 0
+        // and the clock none at all. Native's equivalent is compression resistance, and
+        // without the split a narrow row takes the shortfall out of the tag: "管理员" at
+        // 11pt needs ~33pt, and a centred label in a narrower frame draws the middle of
+        // the word, which reads as two characters.
+        memberNameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        memberAdminTag.setContentCompressionResistancePriority(.required, for: .horizontal)
+        memberAdminTag.setContentHuggingPriority(.required, for: .horizontal)
+        memberTimeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         memberHeader.axis = .horizontal
         memberHeader.spacing = 6
         memberHeader.alignment = .center
@@ -250,6 +263,12 @@ final class ChatMessageCell: UITableViewCell {
     var memberNameText: String? { memberNameLabel.text }
     var memberNameColor: UIColor? { memberNameLabel.textColor }
     var adminTagVisible: Bool { !memberAdminTag.isHidden }
+
+    /// Whether the tag is drawn at the width its text needs. The row squeezes the name
+    /// instead (items.tsx:290 sets flexShrink: 0 on the tag), so this is always true.
+    var adminTagFitsItsText: Bool {
+        memberAdminTag.bounds.width + 0.5 >= memberAdminTag.intrinsicContentSize.width
+    }
     /// True when the stamp is pushed to the bubble's right edge (a user row).
     var stampHugsTrailingEdge: Bool { !stampSpacer.isHidden }
     var bubbleLeadingInset: CGFloat { leading.constant }

@@ -102,6 +102,20 @@ final class RoomRowLayoutTests: XCTestCase {
         XCTAssertFalse(cell.adminTagVisible)
     }
 
+    /// A narrow row takes its shortfall out of the name, never out of the tag: a tag
+    /// narrower than its text draws the middle of "管理员" and reads as two characters.
+    func testANarrowRowSqueezesTheNameNotTheAdminTag() {
+        let cell = cell()
+        cell.frame = CGRect(x: 0, y: 0, width: 300, height: 160)
+        var row = roomRow()
+        row.isAdmin = true
+        row.memberName = String(repeating: "很长很长的名字", count: 6)
+        cell.configure(row)
+        cell.layoutIfNeeded()
+        XCTAssertTrue(cell.adminTagVisible)
+        XCTAssertTrue(cell.adminTagFitsItsText, "the tag keeps the width its text needs")
+    }
+
     func testAReusedCellDropsTheColumn() {
         let cell = cell()
         cell.configure(roomRow())
