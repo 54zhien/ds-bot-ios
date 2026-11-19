@@ -143,7 +143,9 @@ function Invoke-IpaDispatch {
     # that cost one live dispatch. Comparing local time against GitHub's stamps is
     # no better: it works only until the two clocks drift.
     $before = Get-DispatchRunIds
-    gh workflow run $Workflow --ref main -f runner=macos-26 -f xcode_version=$XcodeVersion
+    # gh prints a confirmation; left in the pipeline it joins the return value and the
+    # caller gets an array where it expected one id.
+    gh workflow run $Workflow --ref main -f runner=macos-26 -f xcode_version=$XcodeVersion | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "gh workflow run failed" }
 
     for ($i = 0; $i -lt 20; $i++) {
@@ -270,13 +272,13 @@ for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     }
     elseif ($attempt -eq 1) {
         "dispatching ios-native.yml (budget: $MaxAttempts attempts, retrying starvation only)..."
-        $runId = Invoke-IpaDispatch
+        $runId = [long](Invoke-IpaDispatch | Select-Object -Last 1)
         "attempt 1/$MaxAttempts : run $runId"
     }
     else {
         "attempt $attempt/$MaxAttempts : STARVATION retry - the previous run was reaped with no runner assigned (15m01, steps=0); this is not a retry of a red build"
         Start-Sleep -Seconds $RetryPauseSeconds
-        $runId = Invoke-IpaDispatch
+        $runId = [long](Invoke-IpaDispatch | Select-Object -Last 1)
         "attempt $attempt/$MaxAttempts : new run $runId"
     }
 
