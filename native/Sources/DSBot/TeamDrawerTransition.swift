@@ -67,9 +67,9 @@ final class TeamDrawerPresentationController: UIPresentationController, UIGestur
     }
 
     // The panel's own slide lived here: a pan that moved presentedView and a swipe that
-    // dismissed it. Both are gone. The page carries the motion now (SidebarTransportView),
-    // and the swipe that closes is the page's reverse gesture. Scrim, corner radius, the
-    // footer fade and the gear stay exactly as they were.
+    // dismissed it. Both were replaced by the transport — the page moves and the drawer
+    // stays still — and the swipe that closes is the page's reverse gesture. Scrim,
+    // corner radius, the footer fade and the gear stay exactly as they were.
 
     override func dismissalTransitionWillBegin() {
         presentedViewController.transitionCoordinator?.animate(alongsideTransition: { _ in
