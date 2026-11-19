@@ -112,10 +112,15 @@ final class SidebarDecorationTests: XCTestCase {
         XCTAssertEqual(surface.alpha, 0.97, accuracy: 0.001)
         XCTAssertEqual(decoration.outlineAlpha, 0.5, accuracy: 0.001)
 
-        surface.alpha = 0.8
-        decoration.applyAppearance(surface: surface, progress: 0, traits: traits)
-        XCTAssertEqual(surface.alpha, 0.8, accuracy: 0.001, "nothing was owned at 0, so nothing changed")
-        XCTAssertEqual(decoration.outlineAlpha, 0.5, accuracy: 0.001)
+        // A decoration that never owned the appearance leaves it alone: zen :218
+        // returns early when the fraction is zero and nothing was owned.
+        let quietSurface = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 800))
+        let quiet = SidebarSurfaceDecoration()
+        quiet.install(on: quietSurface)
+        quietSurface.alpha = 0.8
+        quiet.applyAppearance(surface: quietSurface, progress: 0, traits: traits)
+        XCTAssertEqual(quietSurface.alpha, 0.8, accuracy: 0.001, "nothing was owned at 0, so nothing changed")
+        XCTAssertEqual(quiet.outlineAlpha, 0, accuracy: 0.001)
 
         decoration.applyAppearance(surface: surface, progress: 0.25, traits: traits)
         decoration.applyAppearance(surface: surface, progress: 0, traits: traits)

@@ -66,7 +66,10 @@ final class ThinkingCapsuleTests: XCTestCase {
             "bots": .array([.object([
                 "id": .string("bot-1"),
                 "name": .string("Ada"),
-                "avatar": .object(["shape": .string("moon"), "color": .string("violet")]),
+                // characters.js:67 colorOf reads bot.color, then falls back to the id;
+                // the avatar object carries shape and image only.
+                "avatar": .object(["shape": .string("moon")]),
+                "color": .string("violet"),
             ])]),
             "work": .object([
                 "bots": .object(["bot-1": .object([
