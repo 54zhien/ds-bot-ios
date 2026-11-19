@@ -55,8 +55,8 @@ final class RoomRowLayoutTests: XCTestCase {
         cell.configure(roomRow(), flat: true)
         XCTAssertFalse(cell.memberHeaderVisible)
         XCTAssertFalse(cell.memberAvatarVisible)
-        XCTAssertEqual(cell.bubbleLeadingInset, 16)
-        XCTAssertEqual(cell.bubbleFillColor, .clear)
+        XCTAssertEqual(cell.bubbleLeadingInset, 12)
+        XCTAssertEqual(cell.bubbleFillColor, ThemeStore.palette(trait: cell.traitCollection).main)
         XCTAssertEqual(cell.bubbleCornerRadius, 0)
     }
 
