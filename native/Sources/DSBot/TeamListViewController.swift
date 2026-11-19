@@ -536,7 +536,7 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         avatar.backgroundColor = Inks.bot(entry.ink, dark: traitCollection.userInterfaceStyle == .dark)
         avatar.layer.cornerRadius = 26
         avatar.clipsToBounds = true
-        // TeamList.tsx:80: the tile's avatar is 52pt, not the row's 32.
+        // TeamList.tsx:80: the tile's avatar is 52pt, larger than the row's 36.
         avatar.widthAnchor.constraint(equalToConstant: 52).isActive = true
         avatar.heightAnchor.constraint(equalToConstant: 52).isActive = true
         content.addArrangedSubview(avatar)
@@ -672,7 +672,8 @@ final class TeamRowCell: UITableViewCell {
         avatar.font = .systemFont(ofSize: TypeScale.rowName.size, weight: .medium)
         avatar.textAlignment = .center
         avatar.clipsToBounds = true
-        avatar.layer.cornerRadius = 16
+        // TeamList.tsx:105,:126: a row's avatar is 36pt, bot or room alike.
+        avatar.layer.cornerRadius = 18
         avatar.isAccessibilityElement = false
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -706,8 +707,8 @@ final class TeamRowCell: UITableViewCell {
             contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: Glass.control + Glass.gap),
             avatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: Glass.margin),
             avatar.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            avatar.widthAnchor.constraint(equalToConstant: 32),
-            avatar.heightAnchor.constraint(equalToConstant: 32),
+            avatar.widthAnchor.constraint(equalToConstant: 36),
+            avatar.heightAnchor.constraint(equalToConstant: 36),
             gap.centerXAnchor.constraint(equalTo: avatar.trailingAnchor, constant: -1),
             gap.centerYAnchor.constraint(equalTo: avatar.bottomAnchor, constant: -1),
             gap.widthAnchor.constraint(equalToConstant: 16),
