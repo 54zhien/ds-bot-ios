@@ -122,7 +122,6 @@ final class ThinkingCapsuleView: UIView {
     private var markWidth: NSLayoutConstraint?
     private var markGap: NSLayoutConstraint?
     private var widthLimit: NSLayoutConstraint?
-    private var measuredWidth: NSLayoutConstraint?
     private var animator: UIViewPropertyAnimator?
 
     /// Fired once the capsule has shown or hidden itself, so a layout that reserves
@@ -245,13 +244,18 @@ final class ThinkingCapsuleView: UIView {
     /// Inferred layout left it free to collapse to zero, which looks exactly like a
     /// truncated line and hid the difference from every test that only checked a cap.
     private func updateMeasuredWidth() {
+        invalidateIntrinsicContentSize()
+    }
+
+    /// The pill's width comes from its line, capped by maximumWidth. Nothing above it
+    /// states a width, so a constraint of our own only fights the cap: the intrinsic
+    /// size is the one place the layout engine asks for it, and a cap change simply
+    /// invalidates that answer.
+    override var intrinsicContentSize: CGSize {
         let room = Self.lead + (mark.isHidden ? 0 : Self.markSize + Self.gap) + Self.trail
         let wanted = lineWidth() + room
         let capped = maximumWidth.map { min(wanted, $0) } ?? wanted
-        measuredWidth?.isActive = false
-        let width = widthAnchor.constraint(equalToConstant: max(capped, room))
-        width.isActive = true
-        measuredWidth = width
+        return CGSize(width: max(capped, room), height: Self.height)
     }
 
     // MARK: - Moving in and out
