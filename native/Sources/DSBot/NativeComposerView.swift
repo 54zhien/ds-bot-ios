@@ -54,6 +54,10 @@ final class NativeComposerView: UIView, UITextViewDelegate {
         layer.cornerRadius = Metrics.Composer.resting / 2
         layer.masksToBounds = true
         surface.translatesAutoresizingMaskIntoConstraints = false
+        // The glass gets the capsule itself: a rectangle of glass cut off by the
+        // parent's rounded mask loses its own edge, and liquid glass reads wrong.
+        surface.layer.cornerRadius = Metrics.Composer.resting / 2
+        surface.layer.masksToBounds = true
 
         editor.translatesAutoresizingMaskIntoConstraints = false
         editor.backgroundColor = .clear
@@ -244,10 +248,14 @@ final class NativeComposerView: UIView, UITextViewDelegate {
             onExpandedChange?(editing)
             railHeight.constant = editing ? Layout.bar : 0
             editor.textContainerInset = textInset(editing: editing)
-            animate { self.layer.cornerRadius = corner }
+            animate {
+                self.layer.cornerRadius = corner
+                self.surface.layer.cornerRadius = corner
+            }
         } else {
             railHeight.constant = editing ? Layout.bar : 0
             layer.cornerRadius = corner
+            surface.layer.cornerRadius = corner
         }
         onHeightChange?(target)
         setNeedsLayout()
