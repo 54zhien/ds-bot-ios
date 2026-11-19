@@ -18,7 +18,7 @@ final class NoticeOverlay {
         banner.titleLabel?.numberOfLines = 2
         banner.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
         banner.contentHorizontalAlignment = .leading
-        banner.directionalContentEdgeInsets = NSDirectionalEdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
+        banner.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
         banner.layer.cornerRadius = 12
         banner.layer.borderWidth = 1
         banner.addAction(UIAction { [weak self] _ in self?.tapped() }, for: .touchUpInside)

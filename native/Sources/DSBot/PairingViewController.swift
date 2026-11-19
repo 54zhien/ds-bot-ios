@@ -95,8 +95,8 @@ final class PairingViewController: UIViewController {
     }
 
     private func applyPendingLink() {
-        guard let pendingLink else { return }
-        field.text = pendingLink
+        guard let link = pendingLink else { return }
+        field.text = link
         pendingLink = nil
         submit()
     }
