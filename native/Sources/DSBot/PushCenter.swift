@@ -54,7 +54,7 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
             UserDefaults.standard.set("on", forKey: intentKey)
             enabled = true
             UIApplication.shared.registerForRemoteNotifications()
-            reportToken(token)
+            if let token { reportToken(token) }
             return true
         }
         disable()
@@ -66,10 +66,11 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
         UserDefaults.standard.removeObject(forKey: tokenKey)
         enabled = false
         token = nil
-        // Off means off: the phone unregisters and tells the host to stop
-        // sending to a token nobody will display.
+        // Off means off: the phone unregisters. The landed host contract
+        // validates the token as 64-hex, so a null report would be refused;
+        // the stale record dies by phone-remove, a host identity regen, or
+        // the sender's own 410.
         UIApplication.shared.unregisterForRemoteNotifications()
-        reportToken(nil)
     }
 
     func deviceToken(_ data: Data) {
@@ -91,7 +92,7 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
     func hostOnline(hello: JSONValue, session: LinkSession) {
         hostAcceptsToken = hello["capabilities"]?.stringArrayValue?.contains("push-token") ?? false
         self.session = session
-        reportToken(token)
+        if let token { reportToken(token) }
     }
 
     /// A reconnect builds a new session; reporting waits for its hello again.
@@ -100,21 +101,33 @@ final class PushCenter: NSObject, UNUserNotificationCenterDelegate {
         hostAcceptsToken = false
     }
 
-    private func reportToken(_ value: String?) {
+    private func reportToken(_ value: String) {
         guard let session, hostAcceptsToken, !reporting else { return }
         reporting = true
         Task {
             defer { reporting = false }
-            // A null token means "stop sending"; the bundle id is the APNs
-            // topic, which the host cannot guess from a token.
+            // The three fields the host validates: a 64-hex token, an env in
+            // {sandbox, production}, and the bundle id - the APNs topic, which
+            // the host cannot guess from a token. The report is best-effort: a
+            // rejection degrades to "no push", never an error on screen.
             let payload: [String: JSONValue] = [
-                "token": value.map(JSONValue.string) ?? .null,
+                "token": .string(value),
+                "env": .string(environment),
                 "bundleId": .string(Bundle.main.bundleIdentifier ?? ""),
             ]
-            // The report is best-effort: a rejection here degrades to "no
-            // push", which is never worth an error on screen.
             _ = try? await BotAPI.call("push-token", payload: .object(payload), on: session)
         }
+    }
+
+    /// Everything this project ships is In-House production; the only sandbox
+    /// case is a Debug build on a registered device, and it can say so through
+    /// the Info.plist key. "development" maps to "sandbox" per the contract.
+    private var environment: String {
+        switch (Bundle.main.object(forInfoDictionaryKey: "DSBotPushEnvironment") as? String)?.lowercased() {
+        case "sandbox", "development": return "sandbox"
+        default: return "production"
+        }
+    }
     }
 
     // MARK: UNUserNotificationCenterDelegate

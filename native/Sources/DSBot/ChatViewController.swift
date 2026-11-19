@@ -103,6 +103,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private var linkNeedsPairing = false
     /// The conversation a retry should reopen into once the fresh state lands.
     private var reconnectTarget: ChatTarget?
+    /// The cold-start restore ran once; later refreshes never re-pick.
+    private var restoredLastChat = false
     private var keyboardTiming: (duration: TimeInterval, options: UIView.AnimationOptions)?
     private let drawerTransition = TeamDrawerTransition()
     private var noticeTarget: ChatTarget?
@@ -993,6 +995,20 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 let present = (back.kind == .bot ? bots : rooms)
                     .contains { $0["id"]?.stringValue == back.id }
                 if present { selectedTarget = back }
+            }
+            // Cold start lands on the chat the reader last opened
+            // (ShellB.tsx:348-357). The store clears itself when the team no
+            // longer has the target, so the Main-Bot pick below stays the
+            // fallback; the name is refilled from the team arrays below.
+            if !restoredLastChat {
+                restoredLastChat = true
+                if selectedTarget == nil,
+                   let saved = LastChatStore.restore(stillKnown: { target in
+                       (target.kind == .bot ? bots : rooms)
+                           .contains { $0["id"]?.stringValue == target.id }
+                   }) {
+                    selectedTarget = saved
+                }
             }
             let chosen: JSONValue?
             let target: ChatTarget?

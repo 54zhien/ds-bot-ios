@@ -17,9 +17,9 @@
 ## 2. Token 上报
 
 - **获取**：`AppDelegate.didRegisterForRemoteNotificationsWithDeviceToken` → 十六进制串，持久化 `UserDefaults "dsbot.push.token"`，去重后只报差异。
-- **上报走现有加密 link**：`BotAPI.call("push-token", payload: { token, bundleId }, on: session)`。这是 `bot` RPC 方法下的**新端点**，`api`（API_VERSION）保持原值——新旧电脑靠 **hello 能力协商**区分：只有 `hello.capabilities` 含 `"push-token"` 的宿主才会收到上报，老宿主永远听不到这个端点。
+- **上报走现有加密 link**：`BotAPI.call("push-token", payload: { token, env, bundleId }, on: session)`——三个字段对齐宿主已落地契约（`docs/host-push.md` §1，全必填）：`token` 64 位 hex，`env` 取 `{sandbox, production}`（运行时默认 `production`，In-House 只有这一种；`DSBotPushEnvironment` Info.plist 键是留给 Debug 装机的后门，`development` 映射 `sandbox`），`bundleId` 运行时取。这是 `bot` RPC 方法下的**新端点**，`api`（API_VERSION）保持原值——新旧电脑靠 **hello 能力协商**区分：只有 `hello.capabilities` 含 `"push-token"` 的宿主才会收到上报，老宿主永远听不到这个端点。
 - **时机**：`ChatViewController.checkComputer` 里 hello 校验通过后调 `PushCenter.hostOnline(hello:session:)`，此刻挂 session 并补报当前 token；重连（`connect` 换新 session）先 `hostOffline()`，等新 hello 再报。token 早于 link 在线时到达的场景由持久化 + `hostOnline` 补报覆盖。
-- **关闭也上报**：`token: null` 表示「停止发送」，让宿主把旧 token 下掉。`setEnabled(false)` 同时 `unregisterForRemoteNotifications()`——**关掉就是真的不注册**，下次启动 `bootstrap()` 也不注册。
+- **关闭不上报**：已落地契约把 token 校验为 64-hex，`token: null` 会被 `bot/invalid` 拒掉，所以关开关不发 null——手机侧 `unregisterForRemoteNotifications()`（**关掉就是真的不注册**，下次启动 `bootstrap()` 也不注册），宿主侧的旧记录靠 `phone-remove` / 宿主身份重生成 / 发送器自己的 410 清除。若要「关即宿主停发」，需宿主第 2 批加 token 清除语义，已报 Warden 裁。
 - **静默降级**：`didFailToRegister`（模拟器、没 entitlement）只留空实现；上报失败 `try?` 吞掉。拿不到 token 的每一种路径都不弹错。
 - 落点：`AppDelegate.swift`、`PushCenter.swift`（`deviceToken`/`reportToken`/`hostOnline`/`hostOffline`）、`ChatViewController.swift`（`checkComputer` 挂钩、`connect` 重置）。
 - `bundleId` 随 token 一起报，取值是**运行时 `Bundle.main.bundleIdentifier`**（`PushCenter.swift` 的 `reportToken`），**别让后来人改成写死常量**：这份 IPA 交付时未签名、用户重签会带进自己的 bundle id，APNs 的 `apns-topic` 必须跟着它变——宿主侧一律按客户端上报的 `bundleId` 发。原生默认包名 `io.github.fei2411.dsbot.native` 只是当前构建的值，宿主从 token 推不出这个字段。
@@ -48,7 +48,7 @@
 
 0. **`dsbot://pair` 深链**（Warden 加派；RN `Pair.tsx:34-38` + `App.tsx:104-110`）：`SceneDelegate` 接了 `scene(_:openURLContexts:)` 与冷启动 `connectionOptions.urlContexts`，两者都过同一个 `handlePairingURLs`，落进 `ChatViewController.openPairingURL` → 复用配对 sheet（成功后由既有的 pendingOffer 分支自动关 sheet，坏链接在 sheet 里解释，与 RN 把错误画进 Pair 屏同构）。**前置缺口：`project.yml` 还没注册 `CFBundleURLTypes`（`dsbot` scheme），那是工程侧文件，归 Warden；没有它 iOS 永远不会投递这个 URL，两个回调都收不到。**
 0b. **配对输入框 `returnKeyType = .go`**（RN `Pair.tsx:55`）：`PairingViewController` 的 field 加了 `.go` 与 `UITextFieldDelegate`，回车即 `submit()`；解析失败键盘保持，错误就在输入框正下方。
-0c. **冷启动恢复上次对话**（RN `ShellB.tsx:31,190-204,348-357`）：挂载点已定——首次 `state` 落地、自动选定目标处（`ChatViewController.refreshLatest` 解析 `mainBotId` 的位置）与每次 `selectTarget`。**存储与恢复判定归 Mason**（`dsbot.lastChat`，与 `Chat.tsx:59-65` prefetch 同存储位），接口提案已发他，等回执后接线，本轮未写。
+0c. **冷启动恢复上次对话——已接线**：Mason 落了 `LastChatStore`（`native/Sources/DSBot/LastChatStore.swift`，键 `dsbot.lastChat`；`save` 已由他挂进 `selectTarget`）。我接读侧：`ChatViewController` 首次 `state` 落地、选定初始目标处调 `restore(stillKnown:)`，用 team state 判存活，失效自动清键、回退主 Bot；显示名从 team 数组回填（存值不带名）。恢复只跑一次（`restoredLastChat` 旗标），重连路径（`reconnectTarget`）优先。
 
 1. **应用内横幅升到 window 级**（`NoticeOverlay.swift`）：passthrough 容器挂 key window 最上层，`point(inside:)` 只认横幅自身，重复调用幂等，palette 走 `ThemeStore.changed` 重取，顶距 safeArea+8，不随键盘移动。前台抑制之所以「交给已有的横幅」，前提就是这条。
 2. **答题/审批成功震动**（`PendingDockView.run`）：`answer-question`/`approval-answer` 成功给一次 `notificationSuccess`，对应 RN `dock.tsx:87,130`；RN 对 reject 用 Warning，按裁定统一 Success，不撒别处。
