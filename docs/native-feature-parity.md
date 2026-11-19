@@ -287,8 +287,10 @@
 
 | 功能项 | RN 出处 | 原生现状 | 判定 |
 |---|---|---|---|
-| 角色头像渲染（Bot 画角色、房间画成员簇） | marks.tsx:1-118；characters.js（lookOf/shapeOf） | `CharacterPaint.swift:215` `MarkView` + `CharacterMarks`（`d85550a`）；接线 `36eb011`：顶栏 28pt、空对话块 64pt、NeedsYou 44pt、抽屉磁贴 52pt/行 36pt（ChatViewController:30、EmptyChatView:10、NeedsYouViewController:299、TeamListViewController:516/741） | 一致（四处）；**群行 22pt 未接**：数据已备（`45328e2` `RoomRowData`），渲染待 Canvas（`ChatMessageCell`），见 `items.tsx:286` |
+| 角色头像渲染（Bot 画角色、房间画成员簇） | marks.tsx:1-118；characters.js（lookOf/shapeOf） | `CharacterPaint.swift:215` `MarkView` + `CharacterMarks`（`d85550a`）；接线 `36eb011`：顶栏 28pt、空对话块 64pt、NeedsYou 44pt、抽屉磁贴 52pt/行 36pt（ChatViewController:30、EmptyChatView:10、NeedsYouViewController:299、TeamListViewController:516/741）；群行 22pt 列见下两行 | 一致 |
+| 群行成员头像列（22pt） | items.tsx:268-278 | 渲染层 `d85550a`（`ChatMessageCell.swift:71` `CharacterAvatarView`、`:165` 22pt 列、`:395` 行内缩进 16+22+8）；数据层 `45328e2`（`RoomRowData` 从 team state 填名/色/头像与 Admin 标记） | 一致 |
 | 房间无已知成员 | marks.tsx `Members` 空数组 | `MarkView` 两个子视图都隐藏，不画空环；`HeaderMark.choose` 返回 `(nil, [])` | 一致 |
+| SideChat 标题行 28pt mark | side.tsx 标题行；marks.tsx | `b3735e6` 的 `SideChatViewController.init(look:)` + `showSideChat` 传入（`ChatViewController:1420-1428`）：**look 由聊天页从 team state 取好传进来，侧聊自己不按 id 推导**，找不到 Bot 时传 nil | 一致 |
 
 ## 玻璃层（跨屏基建）
 
