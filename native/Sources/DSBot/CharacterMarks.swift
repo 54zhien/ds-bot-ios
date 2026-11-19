@@ -203,6 +203,61 @@ enum CharacterMarks {
     static func shapeId(_ id: String) -> String { hasShape(id) ? id : fallbackShape }
     static func shapeOf(_ id: String) -> Shape { shapes[shapeId(id)]! }
 
+    // MARK: - Looks
+
+    /// characters.js lookOf: what a Bot shows. A stored shape and colour win; a Bot
+    /// with neither takes the pair its id derives, so every device draws the same
+    /// character for it; with no id at all it is the fallback gumdrop in black.
+    struct Look: Equatable {
+        let shape: String
+        let color: String
+        let image: String?
+    }
+
+    /// characters.js DEFAULT_COLORS: the picker order without the colours a Bot
+    /// never defaults to — black, the gray, the brown, and the one gradient.
+    static let defaultColors = ["red", "orange", "yellow", "green", "cyan", "blue", "violet", "magenta"]
+
+    /// characters.js fnv1a, over UTF-16 units, because that is what charCodeAt reads.
+    static func fnv1a(_ text: String) -> UInt32 {
+        var value: UInt32 = 2_166_136_261
+        for unit in text.utf16 {
+            value = (value ^ UInt32(unit)) &* 16_777_619
+        }
+        return value
+    }
+
+    /// characters.js defaultShape: murmur3's fmix32 over the id, then the default list.
+    static func defaultShape(_ id: String) -> String {
+        var value = fnv1a(id)
+        value = (value ^ (value >> 16)) &* 73_244_475
+        value = (value ^ (value >> 13)) &* 3_266_489_909
+        return defaultShapes[Int((value ^ (value >> 16)) % UInt32(defaultShapes.count))]
+    }
+
+    /// characters.js defaultColor: mulberry32's scramble over the id, then the list.
+    static func defaultColor(_ id: String) -> String {
+        let started = fnv1a(id) &+ 1_831_565_813
+        var value = (started ^ (started >> 15)) &* (1 | started)
+        value = (value &+ ((value ^ (value >> 7)) &* (61 | value))) ^ value
+        let scaled = Double(value ^ (value >> 14)) / 4_294_967_296 * Double(defaultColors.count)
+        return defaultColors[Int(scaled)]
+    }
+
+    /// characters.js isColor: a six-digit hex is a colour, and so is a known ink id.
+    /// A renamed ink is not one: lookOf would swap it for the id's own colour.
+    static func isColor(_ color: String) -> Bool { isHex(color) || inks[color] != nil }
+
+    static func look(shape: String? = nil, color: String? = nil,
+                     id: String? = nil, image: String? = nil) -> Look {
+        // JS reads an empty id as no id at all: "" is falsy, so it never derives.
+        let identity = id.flatMap { $0.isEmpty ? nil : $0 }
+        return Look(
+            shape: shape.flatMap { hasShape($0) ? $0 : nil } ?? identity.map(defaultShape) ?? fallbackShape,
+            color: color.flatMap { isColor($0) ? $0 : nil } ?? identity.map(defaultColor) ?? "black",
+            image: image)
+    }
+
     /// characters.js bodyOf: the silhouette, then the decals and the shade.
     static func bodyOf(_ def: Shape, paint: String, flat: Bool = false) -> String {
         guard let path = def.path else { return "" }

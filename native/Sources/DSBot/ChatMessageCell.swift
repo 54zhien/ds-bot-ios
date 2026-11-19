@@ -68,6 +68,7 @@ final class ChatMessageCell: UITableViewCell {
     /// avatar in its own column, then the name in the member's colour, the Admin
     /// mark and the clock above the bubble.
     private let memberAvatar = UIView()
+    private let memberCharacter = CharacterAvatarView()
     private let memberHeader = UIStackView()
     private let memberNameLabel = UILabel()
     private let memberAdminTag = UILabel()
@@ -131,9 +132,9 @@ final class ChatMessageCell: UITableViewCell {
         [authorLabel, messageLabel, markdownView, photos, fileStack, stampRow, stateLabel]
             .forEach { textStack.addArrangedSubview($0) }
         memberAvatar.translatesAutoresizingMaskIntoConstraints = false
-        memberAvatar.layer.cornerRadius = 11
-        memberAvatar.layer.borderWidth = 1.5
         memberAvatar.isHidden = true
+        memberCharacter.translatesAutoresizingMaskIntoConstraints = false
+        memberAvatar.addSubview(memberCharacter)
         contentView.addSubview(memberAvatar)
         memberNameLabel.font = UIFont.systemFont(ofSize: TypeScale.caption.font.pointSize, weight: .medium)
         memberAdminTag.font = Typography(size: 11, lineHeight: 16, weight: .regular).font
@@ -154,6 +155,10 @@ final class ChatMessageCell: UITableViewCell {
         memberHeader.isHidden = true
         textStack.insertArrangedSubview(memberHeader, at: 0)
         NSLayoutConstraint.activate([
+            memberCharacter.leadingAnchor.constraint(equalTo: memberAvatar.leadingAnchor),
+            memberCharacter.trailingAnchor.constraint(equalTo: memberAvatar.trailingAnchor),
+            memberCharacter.topAnchor.constraint(equalTo: memberAvatar.topAnchor),
+            memberCharacter.bottomAnchor.constraint(equalTo: memberAvatar.bottomAnchor),
             memberAvatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             // items.tsx:272 pads the column 22 below the row's top.
             memberAvatar.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 26),
@@ -380,8 +385,12 @@ final class ChatMessageCell: UITableViewCell {
             memberAdminTag.isHidden = !row.isAdmin
             memberTimeLabel.text = row.time.map { Self.clock.string(from: $0) }
             memberTimeLabel.isHidden = row.time == nil
-            memberAvatar.backgroundColor = ink ?? palette.ink3
-            memberAvatar.layer.borderColor = palette.main.cgColor
+            // items.tsx:272: the mark, not a disc — the member's own character.
+            memberCharacter.look = CharacterMarks.look(
+                shape: row.memberAvatar?["shape"]?.stringValue,
+                color: row.memberColor,
+                id: row.botID,
+                image: row.memberAvatar?["image"]?.stringValue)
             // The column and its 8pt gap sit outside the bubble (items.tsx:271-273).
             leading.constant = 16 + 22 + 8
         }

@@ -236,9 +236,8 @@ final class NeedsYouViewController: UIViewController, UITableViewDataSource, UIT
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "needs", for: indexPath) as! NeedsRowCell
         let row = sections[indexPath.section].rows[indexPath.row]
-        let dark = traitCollection.userInterfaceStyle == .dark
-        let ink = row.bot.flatMap { Inks.bot($0["color"]?.stringValue, dark: dark) }
-        cell.configure(name: row.target.name, summary: row.summary, ink: ink, palette: palette)
+        cell.configure(name: row.target.name, summary: row.summary,
+                       look: row.bot.map { CharacterMarks.Look(bot: $0) }, palette: palette)
         return cell
     }
 
@@ -253,7 +252,7 @@ final class NeedsYouViewController: UIViewController, UITableViewDataSource, UIT
 /// NeedsYou.tsx:66-77,:87: a 56pt row with a 44pt avatar that always carries the
 /// waiting question, the name over the summary, and a hover fill when pressed.
 private final class NeedsRowCell: UITableViewCell {
-    private let avatar = UILabel()
+    private let avatar = CharacterAvatarView()
     private let gap = UIView()
     private let badge = UIView()
     private let q = UILabel()
@@ -269,11 +268,6 @@ private final class NeedsRowCell: UITableViewCell {
         selectedBackgroundView = hover
 
         avatar.translatesAutoresizingMaskIntoConstraints = false
-        avatar.textAlignment = .center
-        avatar.textColor = .white
-        avatar.font = .systemFont(ofSize: 18, weight: .medium)
-        avatar.clipsToBounds = true
-        avatar.layer.cornerRadius = 22
 
         // marks.tsx:69,:72,:78-81: the question is 27% of the avatar in a
         // transparent gap at the corner; a NeedsYou row always asks one.
@@ -322,14 +316,14 @@ private final class NeedsRowCell: UITableViewCell {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(name: String, summary: String, ink: UIColor?, palette: Palette) {
+    func configure(name: String, summary: String, look: CharacterMarks.Look?, palette: Palette) {
         nameLabel.attributedText = NSAttributedString(string: name, attributes: TypeScale.rowName.attributes)
         nameLabel.textColor = palette.ink
         summaryLabel.attributedText = NSAttributedString(string: summary, attributes: TypeScale.rowPreview.attributes)
         summaryLabel.textColor = palette.ink2
         // NeedsYou.tsx:71: a row with no bot keeps the avatar's space, empty.
-        avatar.text = ink == nil ? "" : String(name.prefix(1)).uppercased()
-        avatar.backgroundColor = ink ?? .clear
+        avatar.isHidden = look == nil
+        if let look { avatar.look = look }
         badge.backgroundColor = palette.accent
         selectedBackgroundView?.backgroundColor = palette.hover
         isAccessibilityElement = true

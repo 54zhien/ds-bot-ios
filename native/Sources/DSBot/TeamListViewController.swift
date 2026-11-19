@@ -105,7 +105,9 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         let role: String
         let pinned: Bool
         let lastAt: Int
-        let ink: String?
+        let look: CharacterMarks.Look
+        /// A room's roster, in the room's own order; empty for a Bot.
+        let members: [CharacterMarks.Look]
         let waiting: Bool
         let working: Bool
     }
@@ -349,10 +351,14 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
             // directly; rows keep deriving theirs from the preview.
             let marks = kind == .bot
             let markSession = value["sessionId"]?.stringValue ?? id
+            // marks.tsx:113-118: a room seats its members, so the row keeps them
+            // as looks now rather than reaching back into the team state to draw.
+            let members = kind == .room ? CharacterMarks.Look.members(of: value, team: state) : []
             return Entry(target: target, preview: preview, role: value["role"]?.stringValue ?? "",
                          pinned: value["pinned"] == .bool(true),
                          lastAt: value["lastAt"]?.intValue ?? value["createdAt"]?.intValue ?? 0,
-                         ink: value["color"]?.stringValue,
+                         look: CharacterMarks.Look(bot: value),
+                         members: members,
                          waiting: marks && state["questions"]?[markSession] != nil,
                          working: marks && state["work"]?["bots"]?[id] != nil)
         }
@@ -507,16 +513,8 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
             content.leadingAnchor.constraint(greaterThanOrEqualTo: tile.leadingAnchor, constant: 6),
             content.trailingAnchor.constraint(lessThanOrEqualTo: tile.trailingAnchor, constant: -6),
         ])
-        let avatar = UILabel()
-        avatar.text = String(entry.target.name.prefix(1)).uppercased()
-        avatar.textAlignment = .center
-        avatar.textColor = .white
-        avatar.font = TypeScale.headerTitle.font
-        avatar.textColor = palette.accentInk
-        avatar.backgroundColor = Inks.bot(entry.ink, dark: traitCollection.userInterfaceStyle == .dark)
-        avatar.layer.cornerRadius = 26
-        avatar.clipsToBounds = true
-        // TeamList.tsx:80: the tile's avatar is 52pt, larger than the row's 36.
+        // TeamList.tsx:80: the tile's mark is 52pt, larger than the row's 36.
+        let avatar = CharacterAvatarView(look: entry.look)
         avatar.widthAnchor.constraint(equalToConstant: 52).isActive = true
         avatar.heightAnchor.constraint(equalToConstant: 52).isActive = true
         content.addArrangedSubview(avatar)
@@ -630,7 +628,6 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
     }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "team", for: indexPath) as! TeamRowCell
-        let dark = traitCollection.userInterfaceStyle == .dark
         if indexPath.section < sectionOffset {
             cell.configureNeeds(title: "\(tr("Needs you")) · \(pendingCount)", ink: palette.accent, palette: palette)
             return cell
@@ -640,7 +637,7 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
         cell.configure(
             name: entry.target.name,
             preview: entry.preview.isEmpty ? tr(entry.target.kind == .room ? "Group chat" : "Bot") : entry.preview,
-            ink: Inks.bot(entry.ink, dark: dark),
+            look: entry.look, members: entry.members,
             unread: entry.lastAt > seen,
             state: rowState(entry.preview),
             palette: palette)
@@ -681,7 +678,10 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
 final class TeamRowCell: UITableViewCell {
     enum State { case none, working, waiting, approval }
 
-    private let avatar = UILabel()
+    /// The 36pt box every row's mark sits in: a character for a Bot, a cluster for
+    /// a room. TeamList.tsx:105,:126 give both the same slot.
+    private let avatar = UIView()
+    private let mark = MarkView(frame: .zero)
     private let nameLabel = UILabel()
     private let previewLabel = UILabel()
     private let unreadDot = UIView()
@@ -699,12 +699,9 @@ final class TeamRowCell: UITableViewCell {
         selectedBackgroundView = hover
 
         avatar.translatesAutoresizingMaskIntoConstraints = false
-        avatar.font = .systemFont(ofSize: TypeScale.rowName.size, weight: .medium)
-        avatar.textAlignment = .center
-        avatar.clipsToBounds = true
-        // TeamList.tsx:105,:126: a row's avatar is 36pt, bot or room alike.
-        avatar.layer.cornerRadius = 18
         avatar.isAccessibilityElement = false
+        mark.translatesAutoresizingMaskIntoConstraints = false
+        avatar.addSubview(mark)
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.lineBreakMode = .byTruncatingTail
@@ -735,6 +732,10 @@ final class TeamRowCell: UITableViewCell {
         badge.addSubview(badgeLabel)
         NSLayoutConstraint.activate([
             contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: Glass.control + Glass.gap),
+            mark.leadingAnchor.constraint(equalTo: avatar.leadingAnchor),
+            mark.trailingAnchor.constraint(equalTo: avatar.trailingAnchor),
+            mark.topAnchor.constraint(equalTo: avatar.topAnchor),
+            mark.bottomAnchor.constraint(equalTo: avatar.bottomAnchor),
             avatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: Glass.margin),
             avatar.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
             avatar.widthAnchor.constraint(equalToConstant: 36),
@@ -769,14 +770,17 @@ final class TeamRowCell: UITableViewCell {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(name: String, preview: String, ink: UIColor, unread: Bool, state: State, palette: Palette) {
+    func configure(name: String, preview: String, look: CharacterMarks.Look, members: [CharacterMarks.Look],
+                   unread: Bool, state: State, palette: Palette) {
         nameLabel.attributedText = NSAttributedString(string: name, attributes: TypeScale.rowName.attributes)
         nameLabel.textColor = palette.ink
         previewLabel.attributedText = NSAttributedString(string: preview, attributes: TypeScale.rowPreview.attributes)
         previewLabel.textColor = palette.ink2
-        avatar.text = String(name.prefix(1)).uppercased()
-        avatar.textColor = .white
-        avatar.backgroundColor = ink
+        // A cell recycled from the Needs row has its mark hidden, not removed.
+        mark.isHidden = false
+        // TeamList.tsx:126: a room's ring is the drawer's own colour.
+        mark.plate = palette.sidebar
+        mark.configure(look: look, members: members)
         unreadDot.isHidden = !unread
         unreadDot.backgroundColor = palette.accent
         selectedBackgroundView?.backgroundColor = palette.hover
@@ -795,8 +799,7 @@ final class TeamRowCell: UITableViewCell {
         nameLabel.attributedText = NSAttributedString(string: title, attributes: TypeScale.rowName.attributes)
         nameLabel.textColor = ink
         previewLabel.attributedText = nil
-        avatar.text = nil
-        avatar.backgroundColor = .clear
+        mark.isHidden = true
         unreadDot.isHidden = true
         gap.isHidden = true
         selectedBackgroundView?.backgroundColor = palette.hover

@@ -4,7 +4,11 @@ import UIKit
 /// messages will be. With an action it also carries the one button the state needs,
 /// which Chat.tsx leaves to the surrounding screens.
 final class EmptyChatView: UIView {
-    private let avatar = UILabel()
+    /// The 64pt mark: a Bot's character, a room's cluster, and the letter the block
+    /// used before it had one — kept for a caller that has nothing to draw from.
+    private let avatarBox = UIView()
+    private let avatar = MarkView(frame: .zero)
+    private let avatarLetter = UILabel()
     private let nameLabel = UILabel()
     private let roleLabel = UILabel()
     private let captionLabel = UILabel()
@@ -19,7 +23,7 @@ final class EmptyChatView: UIView {
         super.init(frame: frame)
         let palette = ThemeStore.palette(trait: traitCollection)
 
-        let column = UIStackView(arrangedSubviews: [avatar, nameLabel, roleLabel, captionLabel, action])
+        let column = UIStackView(arrangedSubviews: [avatarBox, nameLabel, roleLabel, captionLabel, action])
         column.axis = .vertical
         column.alignment = .center
         column.translatesAutoresizingMaskIntoConstraints = false
@@ -32,21 +36,32 @@ final class EmptyChatView: UIView {
             column.trailingAnchor.constraint(equalTo: trailingAnchor),
         ])
 
-        // 64 is EmptyChat's own avatar size in Chat.tsx, with the page colour as its ring.
-        avatar.font = .systemFont(ofSize: TypeScale.largeTitle.size, weight: .semibold)
-        avatar.textAlignment = .center
-        avatar.textColor = .white
-        avatar.layer.cornerRadius = 32
-        avatar.clipsToBounds = true
-        avatar.layer.borderWidth = 1
-        avatar.widthAnchor.constraint(equalToConstant: 64).isActive = true
-        avatar.heightAnchor.constraint(equalToConstant: 64).isActive = true
+        // 64 is EmptyChat's own mark size in Chat.tsx.
+        avatarBox.translatesAutoresizingMaskIntoConstraints = false
+        avatar.translatesAutoresizingMaskIntoConstraints = false
+        avatarLetter.translatesAutoresizingMaskIntoConstraints = false
+        avatarLetter.font = .systemFont(ofSize: TypeScale.largeTitle.size, weight: .semibold)
+        avatarLetter.textAlignment = .center
+        avatarLetter.textColor = .white
+        avatarLetter.layer.cornerRadius = 32
+        avatarLetter.clipsToBounds = true
+        avatarLetter.layer.borderWidth = 1
+        [avatarLetter, avatar].forEach { avatarBox.addSubview($0) }
+        NSLayoutConstraint.activate([
+            avatarBox.widthAnchor.constraint(equalToConstant: 64),
+            avatarBox.heightAnchor.constraint(equalToConstant: 64),
+        ] + [avatarLetter, avatar].flatMap { view in
+            [view.leadingAnchor.constraint(equalTo: avatarBox.leadingAnchor),
+             view.trailingAnchor.constraint(equalTo: avatarBox.trailingAnchor),
+             view.topAnchor.constraint(equalTo: avatarBox.topAnchor),
+             view.bottomAnchor.constraint(equalTo: avatarBox.bottomAnchor)]
+        })
 
         nameLabel.font = .systemFont(ofSize: TypeScale.settingsRow.size, weight: .semibold)
         nameLabel.textColor = palette.ink
         nameLabel.textAlignment = .center
         nameLabel.lineBreakMode = .byTruncatingTail
-        nameLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 12).isActive = true
+        nameLabel.topAnchor.constraint(equalTo: avatarBox.bottomAnchor, constant: 12).isActive = true
 
         roleLabel.font = TypeScale.small.font
         roleLabel.textColor = palette.ink3
@@ -74,12 +89,20 @@ final class EmptyChatView: UIView {
 
     @objc private func run() { onAction?() }
 
+    /// Chat.tsx:449: a Bot shows its mark, a room its members' cluster. A caller that
+    /// has neither passes no look and gets the letter this block drew before marks
+    /// existed, so an unfinished call site never turns every chat into a gumdrop.
     func configure(name: String, role: String, color: String?, caption: String,
+                   look: CharacterMarks.Look? = nil,
+                   members: [CharacterMarks.Look] = [],
                    actionTitle: String? = nil, onAction: (() -> Void)? = nil) {
         let palette = ThemeStore.palette(trait: traitCollection)
-        avatar.backgroundColor = Inks.bot(color, dark: traitCollection.userInterfaceStyle == .dark)
-        avatar.layer.borderColor = palette.main.cgColor
-        avatar.text = name.isEmpty ? "" : String(name.prefix(1)).uppercased()
+        avatar.plate = palette.main
+        avatar.configure(look: look, members: members)
+        avatarLetter.isHidden = look != nil || !members.isEmpty || name.isEmpty
+        avatarLetter.backgroundColor = Inks.bot(color, dark: traitCollection.userInterfaceStyle == .dark)
+        avatarLetter.layer.borderColor = palette.main.cgColor
+        avatarLetter.text = name.isEmpty ? "" : String(name.prefix(1)).uppercased()
         nameLabel.text = name
         roleLabel.text = role
         roleLabel.isHidden = role.isEmpty
@@ -92,6 +115,7 @@ final class EmptyChatView: UIView {
             action.isHidden = true
             self.onAction = nil
         }
-        accessibilityElements = [avatar, nameLabel, roleLabel, captionLabel, action].filter { !$0.isHidden }
+        // The mark is decoration: the name it belongs to is the next element.
+        accessibilityElements = [nameLabel, roleLabel, captionLabel, action].filter { !$0.isHidden }
     }
 }
