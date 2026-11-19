@@ -7,6 +7,7 @@ import XCTest
 /// centred, unclipped, and the same shape at every size. Icons drawn asymmetric
 /// on purpose (unread's corner badge, people's second head) will fail here and
 /// belong on a reviewed list, not a quiet pass.
+@MainActor
 final class IconGeometryTests: XCTestCase {
     private let sizes: [CGFloat] = [12, 15, 16, 18, 19, 20, 22, 26, 28]
     private let icons: [Icon] = [.chevronLeft, .chevronRight, .sidebar, .search, .plus,
@@ -37,8 +38,12 @@ final class IconGeometryTests: XCTestCase {
         format.scale = 1
         format.opaque = false
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: format)
-        let image = renderer.image { _ in
+        let image = renderer.image { context in
+            // Icon.draw reads UIGraphicsGetCurrentContext; push the renderer's own
+            // context so the glyph lands in this bitmap wherever the test runs.
+            UIGraphicsPushContext(context.cgContext)
             icon.draw(in: CGRect(x: 0, y: 0, width: size, height: size), color: .black, ring: ring)
+            UIGraphicsPopContext()
         }
         return ink(of: image)
     }
@@ -50,8 +55,12 @@ final class IconGeometryTests: XCTestCase {
         format.scale = 1
         format.opaque = false
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: format)
-        let image = renderer.image { _ in
+        let image = renderer.image { context in
+            // The hand-drawn views also read the current context, and view.draw is
+            // only meaningful with one pushed: give them the bitmap's own.
+            UIGraphicsPushContext(context.cgContext)
             view.draw(CGRect(x: 0, y: 0, width: size, height: size))
+            UIGraphicsPopContext()
         }
         return ink(of: image)
     }
