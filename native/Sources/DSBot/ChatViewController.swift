@@ -25,6 +25,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         icon: OriginalSideIcon())
     private let sidePlaceholder = UIView()
     private let headerCenter = UIControl()
+    private let headerCenterBox = UIView()
     private let headerTitle = UILabel()
     private let headerPill = GlassPillView(height: Glass.control)
     private let pillAvatar = MarkView()
@@ -372,6 +373,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         sidePlaceholder.widthAnchor.constraint(equalToConstant: Glass.control).isActive = true
         sidePlaceholder.heightAnchor.constraint(equalToConstant: Glass.control).isActive = true
 
+        // The pill must hug the Bot's name and stay centred: in the row it would
+        // otherwise stretch to the row's leftover width and read as a long bar.
+        headerCenterBox.translatesAutoresizingMaskIntoConstraints = false
+        headerCenterBox.addSubview(headerCenter)
         headerCenter.translatesAutoresizingMaskIntoConstraints = false
         headerCenter.accessibilityTraits = .button
         headerCenter.addTarget(self, action: #selector(showDetails), for: .touchUpInside)
@@ -393,7 +398,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         pillName.translatesAutoresizingMaskIntoConstraints = false
         headerPill.content.addArrangedSubview(pillName)
         headerRow.addArrangedSubview(drawerControl)
-        headerRow.addArrangedSubview(headerCenter)
+        headerRow.addArrangedSubview(headerCenterBox)
         headerRow.addArrangedSubview(sideControl)
         headerRow.addArrangedSubview(sidePlaceholder)
         sideControl.isHidden = true
@@ -407,6 +412,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             headerRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Glass.margin),
             headerRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Glass.margin),
             headerRow.heightAnchor.constraint(equalToConstant: Glass.control),
+            headerCenter.centerXAnchor.constraint(equalTo: headerCenterBox.centerXAnchor),
+            headerCenter.centerYAnchor.constraint(equalTo: headerCenterBox.centerYAnchor),
+            headerCenter.topAnchor.constraint(equalTo: headerCenterBox.topAnchor),
+            headerCenter.bottomAnchor.constraint(equalTo: headerCenterBox.bottomAnchor),
+            headerCenter.leadingAnchor.constraint(greaterThanOrEqualTo: headerCenterBox.leadingAnchor),
+            headerCenter.trailingAnchor.constraint(lessThanOrEqualTo: headerCenterBox.trailingAnchor),
             headerCenter.widthAnchor.constraint(lessThanOrEqualToConstant: 260),
             headerTitle.topAnchor.constraint(equalTo: headerCenter.topAnchor),
             headerTitle.bottomAnchor.constraint(equalTo: headerCenter.bottomAnchor),

@@ -13,8 +13,11 @@ final class PassthroughHeader: UIView {
     private func controlHit(_ view: UIView, at point: CGPoint) -> Bool {
         for child in view.subviews {
             guard child.isUserInteractionEnabled, !child.isHidden else { continue }
+            // The point is converted into the child's own space, so the frame it is
+            // tested against must be the child's bounds: frame lives in the parent's
+            // space, and mixing the two made every control away from x = 0 miss.
             let local = view.convert(point, to: child)
-            guard child.frame.insetBy(dx: -8, dy: -8).contains(local) else { continue }
+            guard child.bounds.insetBy(dx: -8, dy: -8).contains(local) else { continue }
             if child is UIControl { return true }
             if let gestures = child.gestureRecognizers, !gestures.isEmpty { return true }
             if controlHit(child, at: local) { return true }
