@@ -46,6 +46,8 @@
 
 **当前状态：按止损线丢件后只剩 6 件 / 267 行**（`InputAnimation`、`BottomFadeLayer`、`WindowCornerGeometry`、`PresentationReducer`、`Selection`、`TextView`），而「玻璃成形 / 高度变化 / 展开收起」的几何全在被丢的 `Geometry` / `MorphGeometry` / `MotionController` 里。**等裁**。
 
+> **结论（比上面任何数字都重要）**：**「闭包自足」在 zen 这份代码上不成立。** 按「发现闭包外引用就丢掉那一件、不许补文件」的止损线执行 B，12 件会**塌成 6 件**，而被丢掉的正是三件几何脊柱——玻璃成形、高度变化、展开收起三件事的几何全部消失，只余键盘起落与底部渐隐。看到「12 件」这个数字的人请先读这一句：**它不是 12 件，它是 12 件在止损线下必然塌缩的前提**，真正可执行的是「类型依附放行」把缺失的纯值类型补回来（规则见仓库提交说明与 Warden 裁定），或接受四件事里划掉三件。
+
 `Typography` / `JSONValue` 检查：12 件内 `JSONValue` 引用 **0 次**；`Typography(Role)` 仅 `ComposerGeometry` 1 处（见上表）。
 
 ## 四、标识符改名表（只有标识符，没有取值）
