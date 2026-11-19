@@ -88,6 +88,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     /// The last state error, shown until a read succeeds. It used to be overwritten by
     /// the empty-state text, which is why a failure looked like "No Bot yet".
     private var loadError: String?
+    /// The chat was deleted on the computer. Chat.tsx:119,178 keeps this apart
+    /// from a failed read: it shows one quiet line and offers no retry, because
+    /// retrying a chat that no longer exists can only fail again.
+    private var gone = false
     /// The live key the host gave us; sent back so the host can answer unchanged.
     private var liveKey: String?
     private var polling: Task<Void, Never>?
@@ -293,6 +297,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         updateTitleButton()
         refreshStatusPill()
         list.reloadData()
+    }
+
+    /// A system appearance flip reaches none of the above. The palette is resolved
+    /// from the trait collection and every colour it hands out was a snapshot at
+    /// call time, so the screen repaints through the same path a theme switch takes.
+    /// Anything that stores a CGColor — the header fade's gradient — needs this.
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) else { return }
+        themeChanged()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -595,6 +609,16 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func updateEmptyState() {
+        // Chat.tsx:442: a deleted chat reads as an empty one, quietly. It comes
+        // before the failure text, or the retry button below would invite a
+        // second attempt that cannot succeed.
+        if gone {
+            emptyChatView.isHidden = true
+            emptyState.text = tr("No messages yet")
+            emptyState.isHidden = rows.count > 0
+            retryLoadButton.isHidden = true
+            return
+        }
         // A failed read keeps the old label, because the retry button belongs to it.
         if let loadError {
             emptyChatView.isHidden = true
@@ -1107,6 +1131,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
                 cursor = page.cursor
             }
             chatSessionID = nextSessionID
+            // A page that arrived settles it: the chat exists again, if it ever
+            // stopped. Chat.tsx:195 clears the same flag per chat.
+            gone = false
             updateSideButton()
             updatePending(state, sessionID: nextSessionID)
             // The confirming read replaces everything the message events brought.
@@ -1124,6 +1151,18 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             }
         } catch {
             guard id == sessionID else { return }
+            // Chat.tsx:177-180: a deleted chat is not a failed read, and going
+            // offline is the link's state rather than this chat's, so neither
+            // one puts text and a retry button on the screen.
+            if (error as? TransportError)?.wireCode == "bot/not-found" {
+                gone = true
+                loadError = nil
+                // ShellB.tsx:194 drops the saved chat with the target it named.
+                LastChatStore.clear()
+                updateEmptyState()
+                return
+            }
+            if linkStatus != .online { return }
             // A failed read is visible until one succeeds: updateEmptyState prefers it
             // over the placeholder text and keeps the retry button.
             loadError = error.localizedDescription
@@ -1442,6 +1481,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         botID = target.kind == .bot ? target.id : nil
         roomID = target.kind == .room ? target.id : nil
         chatSessionID = nil
+        // Chat.tsx:195: the deleted-chat state belongs to the chat it named.
+        gone = false
         stream.clear()
         olderRows = []
         latestRows = []
