@@ -1245,7 +1245,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             sheet.open(link: link)
             return
         }
-        let present = { [weak self] in self?.presentPairingSheet(prefill: link) }
+        let present: () -> Void = { [weak self] in
+            guard let self else { return }
+            presentPairingSheet(prefill: link)
+        }
         if presentedViewController != nil {
             dismiss(animated: true, completion: present)
         } else {
