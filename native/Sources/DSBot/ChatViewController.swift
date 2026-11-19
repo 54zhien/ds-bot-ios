@@ -40,6 +40,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
     private let blockedView = BotBlockedView()
     private let computerUseView = ComputerUseView()
     private let workStatusView = WorkStatusView()
+    private let sidebar = SidebarHost()
     private var pendingHeight: NSLayoutConstraint!
     private var pendingItems: [PendingActionsViewController.Item] = []
     private let statusPill = GlassPillView(height: 30)
@@ -266,6 +267,23 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
     }
 
+    /// The page rides on the sidebar's transport: this is the view that moves when the
+    /// drawer opens, and every subview added below still lands in the same place.
+    override func loadView() {
+        view = SidebarTransportView(frame: .zero)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if let window = view.window, let transport = view as? SidebarTransportView {
+            sidebar.travel = drawerWidth
+            sidebar.install(host: self, window: window, page: transport)
+        }
+        // The scrim's tap dismisses without going through the state, so the page comes
+        // back here rather than staying translated under a closed drawer.
+        if presentedViewController == nil, sidebar.state.isOpen { sidebar.state.close() }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         title = tr("Chat")
@@ -299,10 +317,10 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         configureList()
         configureComposer()
         configureLatestButton()
-        let drawerEdge = UIPanGestureRecognizer(target: self, action: #selector(openDrawerFromEdge(_:)))
-        drawerEdge.delegate = self
-        drawerEdge.cancelsTouchesInView = false
-        view.addGestureRecognizer(drawerEdge)
+        // The edge pan that used to open the drawer is gone: WorkspaceSidebarInteraction
+        // owns that gesture now, at the window layer, and the page carries the motion.
+        sidebar.onOpen = { [weak self] in self?.presentTeamDrawer() }
+        sidebar.onClose = { [weak self] in self?.dismissTeamDrawer() }
         savedOffer = pairingStore.load()
         updateEmptyState()
         if let savedOffer {
@@ -452,7 +470,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         statusPill.content.addArrangedSubview(pillAction)
         pillAction.isHidden = true
         NSLayoutConstraint.activate([
-            statusPill.topAnchor.constraint(equalTo: headerRow.bottomAnchor),
+            // The pill used to sit flush under the Bot pill and read as part of it;
+            // eight points keeps them two separate things (the header row's own gap).
+            statusPill.topAnchor.constraint(equalTo: headerRow.bottomAnchor, constant: Glass.gap),
             statusPill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
         ])
         pillLabel.text = tr("Not paired")
@@ -1384,9 +1404,21 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         }
     }
 
+    /// The header's team button drives the same state machine the gesture does, so one
+    /// motion subject answers both: the page moves, the panel never slides.
     @objc private func showTeam() {
-        guard let teamState else { return }
+        guard teamState != nil, presentedViewController == nil else { return }
         view.endEditing(true)
+        sidebar.travel = drawerWidth
+        sidebar.state.open(eligible: true)
+    }
+
+    private var drawerWidth: CGFloat { min(view.bounds.width * 0.85, 340) }
+
+    /// Presented without an animation of its own: the page is already on its way, and a
+    /// second animator on the same tap is the double motion this model exists to avoid.
+    private func presentTeamDrawer() {
+        guard let teamState, presentedViewController == nil else { return }
         let team = TeamListViewController(state: teamState)
         team.onSelect = { [weak self] target in self?.selectTarget(target) }
         team.onSettings = { [weak self] in self?.showSettings() }
@@ -1398,7 +1430,12 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         // ShellB.tsx:354: the drawer is the bare list panel, no navigation stack.
         team.modalPresentationStyle = .custom
         team.transitioningDelegate = drawerTransition
-        present(team, animated: true)
+        present(team, animated: false)
+    }
+
+    private func dismissTeamDrawer() {
+        guard presentedViewController is TeamListViewController else { return }
+        dismiss(animated: false)
     }
 
     private func showNeedsYou() {
@@ -1409,22 +1446,9 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
         present(needs, animated: true)
     }
 
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
-              presentedViewController == nil, teamState != nil else { return false }
-        let movement = pan.translation(in: view)
-        let originX = pan.location(in: view).x - movement.x
-        // Drawer.tsx:65-66: activate past 8 horizontally, fail past 12 vertically.
-        return originX <= 24 && movement.x > 8 && abs(movement.y) <= 12
-    }
-
-    @objc private func openDrawerFromEdge(_ pan: UIPanGestureRecognizer) {
-        guard pan.state == .ended else { return }
-        // Drawer.tsx:69,:74: past half the panel's width or a fast flick opens it.
-        let width = min(view.bounds.width * 0.85, 340)
-        let distance = pan.translation(in: view).x
-        if distance > width / 2 || pan.velocity(in: view).x > 350 { showTeam() }
-    }
+    // The drawer's edge pan and its "past half the width" rule lived here. Both are gone
+    // with the panel's slide: WorkspaceSidebarInteraction owns the gesture now and
+    // SidebarDragState owns the threshold, so there is one rule, not two.
 
     @objc private func showSideChat() {
         guard linkStatus == .online, let botID, let chatSessionID else { return }
