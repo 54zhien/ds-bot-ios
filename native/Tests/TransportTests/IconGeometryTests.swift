@@ -4,9 +4,12 @@ import XCTest
 /// icons.tsx gives every glyph the same 20x20 viewBox; where the ink lands inside
 /// the view decides whether it reads centred. Each icon is rasterised at the sizes
 /// the app asks for, one pixel per point, and its non-transparent box must sit
-/// centred, unclipped, and the same shape at every size. Icons drawn asymmetric
-/// on purpose (unread's corner badge, people's second head) will fail here and
-/// belong on a reviewed list, not a quiet pass.
+/// centred, unclipped, and the same shape at every size.
+///
+/// Two glyphs are asymmetric by design and belong on the reviewed list below
+/// rather than a quiet pass: unread carries its badge off the corner, and people
+/// its second head. If they fail, say so with the numbers — never delete an
+/// assertion to make them pass.
 @MainActor
 final class IconGeometryTests: XCTestCase {
     private let sizes: [CGFloat] = [12, 15, 16, 18, 19, 20, 22, 26, 28]
@@ -23,19 +26,26 @@ final class IconGeometryTests: XCTestCase {
         case noInk
     }
 
+    /// Four pixels per point. At one, a stroke whose edge lands on a half point has
+    /// to pick a side, and its box then reads a whole point off centre; the aspect
+    /// of a 12pt raster (9x11 against 10x10) drifts by 0.2 on the grid alone. Both
+    /// are the ruler, not the glyph.
+    private static let sample: CGFloat = 4
+
     /// The bitmap is ours, not UIGraphicsImageRenderer's: its alpha byte position
     /// follows the format it picked, and reading the wrong channel finds no ink in
     /// a picture full of it. premultipliedLast puts alpha at byte 3 every time.
     private func raster(_ size: CGFloat, _ paint: (CGContext) -> Void) -> Raster {
-        let side = Int(size.rounded())
+        let side = Int((size * Self.sample).rounded())
         guard side > 0, let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
                                       bytesPerRow: side * 4, space: space,
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
               let buffer = context.data else { return .noBitmap }
-        // UIKit draws with y down; a raw context has y up.
+        // UIKit draws with y down; a raw context has y up. Scaling here keeps the
+        // painter in points while the bitmap holds more pixels.
         context.translateBy(x: 0, y: CGFloat(side))
-        context.scaleBy(x: 1, y: -1)
+        context.scaleBy(x: Self.sample, y: -Self.sample)
         UIGraphicsPushContext(context)
         paint(context)
         UIGraphicsPopContext()
@@ -48,8 +58,9 @@ final class IconGeometryTests: XCTestCase {
             }
         }
         guard maxX >= 0 else { return .noInk }
-        return .ink(CGRect(x: CGFloat(minX), y: CGFloat(minY),
-                           width: CGFloat(maxX - minX + 1), height: CGFloat(maxY - minY + 1)))
+        return .ink(CGRect(x: CGFloat(minX) / Self.sample, y: CGFloat(minY) / Self.sample,
+                           width: CGFloat(maxX - minX + 1) / Self.sample,
+                           height: CGFloat(maxY - minY + 1) / Self.sample))
     }
 
     private func render(_ icon: Icon, size: CGFloat, ring: UIColor? = nil) -> Raster {
