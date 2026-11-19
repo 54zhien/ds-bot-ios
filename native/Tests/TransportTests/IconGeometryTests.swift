@@ -207,6 +207,47 @@ final class IconGeometryTests: XCTestCase {
         }
     }
 
+    // MARK: - The gear
+
+    /// The gear is two stroked paths and nothing else: no fill, so no fill rule can
+    /// punch a hole in it, and the outline never comes nearer the middle than r 5.999
+    /// while the inner circle sits at r 2.6. The gap between them is empty at every
+    /// size the app asks for, which is what the reported dark patches would have to
+    /// occupy. Held at 20, 28 and 44 so a future path edit cannot fill it in.
+    func testTheGearsGapStaysEmptyAtEverySize() {
+        for size in [20, 28, 44] as [CGFloat] {
+            XCTAssertEqual(alpha(.gear, size: size, at: CGPoint(x: 10, y: 10)) ?? 255, 0,
+                           "gear \(size)pt: the middle of the ring is empty")
+            XCTAssertEqual(alpha(.gear, size: size, at: CGPoint(x: 10, y: 6.2)) ?? 255, 0,
+                           "gear \(size)pt: the gap between the ring and the teeth is empty")
+            XCTAssertGreaterThan(alpha(.gear, size: size, at: CGPoint(x: 10, y: 7.4)) ?? 0, 200,
+                                 "gear \(size)pt: the inner circle is drawn")
+            XCTAssertGreaterThan(alpha(.gear, size: size, at: CGPoint(x: 10, y: 2.53)) ?? 0, 200,
+                                 "gear \(size)pt: the teeth are drawn")
+        }
+    }
+
+    /// Alpha at a point given in the 20-unit box. The one reader here that wants a
+    /// pixel rather than a box: the question is whether a spot is empty, and a box
+    /// cannot answer that.
+    private func alpha(_ icon: Icon, size: CGFloat, at point: CGPoint) -> UInt8? {
+        let side = Int((size * Self.sample).rounded())
+        guard side > 0, let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
+                                      bytesPerRow: side * 4, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let buffer = context.data else { return nil }
+        context.translateBy(x: 0, y: CGFloat(side))
+        context.scaleBy(x: Self.sample, y: -Self.sample)
+        UIGraphicsPushContext(context)
+        icon.draw(in: CGRect(x: 0, y: 0, width: size, height: size), color: .black)
+        UIGraphicsPopContext()
+        let column = Int((point.x / 20 * size * Self.sample).rounded(.down))
+        let row = Int((point.y / 20 * size * Self.sample).rounded(.down))
+        guard column >= 0, column < side, row >= 0, row < side else { return nil }
+        return buffer.bindMemory(to: UInt8.self, capacity: side * side * 4)[(row * side + column) * 4 + 3]
+    }
+
     // MARK: - The side glyph
 
     /// The user's rule: the cross may move, nothing else. The bubble's own box centre
