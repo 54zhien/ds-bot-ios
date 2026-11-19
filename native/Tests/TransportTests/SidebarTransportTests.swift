@@ -28,8 +28,9 @@ final class SidebarTransportTests: XCTestCase {
         SidebarSettlement.run(offset: 96, on: transport, reduceMotion: true) { reported += 1 }
         XCTAssertEqual(transport.offset, 96, "the jump is immediate")
         XCTAssertEqual(reported, 0, "the report waits for the next turn")
-        await Task.yield()
-        await Task.yield()
+        // Two yields are not a guarantee under XCTest: the deferred Task may still be
+        // queued. Sleep long enough for one main-actor turn to run, then read the count.
+        try? await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertEqual(reported, 1)
     }
 }
