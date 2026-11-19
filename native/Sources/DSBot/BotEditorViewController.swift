@@ -403,7 +403,11 @@ final class BotEditorViewController: UIViewController {
                         avatar["shape"] = .string(shape)
                         patch["avatar"] = .object(avatar)
                     }
-                    if model != bot["model"]?.stringValue, let model { patch["model"] = .string(model) }
+                    // Only a pick made here is a choice: the button is seeded from the
+                    // team default, and saving that back would pin a model RN leaves unset.
+                    if pickedModel, model != bot["model"]?.stringValue, let model {
+                        patch["model"] = .string(model)
+                    }
                     if effort != bot["effort"]?.stringValue { patch["effort"] = effort.map(JSONValue.string) ?? .null }
                     if privateSwitch.isOn != (bot["private"] == .bool(true)) {
                         patch["private"] = .bool(privateSwitch.isOn)
