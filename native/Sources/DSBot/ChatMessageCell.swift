@@ -223,7 +223,16 @@ final class ChatMessageCell: UITableViewCell {
     var adminTagVisible: Bool { !memberAdminTag.isHidden }
     var bubbleLeadingInset: CGFloat { leading.constant }
 
-    /// AvatarMarks.paint hands back the RN swatch hex; a row needs a colour.
+    /// tokens.ts:77-81 inkColor: a named ink has a light and a dark value, a hex is
+    /// used as is, and an unknown name falls to the ink table's gray. ink2 is what a
+    /// row uses when it has no member colour at all, not when the name is unfamiliar.
+    private static func inkColor(_ color: String, dark: Bool) -> UIColor? {
+        if CharacterMarks.isHex(color) { return paintColor(color) }
+        let pair = CharacterMarks.inks[CharacterMarks.inkName(color)] ?? ["#8A8F98", "#6E737B"]
+        return paintColor(pair[dark ? 1 : 0])
+    }
+
+    /// AvatarMarks.paint hands back the swatch hex a picker wants.
     private static func paintColor(_ hex: String) -> UIColor? {
         guard hex.hasPrefix("#"), hex.count == 7, let value = UInt64(hex.dropFirst(), radix: 16) else {
             return nil
@@ -363,13 +372,15 @@ final class ChatMessageCell: UITableViewCell {
         memberHeader.isHidden = !showsMember
         memberAvatar.isHidden = !showsMember
         if showsMember {
-            let paint = row.memberColor.map { AvatarMarks.paint($0) } ?? ""
+            // The character is painted with its ink, so the disc and the name agree.
+            let dark = traitCollection.userInterfaceStyle == .dark
+            let ink = row.memberColor.flatMap { Self.inkColor($0, dark: dark) }
             memberNameLabel.text = row.memberName ?? row.author
-            memberNameLabel.textColor = row.memberColor.flatMap { Self.paintColor(AvatarMarks.paint($0)) } ?? palette.ink2
+            memberNameLabel.textColor = ink ?? palette.ink2
             memberAdminTag.isHidden = !row.isAdmin
             memberTimeLabel.text = row.time.map { Self.clock.string(from: $0) }
             memberTimeLabel.isHidden = row.time == nil
-            memberAvatar.backgroundColor = Self.paintColor(paint) ?? palette.ink3
+            memberAvatar.backgroundColor = ink ?? palette.ink3
             memberAvatar.layer.borderColor = palette.main.cgColor
             // The column and its 8pt gap sit outside the bubble (items.tsx:271-273).
             leading.constant = 16 + 22 + 8

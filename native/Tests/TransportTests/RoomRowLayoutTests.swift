@@ -65,15 +65,28 @@ final class RoomRowLayoutTests: XCTestCase {
         cell.configure(roomRow(color: "violet"))
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         cell.memberNameColor?.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        // AvatarMarks.paint("violet") is #7d5aff.
-        XCTAssertEqual(red, 0x7d / 255, accuracy: 0.01)
-        XCTAssertEqual(green, 0x5a / 255, accuracy: 0.01)
-        XCTAssertEqual(blue, 0xff / 255, accuracy: 0.01)
+        // tokens.ts inkColor: violet's ink is #8B5CF6 in light (the swatch's #7d5aff
+        // belongs to COLOR_PAINT, which a picker draws, not a name).
+        XCTAssertEqual(red, 0x8B / 255, accuracy: 0.01)
+        XCTAssertEqual(green, 0x5C / 255, accuracy: 0.01)
+        XCTAssertEqual(blue, 0xF6 / 255, accuracy: 0.01)
     }
 
-    func testAnUnknownColourFallsToInk2() {
+    /// inkColor sends an unknown name to the ink table's gray; ink2 is only for a row
+    /// with no member colour at all.
+    func testAnUnknownColourFallsToTheInkGray() {
         let cell = cell()
         cell.configure(roomRow(color: "chartreuse"))
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        cell.memberNameColor?.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        XCTAssertEqual(red, 0x8A / 255, accuracy: 0.01)
+        XCTAssertEqual(green, 0x8F / 255, accuracy: 0.01)
+        XCTAssertEqual(blue, 0x98 / 255, accuracy: 0.01)
+    }
+
+    func testAMemberWithoutAColourFallsToInk2() {
+        let cell = cell()
+        cell.configure(roomRow(color: nil))
         let palette = ThemeStore.palette(trait: cell.traitCollection)
         XCTAssertEqual(cell.memberNameColor, palette.ink2)
     }
