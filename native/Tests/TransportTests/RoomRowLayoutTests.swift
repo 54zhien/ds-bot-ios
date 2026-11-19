@@ -29,7 +29,7 @@ final class RoomRowLayoutTests: XCTestCase {
         XCTAssertTrue(cell.memberHeaderVisible, "the member's name row")
         XCTAssertTrue(cell.memberAvatarVisible, "the 22pt column")
         XCTAssertEqual(cell.memberNameText, "Aster")
-        XCTAssertEqual(cell.bubbleLeadingInset, 16 + 22 + 8, "the bubble clears the column and its gap")
+        XCTAssertEqual(cell.bubbleLeadingInset, 12 + 22 + 8, "the bubble clears the column and its gap")
     }
 
     func testAOneToOneRowLeavesTheColumnOut() {
@@ -39,7 +39,7 @@ final class RoomRowLayoutTests: XCTestCase {
         cell.configure(row)
         XCTAssertFalse(cell.memberHeaderVisible)
         XCTAssertFalse(cell.memberAvatarVisible)
-        XCTAssertEqual(cell.bubbleLeadingInset, 16)
+        XCTAssertEqual(cell.bubbleLeadingInset, 12)
     }
 
     func testANullAvatarReservesNothing() {
@@ -47,7 +47,7 @@ final class RoomRowLayoutTests: XCTestCase {
         cell.configure(roomRow(avatar: .null))
         XCTAssertFalse(cell.memberAvatarVisible, "a null avatar draws no disc and no blank column")
         XCTAssertFalse(cell.memberHeaderVisible)
-        XCTAssertEqual(cell.bubbleLeadingInset, 16)
+        XCTAssertEqual(cell.bubbleLeadingInset, 12)
     }
 
     func testFlatKeepsItsBareRow() {
@@ -124,6 +124,6 @@ final class RoomRowLayoutTests: XCTestCase {
         oneToOne.inRoom = false
         cell.configure(oneToOne)
         XCTAssertFalse(cell.memberAvatarVisible, "a recycled cell must not keep the last member's column")
-        XCTAssertEqual(cell.bubbleLeadingInset, 16)
+        XCTAssertEqual(cell.bubbleLeadingInset, 12)
     }
 }

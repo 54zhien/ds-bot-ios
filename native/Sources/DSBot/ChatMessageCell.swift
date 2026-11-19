@@ -304,7 +304,9 @@ final class ChatMessageCell: UITableViewCell {
         // items.tsx:268: only a room row carries its member, and only when the
         // roster named one — a null avatar reserves nothing rather than a blank disc.
         let showsMember = row.inRoom && row.hasMemberAvatar && !flat && !notice && row.settled == nil
-        leading.constant = 16
+        // Chat.tsx:680 listContent paddingHorizontal is 12, and the list carries no
+        // horizontal inset of its own, so the row supplies that margin here.
+        leading.constant = 12
         // items.tsx:317-327: the flat layout lays a Bot or member row straight on
         // the page colour, stretched to the whole column, with no bubble at all.
         // A user row and a settled card keep their own shapes.
@@ -445,7 +447,7 @@ final class ChatMessageCell: UITableViewCell {
                 id: row.botID,
                 image: row.memberAvatar?["image"]?.stringValue)
             // The column and its 8pt gap sit outside the bubble (items.tsx:271-273).
-            leading.constant = 16 + 22 + 8
+            leading.constant = 12 + 22 + 8
         }
         // Two views, two rules: the clock obeys the room, the send state never does.
         // Chat.tsx shows stamps outside rooms only, one per Bot run on its last row.
