@@ -180,6 +180,9 @@ enum NativeLanguage {
         "The pairing link has no {name}.": "配对链接缺少 {name}。",
         "The pairing link names a Server that is not ws:// or wss://.": "配对链接里的服务器地址不是 ws:// 或 wss:// 开头。",
         "The pairing link does not match the computer it names.": "配对链接和它指向的电脑不匹配。",
+        // phrases.ts names this family but its zh table never did, so RN shows it in
+        // English; the phone says it in Chinese like the other five.
+        "Writing a file": "写文件",
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }
