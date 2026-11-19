@@ -74,6 +74,13 @@ final class WorkspaceSidebarInteraction: UIView, UIGestureRecognizerDelegate {
     private var edgeTouchOrigin: CGPoint?
     private var edgeRejected = false
 
+    /// The three recognisers, for the tests: admission is decided by identity, and a
+    /// UITouch cannot be built outside UIKit, so the rules that do not need a touch are
+    /// checked through these.
+    var recognisers: (edge: UIScreenEdgePanGestureRecognizer,
+                      reverse: UIPanGestureRecognizer,
+                      closeTap: UITapGestureRecognizer) { (edge, reverse, closeTap) }
+
     /// DEBUG only, and settable from the wiring: zen forwards the same lines to its
     /// navigation object's nativeEvents (:172-176), which we deliberately do not carry.
     #if DEBUG
