@@ -61,6 +61,8 @@ final class ChatMessageCell: UITableViewCell {
     // Two views, two rules: the clock obeys the room, the send state never does.
     private let viaLabel = ViaTagLabel()
     private let stampRow = UIStackView()
+    /// Stretches only on a user row, so the stamp sits at the bubble's right edge.
+    private let stampSpacer = UIView()
     private let timeLabel = UILabel()
     private let stateLabel = UILabel()
     private let textStack = UIStackView()
@@ -82,6 +84,9 @@ final class ChatMessageCell: UITableViewCell {
     private var photoInsets: [NSLayoutConstraint] = []
     private var leading: NSLayoutConstraint!
     private var trailing: NSLayoutConstraint!
+    /// The bubble's top: on its own, or below the member row above it.
+    private var bubbleTopBase: NSLayoutConstraint!
+    private var bubbleTopUnderMember: NSLayoutConstraint!
     private var centered: NSLayoutConstraint!
     private var botWidth: NSLayoutConstraint!
     private var userWidth: NSLayoutConstraint!
@@ -119,11 +124,17 @@ final class ChatMessageCell: UITableViewCell {
         viaLabel.backgroundColor = palette.hover
         viaLabel.layer.cornerRadius = Radius.item
         viaLabel.clipsToBounds = true
-        // items.tsx:271 lays the via tag and the clock on one row, six apart.
+        // items.tsx:271 lays the via tag and the clock on one row, six apart, and
+        // the user's stamp sits at the right edge (marginRight 2) while a Bot's
+        // sits at the left with marginLeft 4 (:338). One flexible spacer does
+        // both: hidden on a Bot row, stretched on a user row.
         stampRow.axis = .horizontal
         stampRow.spacing = 6
         stampRow.alignment = .center
-        [viaLabel, timeLabel].forEach { stampRow.addArrangedSubview($0) }
+        stampSpacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        stampSpacer.setContentCompressionResistancePriority(.init(1), for: .horizontal)
+        [stampSpacer, viaLabel, timeLabel].forEach { stampRow.addArrangedSubview($0) }
+        stampRow.isLayoutMarginsRelativeArrangement = true
         stateLabel.font = TypeScale.caption.font
         stateLabel.textColor = palette.ink3
         textStack.axis = .vertical
@@ -153,13 +164,21 @@ final class ChatMessageCell: UITableViewCell {
         memberHeader.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 2, bottom: 3, trailing: 0)
         [memberNameLabel, memberAdminTag, memberTimeLabel].forEach { memberHeader.addArrangedSubview($0) }
         memberHeader.isHidden = true
-        textStack.insertArrangedSubview(memberHeader, at: 0)
+        // items.tsx:285-292 puts the member row above the bubble, not inside it:
+        // marginTop 6, gap 8 from the 22pt column, name/Admin/time on one line.
+        memberHeader.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(memberHeader)
+        NSLayoutConstraint.activate([
+            memberHeader.leadingAnchor.constraint(equalTo: memberAvatar.trailingAnchor, constant: 8),
+            memberHeader.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
+            memberHeader.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -12),
+        ])
         NSLayoutConstraint.activate([
             memberCharacter.leadingAnchor.constraint(equalTo: memberAvatar.leadingAnchor),
             memberCharacter.trailingAnchor.constraint(equalTo: memberAvatar.trailingAnchor),
             memberCharacter.topAnchor.constraint(equalTo: memberAvatar.topAnchor),
             memberCharacter.bottomAnchor.constraint(equalTo: memberAvatar.bottomAnchor),
-            memberAvatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            memberAvatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
             // items.tsx:272 pads the column 22 below the row's top.
             memberAvatar.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 26),
             memberAvatar.widthAnchor.constraint(equalToConstant: 22),
@@ -171,8 +190,8 @@ final class ChatMessageCell: UITableViewCell {
         cardStack.translatesAutoresizingMaskIntoConstraints = false
         cardStack.isHidden = true
         bubble.addSubview(cardStack)
-        leading = bubble.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
-        trailing = bubble.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
+        leading = bubble.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12)
+        trailing = bubble.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12)
         centered = bubble.centerXAnchor.constraint(equalTo: contentView.centerXAnchor)
         // Chat.tsx:267-271 caps each kind on its own, and a phone is always the
         // narrow branch there: a user bubble at 86% of the chat width, a Bot or
@@ -184,13 +203,16 @@ final class ChatMessageCell: UITableViewCell {
         // A wide block pins the row to its cap rather than merely capping it.
         wideWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.93)
         wideUserWidth = bubble.widthAnchor.constraint(equalTo: contentView.widthAnchor, multiplier: 0.86)
+        // items.tsx:530 styles.bubble carries marginVertical 2, so two
+        // neighbouring bubbles sit four apart; a member header pushes this row's
+        // bubble down instead of sharing its top.
+        bubbleTopBase = bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 2)
+        bubbleTopUnderMember = bubble.topAnchor.constraint(equalTo: memberHeader.bottomAnchor, constant: 2)
         NSLayoutConstraint.activate([
-            // items.tsx:530 styles.bubble carries marginVertical 2, so two
-            // neighbouring bubbles sit four apart.
-            bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 2),
+            bubbleTopBase,
             bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2),
-            bubble.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 16),
-            bubble.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -16),
+            bubble.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 12),
+            bubble.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -12),
         ])
         // The settled card's padding is its own (items.tsx: 16x12), so the two
         // stacks pin their insets separately and swap which one is active.
@@ -228,6 +250,8 @@ final class ChatMessageCell: UITableViewCell {
     var memberNameText: String? { memberNameLabel.text }
     var memberNameColor: UIColor? { memberNameLabel.textColor }
     var adminTagVisible: Bool { !memberAdminTag.isHidden }
+    /// True when the stamp is pushed to the bubble's right edge (a user row).
+    var stampHugsTrailingEdge: Bool { !stampSpacer.isHidden }
     var bubbleLeadingInset: CGFloat { leading.constant }
 
     /// tokens.ts:77-81 inkColor: a named ink has a light and a dark value, a hex is
@@ -383,6 +407,9 @@ final class ChatMessageCell: UITableViewCell {
         // The member's own colour names the row; an unknown colour falls to ink2.
         memberHeader.isHidden = !showsMember
         memberAvatar.isHidden = !showsMember
+        // One live top anchor: a member row above the bubble, or the bubble alone.
+        bubbleTopBase?.isActive = !showsMember
+        bubbleTopUnderMember?.isActive = showsMember
         if showsMember {
             // The character is painted with its ink, so the disc and the name agree.
             let dark = traitCollection.userInterfaceStyle == .dark
@@ -414,6 +441,11 @@ final class ChatMessageCell: UITableViewCell {
         viaLabel.textColor = palette.ink3
         viaLabel.backgroundColor = palette.hover
         viaLabel.isHidden = row.via == nil
+        // items.tsx:271,338: a user's stamp hugs the bubble's right edge
+        // (marginRight 2); a Bot's starts at the left, four in.
+        stampSpacer.isHidden = !row.isUser
+        stampRow.directionalLayoutMargins = NSDirectionalEdgeInsets(
+            top: 0, leading: row.isUser ? 0 : 4, bottom: 0, trailing: row.isUser ? 2 : 0)
         if row.failed {
             let reason = row.failureReason.map { NativeLanguage.text("Not sent · {reason}", ["reason": $0]) }
             stateLabel.text = reason ?? NativeLanguage.text("Not sent. Tap to retry")
