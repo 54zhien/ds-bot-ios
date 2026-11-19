@@ -198,16 +198,21 @@ final class GlassPillView: UIView {
     }
 }
 
-/// A plain-colour fade, the same device the drawer's bottom uses: one colour from
-/// solid to nothing over the given height, longer than the system's soft edge.
+/// A plain-colour fade with a hard body: opaque over its whole height except a short
+/// ramp at the bottom. The ramp is what keeps the edge from reading as a divider —
+/// a single-row step leaves one half-alpha row, and that row is the line people see.
+/// One layer, three stops, so there is no seam between an opaque band and a ramp.
 final class FadeOverlayView: UIView {
+    /// How much of the height carries the ramp; the rest is fully opaque.
+    private static let ramp: CGFloat = 18
+
     private let gradient = CAGradientLayer()
+    private var color: UIColor = .clear
 
     init() {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         isUserInteractionEnabled = false
-        gradient.locations = [0, 1]
         gradient.startPoint = CGPoint(x: 0.5, y: 0)
         gradient.endPoint = CGPoint(x: 0.5, y: 1)
         layer.addSublayer(gradient)
@@ -216,14 +221,26 @@ final class FadeOverlayView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func configure(color: UIColor) {
-        gradient.colors = [color.cgColor, color.withAlphaComponent(0).cgColor]
+        self.color = color
+        applyStops()
+    }
+
+    private func applyStops() {
+        let height = max(1, bounds.height)
+        let ramp = min(Self.ramp, height)
+        let hard = (height - ramp) / height
+        gradient.colors = [color.cgColor, color.cgColor, color.withAlphaComponent(0).cgColor]
+        gradient.locations = [0, NSNumber(value: Double(hard)), 1]
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        gradient.frame = bounds
+        // Whole points, so the ramp's last row lines up with the screen's pixels and
+        // no partially covered row is left to show as a hairline.
+        gradient.frame = bounds.integral
+        applyStops()
         CATransaction.commit()
     }
 }
