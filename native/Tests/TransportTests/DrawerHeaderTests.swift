@@ -95,7 +95,9 @@ final class DrawerHeaderTests: XCTestCase {
         let lightName = find("drawer.tile.name", in: controller.view) as? UILabel
         XCTAssertEqual(lightName?.textColor, ThemeStore.palette(dark: false).ink)
 
-        controller.view.overrideUserInterfaceStyle = .dark
+        controller.overrideUserInterfaceStyle = .dark
+        XCTAssertEqual(controller.traitCollection.userInterfaceStyle, .dark,
+                       "the appearance override never reached the controller")
         controller.refreshAppearance()
         controller.view.layoutIfNeeded()
 

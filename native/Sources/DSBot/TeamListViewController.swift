@@ -145,9 +145,9 @@ final class TeamListViewController: UIViewController, UITableViewDataSource, UIT
     /// cause of a head that keeps the old palette is that `tableHeaderView` takes no part
     /// in `reloadData`: the rows below it move to the new palette and the header does not.
     func refreshAppearance() {
-        // The view's traits, not the controller's: the view is what draws, and it carries
-        // any per-view override the moment it is set.
-        palette = ThemeStore.palette(trait: view.traitCollection)
+        // The controller's traits: its own appearance override is the one a host or a
+        // test sets, and it updates this collection directly.
+        palette = ThemeStore.palette(trait: traitCollection)
         gearButtonIcon.color = palette.ink2
         plusButtonIcon.color = palette.ink2
         headTitle.textColor = palette.ink
