@@ -122,7 +122,8 @@ RN 基准：`model-menu.tsx:221` —— 未选模型时模型触发器下方一�
 
 这一节记的是「我们知道和参考实现不一样，并且不改」的地方。不是缺口，也不是待办。
 
-- **顶栏渐隐是「模糊 + 18% 页面底色」的近似，不是纯色层。** 依据是用户给的参照图：内容在顶部逐渐模糊淡出，没有纯色硬边。做法是 `UIVisualEffectView(.systemUltraThinMaterial)` 加一层 `palette.main` alpha 0.18，两者共用一条 alpha 蒙版：顶段完全不透明、最后 24pt 降到 0、斜坡夹在高度 40% 以内（`ChatHeaderViews.swift` 的 `FadeOverlayView`，测试 `FadeOverlayTests`）。副产物是它比纯色层贵一次离屏模糊；像素结果与参照图的观感一致，但没有逐像素比对。
+- **iOS 17–25 的顶栏渐隐是「模糊 + 18% 页面底色」的近似，不是纯色层。** 依据是用户给的参照图：内容在顶部逐渐模糊淡出，没有纯色硬边。做法是 `UIVisualEffectView(.systemUltraThinMaterial)` 加一层 `palette.main` alpha 0.18，两者共用一条 alpha 蒙版：顶段完全不透明、最后 24pt 降到 0、斜坡夹在高度 40% 以内（`ChatHeaderViews.swift` 的 `FadeOverlayView`，测试 `FadeOverlayTests`）。副产物是它比纯色层贵一次离屏模糊；像素结果与参照图的观感一致，但没有逐像素比对。
+- **iOS 26 起顶栏边缘交给系统：`UIScrollEdgeEffect(.soft)`；17–25 用自绘模糊渐隐兜底。** 官方 API（`UIScrollView.topEdgeEffect`，iOS 26.0+）的三个 style 里 `.hard` 是「硬截止 + 分割线」——正是被否掉的那版；`.soft` 才是内容在顶栏下逐渐模糊的那张图。做法：`ChatViewController` 在装列表时调 `ChatTopEdgeEffect.apply(to:fallback:)`（`ChatTopEdgeEffect.swift`），26 上设 `.soft` 并把 `FadeOverlayView` 隐藏（不删，17–25 仍靠它）；测试 `ChatTopEdgeEffectTests`。**这是本项目第二次自造轮子被官方 API 取代**，第一次是 `cornerConfiguration`。尚未在真机核对系统的模糊带高度是否正好盖住自绘顶栏（列表顶边贴在屏幕顶、顶栏是自绘玻璃，不在导航栏位），出包后看图再定。
 - **侧栏 rail 的按压动画曲线为近似。** zen `App/Workspace/SidebarRailView.swift:178` 是 SwiftUI `.spring(duration: 0.28, bounce: 0.3)`；UIKit 没有 bounce 这个参数，原生取同 0.28s 的 `usingSpringWithDamping: 0.7`（`WorkspaceSidebar/SidebarRailView.swift`，注释里也写了）。时长与触发时机一致，曲线是最近的近似，不是等价替换；Reduce Motion 下两边都不缩放。
 
 ### 未覆盖的判据
