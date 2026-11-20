@@ -248,8 +248,16 @@ final class FadeOverlayView: UIView {
         applyStops()
     }
 
+    /// Recomputes the mask for the current bounds. Called from configure and from layout,
+    /// and callable on its own so a test does not have to rely on a layout pass happening
+    /// in a headless window.
+    func refreshMask() { applyStops() }
+
     private func applyStops() {
-        let height = max(1, bounds.height)
+        // A view with no height has nothing to fade yet; computing one would leave a mask
+        // for the wrong height behind and look like a stop in the wrong place.
+        let height = bounds.height
+        guard height > 1 else { return }
         let ramp = min(Self.ramp, height * 0.4)
         let hard = (height - ramp) / height
         maskLayer.colors = [UIColor.white.cgColor, UIColor.white.cgColor,

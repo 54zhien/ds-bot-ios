@@ -11,7 +11,9 @@ final class FadeOverlayTests: XCTestCase {
         fade.frame = CGRect(x: 0, y: 0, width: 390, height: 100)
         fade.configure(color: .white)
         fade.layoutIfNeeded()
+        fade.refreshMask()
 
+        XCTAssertEqual(fade.bounds.height, 100, accuracy: 0.5, "the frame did not take")
         XCTAssertNotNil(fade.layer.mask, "the blur is cut by a mask, not by a colour ramp")
         let stops = fade.maskLocations.map { $0.doubleValue }
         XCTAssertEqual(stops.count, 3)
@@ -27,6 +29,7 @@ final class FadeOverlayTests: XCTestCase {
         let fade = FadeOverlayView()
         fade.frame = CGRect(x: 0, y: 0, width: 390, height: 40)
         fade.layoutIfNeeded()
+        fade.refreshMask()
         let stops = fade.maskLocations.map { $0.doubleValue }
         XCTAssertEqual(stops[1], 0.6, accuracy: 0.001)
     }
