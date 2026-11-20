@@ -257,7 +257,12 @@ final class FadeOverlayView: UIView {
         // A view with no height has nothing to fade yet; computing one would leave a mask
         // for the wrong height behind and look like a stop in the wrong place.
         let height = bounds.height
-        guard height > 1 else { return }
+        guard height > 1 else {
+            // Never leave the mask without stops: callers and tests read [1] unconditionally,
+            // and an empty array is an index crash rather than a missing value.
+            maskLayer.locations = [0, 1, 1]
+            return
+        }
         let ramp = min(Self.ramp, height * 0.4)
         let hard = (height - ramp) / height
         maskLayer.colors = [UIColor.white.cgColor, UIColor.white.cgColor,

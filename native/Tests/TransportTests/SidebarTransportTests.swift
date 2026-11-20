@@ -24,13 +24,12 @@ final class SidebarTransportTests: XCTestCase {
     /// turn, so the caller can lay out first, the way zen yields before reporting.
     func testReduceMotionJumpsAndStillReports() async {
         let transport = SidebarTransportView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
-        var reported = 0
-        SidebarSettlement.run(offset: 96, on: transport, reduceMotion: true) { reported += 1 }
+        let reported = expectation(description: "the settlement reports back")
+        SidebarSettlement.run(offset: 96, on: transport, reduceMotion: true) { reported.fulfill() }
         XCTAssertEqual(transport.offset, 96, "the jump is immediate")
         XCTAssertEqual(reported, 0, "the report waits for the next turn")
-        // Two yields are not a guarantee under XCTest: the deferred Task may still be
-        // queued. Sleep long enough for one main-actor turn to run, then read the count.
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertEqual(reported, 1)
+        // The report lands a turn later by design; an expectation waits for it instead of
+        // guessing how many yields that costs.
+        await fulfillment(of: [reported], timeout: 2)
     }
 }
