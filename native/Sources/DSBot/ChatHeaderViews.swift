@@ -222,7 +222,8 @@ final class FadeOverlayView: UIView {
 
     init() {
         super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
+        // Translation stays on here: whoever installs this view decides. Off, and nothing
+        // holds the size a bare instance is handed once a layout pass runs.
         isUserInteractionEnabled = false
         blur.isUserInteractionEnabled = false
         washView.isUserInteractionEnabled = false
@@ -253,21 +254,23 @@ final class FadeOverlayView: UIView {
     /// in a headless window.
     func refreshMask() { applyStops() }
 
-    private func applyStops() {
-        // A view with no height has nothing to fade yet; computing one would leave a mask
-        // for the wrong height behind and look like a stop in the wrong place.
-        let height = bounds.height
-        guard height > 1 else {
-            // Never leave the mask without stops: callers and tests read [1] unconditionally,
-            // and an empty array is an index crash rather than a missing value.
-            maskLayer.locations = [0, 1, 1]
-            return
-        }
+    /// The three stops for a given height, pure so the arithmetic can be checked without a
+    /// laid-out view: opaque from the top, one ramp at the end down to zero, and a ramp that
+    /// never eats more than 40% of the height.
+    static func stops(forHeight height: CGFloat) -> [NSNumber] {
+        // A view with no height has nothing to fade yet. It still gets stops - callers read
+        // [1] unconditionally, and an empty array is an index crash, not a missing value.
+        guard height > 1 else { return [0, 1, 1] }
         let ramp = min(Self.ramp, height * 0.4)
-        let hard = (height - ramp) / height
+        return [0, NSNumber(value: Double((height - ramp) / height)), 1]
+    }
+
+    private func applyStops() {
+        // Colours before the height is known: a mask without them draws nothing, and the first
+        // pass after init can be one that runs while the view is still zero-sized.
         maskLayer.colors = [UIColor.white.cgColor, UIColor.white.cgColor,
                             UIColor.white.withAlphaComponent(0).cgColor]
-        maskLayer.locations = [0, NSNumber(value: Double(hard)), 1]
+        maskLayer.locations = Self.stops(forHeight: bounds.height)
     }
 
     override func layoutSubviews() {

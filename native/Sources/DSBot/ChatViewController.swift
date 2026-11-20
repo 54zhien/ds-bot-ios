@@ -638,6 +638,7 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             // offset needs a guide: pairing .top with .height is rejected at runtime.
             emptyChatView.topAnchor.constraint(equalTo: emptyChatGuide.bottomAnchor),
         ])
+        headerFade.translatesAutoresizingMaskIntoConstraints = false
         headerFade.configure(color: palette.main)
         view.addSubview(headerFade)
         headerFadeHeight = headerFade.heightAnchor.constraint(
