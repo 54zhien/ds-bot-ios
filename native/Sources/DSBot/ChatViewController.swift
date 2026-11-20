@@ -648,6 +648,8 @@ final class ChatViewController: UIViewController, UIGestureRecognizerDelegate {
             headerFade.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             headerFadeHeight,
         ])
+        // iOS 26 blurs the top edge itself; the fade is the fallback for 17-25.
+        ChatTopEdgeEffect.apply(to: list, fallback: headerFade)
         // The header and its pill float over the list and the fade, so they stay frontmost.
         view.bringSubviewToFront(header)
         view.bringSubviewToFront(statusPill)
