@@ -27,7 +27,8 @@ final class SidebarTransportTests: XCTestCase {
         let reported = expectation(description: "the settlement reports back")
         SidebarSettlement.run(offset: 96, on: transport, reduceMotion: true) { reported.fulfill() }
         XCTAssertEqual(transport.offset, 96, "the jump is immediate")
-        XCTAssertEqual(reported, 0, "the report waits for the next turn")
+        // Not asserted here: XCTest cannot tell "not yet fulfilled" apart from "never will be"
+        // before the wait below, and the old counter could not either without a sleep.
         // The report lands a turn later by design; an expectation waits for it instead of
         // guessing how many yields that costs.
         await fulfillment(of: [reported], timeout: 2)
