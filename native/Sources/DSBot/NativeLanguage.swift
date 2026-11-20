@@ -190,8 +190,8 @@ enum NativeLanguage {
         // The drawer's own words: two group titles, the fold row and its two states.
         "Current": "当前",
         "Older · {count}": "更早的 {count} 个",
-        "Expanded": "已展开",
-        "Collapsed": "已收起",
+        // "Expanded" and "Collapsed" already exist above; a second literal would be a
+        // duplicate key, which traps at launch rather than merely overwriting.
     ]
 
     static var mode: String { UserDefaults.standard.string(forKey: preference) ?? "system" }
